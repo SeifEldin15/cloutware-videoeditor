@@ -1,0 +1,11 @@
+{
+  // https://nuxt.com/docs/guide/concepts/typescript
+  "extends": "./.nuxt/tsconfig.json",
+  "includes": [
+    "types/*.d.ts"
+  ],
+  "compilerOptions": {
+    "target": "ES2022",
+    "strict": true
+  }
+}
