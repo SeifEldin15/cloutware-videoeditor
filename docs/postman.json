@@ -1,0 +1,123 @@
+{
+  "info": {
+    "_postman_id": "ffmpeg-utils-collection",
+    "name": "FFmpeg Utility API",
+    "description": "FFmpeg wrapper utilities for video processing",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "item": [
+    {
+      "name": "Get Available Codecs",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/ffmpeg/codecs",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "ffmpeg", "codecs"]
+        },
+        "description": "Returns a list of available FFmpeg codecs"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Available Encoders",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/ffmpeg/encoders",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "ffmpeg", "encoders"]
+        },
+        "description": "Returns a list of available FFmpeg encoders"
+      },
+      "response": []
+    },
+    {
+      "name": "Encode Video",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/encode?url=https://example.com/sample-video.mp4",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "encode"],
+          "query": [
+            {
+              "key": "url",
+              "value": "https://example.com/sample-video.mp4",
+              "description": "URL of the video to process"
+            }
+          ]
+        },
+        "description": "Processes a video URL and returns multiple formats:\n\n- PNG thumbnail (first frame)\n- 3-second GIF preview (320px width)\n- H.265 MP4 version\n- MKV version with H.264\n\nReturns a multipart response with all processed files."
+      },
+      "response": [
+        {
+          "name": "Example Response",
+          "status": "200",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "multipart/mixed; boundary=------------------------12345678"
+            }
+          ],
+          "body": "Multipart response containing:\n1. thumbnail.png (image/png)\n2. preview.gif (image/gif)\n3. video-h265.mp4 (video/mp4)\n4. video.mkv (video/x-matroska)"
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    }
+  ],
+  "exports": {
+    "default": {
+      "name": "ffmpeg",
+      "type": "function",
+      "description": "Default export providing configured fluent-ffmpeg instance",
+      "usage": "import ffmpeg from '../utils/ffmpeg'"
+    },
+    "encoders": {
+      "name": "encoders",
+      "type": "Promise<string[]>",
+      "description": "Returns a promise that resolves to an array of available FFmpeg encoder names",
+      "usage": "import { encoders } from '../utils/ffmpeg'"
+    },
+    "codecs": {
+      "name": "codecs", 
+      "type": "Promise<string[]>",
+      "description": "Returns a promise that resolves to an array of available FFmpeg codec names",
+      "usage": "import { codecs } from '../utils/ffmpeg'"
+    }
+  },
+  "configuration": {
+    "ffmpegPath": {
+      "description": "Automatically configures FFmpeg binary path using @ffmpeg-installer/ffmpeg",
+      "type": "string"
+    }
+  },
+  "dependencies": {
+    "fluent-ffmpeg": "^2.x",
+    "@ffmpeg-installer/ffmpeg": "latest"
+  },
+  "examples": {
+    "basic_usage": {
+      "description": "Basic FFmpeg command creation",
+      "code": "ffmpeg('input.mp4').output('output.mp4').run()"
+    },
+    "get_available_codecs": {
+      "description": "Get list of available codecs",
+      "code": "const availableCodecs = await codecs"
+    },
+    "get_available_encoders": {
+      "description": "Get list of available encoders",
+      "code": "const availableEncoders = await encoders"
+    }
+  }
+}
