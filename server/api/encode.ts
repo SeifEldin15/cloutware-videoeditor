@@ -216,31 +216,43 @@ export default eventHandler(async (event) => {
       console.log('Processing H.265 video...');
       try {
         const h265Stream = new PassThrough();
-        ffmpeg(getStream())
+        const ffmpegProcess = ffmpeg(getStream())
           .outputOptions([
             '-c:v', 'libx265',
             '-preset', 'ultrafast',
             '-crf', '28',
-            '-movflags', '+faststart',
-            '-f', 'mp4',
+            '-f', 'matroska',
             '-strict', 'experimental'
           ])
           .on('start', (commandLine: string) => {
             console.log('FFmpeg started:', commandLine);
           })
           .on('progress', (progress: any) => {
-            console.log('H.265 Processing:', progress.percent?.toFixed(2) + '%');
+            // Better progress reporting that handles missing percent
+            let progressInfo = '';
+            if (progress.percent) {
+              progressInfo = `${progress.percent.toFixed(2)}%`;
+            } else if (progress.frames) {
+              progressInfo = `${progress.frames} frames`;
+            } else if (progress.timemark) {
+              progressInfo = `at ${progress.timemark}`;
+            }
+            console.log(`H.265 Processing: ${progressInfo}`);
+          })
+          .on('stderr', (stderrLine: string) => {
+            console.log('FFmpeg stderr:', stderrLine);
           })
           .on('error', (err: Error) => {
             console.error('H.265 error:', err);
+            console.error('Error details:', (err as any).message, (err as any).stderr || 'No stderr output');
             h265Stream.end();
           })
           .pipe(h265Stream, { end: true });
         
-        archive.append(h265Stream, { name: 'video.mp4' });
+        archive.append(h265Stream, { name: 'video.mkv' });
       } catch (error) {
         console.error('H.265 processing error:', error);
-        addEmptyFile('video.mp4');
+        addEmptyFile('video.mkv');
       }
     })());
     
