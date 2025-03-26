@@ -14,107 +14,176 @@ const schema = z.object({
   url: z.string().url()
 })
 
-// Helper function to create a clonable video stream using stream-buffers
 async function createClonableVideoStream(url: string): Promise<{
   getStream: () => Readable,
   cleanup: () => void
 }> {
   return new Promise((resolve, reject) => {
-    const ytdlpProcess = spawn('yt-dlp', [
+    const isTikTok = url.includes('tiktok.com');
+    const isYouTube = url.includes('youtube.com') || url.includes('youtu.be');
+    
+    const ytdlpArgs = [
       url,
-      '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
       '-o', '-',
       '--no-warnings',
       '--no-check-certificates',
       '--force-overwrites',
       '--no-playlist',
-    ]);
+    ];
+    
+    if (isYouTube) {
+      ytdlpArgs.push('-f', 'best'); 
+      ytdlpArgs.push('-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best');
+      ytdlpArgs.push('--extractor-args', 'tiktok:browser=chrome');
+    } else {
+      ytdlpArgs.push('-f', 'bestvideo+bestaudio/best');
+    }
+    
+    console.log(`Starting yt-dlp with args: ${ytdlpArgs.join(' ')}`);
+    const ytdlpProcess = spawn('yt-dlp', ytdlpArgs);
 
     // Handle process errors
     ytdlpProcess.on('error', (err) => {
       reject(new Error(`Failed to spawn yt-dlp: ${err.message}`));
     });
 
-    // Log stderr for debugging
+    let hasError = false;
+
     ytdlpProcess.stderr.on('data', (data) => {
       const message = data.toString();
       if (message.includes('ERROR') || message.includes('Error')) {
         console.error(`yt-dlp error: ${message}`);
+        hasError = true;
+        
+        if (isTikTok && message.includes('Unable to extract webpage video data')) {
+          reject(new Error('Cannot process this TikTok video - yt-dlp needs to be updated. Try updating yt-dlp with: yt-dlp -U'));
+        }
       } else {
         console.log(`yt-dlp: ${message}`);
       }
     });
 
-    // Check if process exits with error
     ytdlpProcess.on('exit', (code) => {
-      if (code !== 0 && code !== null) {
-        reject(new Error(`yt-dlp exited with code ${code}`));
+      if ((code !== 0 && code !== null) || hasError) {
+        reject(new Error(`yt-dlp exited with code ${code}. This video may be unavailable or the service may be unsupported.`));
       }
     });
 
-    // Create a more robust buffering and distribution system
-    const dataChunks: Buffer[] = [];
-    let ended = false;
-    const streams: PassThrough[] = [];
-    
-    // Collect data from yt-dlp
-    ytdlpProcess.stdout.on('data', (chunk) => {
-      dataChunks.push(Buffer.from(chunk));
-      // Send new data to all streams
-      for (const stream of streams) {
-        if (!stream.destroyed) {
-          stream.write(chunk);
-        }
-      }
-    });
-    
-    // Handle stream end
-    ytdlpProcess.stdout.on('end', () => {
-      ended = true;
-      // End all streams
-      for (const stream of streams) {
-        if (!stream.destroyed) {
-          stream.end();
-        }
-      }
-    });
-
-    // Function to get a new stream
-    const getStream = () => {
-      const newStream = new PassThrough();
+    if (isYouTube) {
+      const dataChunks: Buffer[] = [];
+      let ended = false;
       
-      // For new streams, write all existing data first
-      if (dataChunks.length > 0) {
-        for (const chunk of dataChunks) {
-          newStream.write(chunk);
-        }
+      ytdlpProcess.stdout.on('data', (chunk) => {
+        dataChunks.push(Buffer.from(chunk));
+      });
+      
+      ytdlpProcess.stdout.on('end', () => {
+        ended = true;
+        console.log(`YouTube download complete, received ${dataChunks.length} chunks`);
+      });
+
+      const getStream = () => {
+        const newStream = new PassThrough();
         
-        // If download already finished, end the stream
-        if (ended) {
+        if (dataChunks.length > 0) {
+          console.log(`Sending ${dataChunks.length} chunks to stream`);
+          for (const chunk of dataChunks) {
+            newStream.write(chunk);
+          }
+          
+          if (ended) {
+            console.log('Download already complete, ending stream');
+            newStream.end();
+          }
+        } else if (ended) {
+          console.log('WARNING: Download ended but no data chunks available');
           newStream.end();
         }
-      }
-      
-      // Add to active streams if not ended
-      if (!ended) {
-        streams.push(newStream);
-      }
-      
-      return newStream;
-    };
+        
+        return newStream;
+      };
 
-    // Cleanup function
-    const cleanup = () => {
-      try {
-        ytdlpProcess.kill();
-        for (const stream of streams) {
-          try { stream.destroy(); } catch (e) { /* ignore */ }
+      const cleanup = () => {
+        try {
+          ytdlpProcess.kill();
+        } catch (e) { /* ignore */ }
+      };
+
+      resolve({ getStream, cleanup });
+    } else {
+      const dataChunks: Buffer[] = [];
+      let ended = false;
+      const streams: PassThrough[] = [];
+      
+      const noDataTimeout = setTimeout(() => {
+        if (dataChunks.length === 0 && !ended) {
+          reject(new Error('No data received from yt-dlp after 30 seconds'));
+          try { ytdlpProcess.kill(); } catch (e) { /* ignore */ }
         }
-      } catch (e) { /* ignore */ }
-    };
+      }, 30000);
+      
+      // Collect data from yt-dlp
+      ytdlpProcess.stdout.on('data', (chunk) => {
+        dataChunks.push(Buffer.from(chunk));
+        // Send new data to all streams
+        for (const stream of streams) {
+          if (!stream.destroyed) {
+            stream.write(chunk);
+          }
+        }
+      });
+      
+      ytdlpProcess.stdout.on('end', () => {
+        clearTimeout(noDataTimeout);
+        ended = true;
+        console.log(`Download complete, received ${dataChunks.length} chunks`);
+        
+        if (dataChunks.length === 0 && !hasError) {
+          reject(new Error('yt-dlp completed but no video data was received'));
+          return;
+        }
+        
+        for (const stream of streams) {
+          if (!stream.destroyed) {
+            stream.end();
+          }
+        }
+      });
 
-    // Return stream factory and cleanup
-    resolve({ getStream, cleanup });
+      const getStream = () => {
+        const newStream = new PassThrough();
+        
+        if (dataChunks.length > 0) {
+          console.log(`Sending ${dataChunks.length} chunks to stream`);
+          for (const chunk of dataChunks) {
+            newStream.write(chunk);
+          }
+          
+          if (ended) {
+            console.log('Download already complete, ending stream');
+            newStream.end();
+          }
+        }
+        
+        if (!ended) {
+          streams.push(newStream);
+        }
+        
+        return newStream;
+      };
+
+      const cleanup = () => {
+        clearTimeout(noDataTimeout);
+        try {
+          ytdlpProcess.kill();
+          for (const stream of streams) {
+            try { stream.destroy(); } catch (e) { /* ignore */ }
+          }
+        } catch (e) { /* ignore */ }
+      };
+
+      resolve({ getStream, cleanup });
+    }
   });
 }
 
@@ -122,113 +191,184 @@ export default eventHandler(async (event) => {
   const { url } = await getValidatedQuery(event, schema.parse)
   
   try {
+    console.log(`Processing video URL: ${url}`);
     const { getStream, cleanup } = await createClonableVideoStream(url);
     
     const archive = archiver('zip', {
       zlib: { level: 1 }
     });
     
+    archive.on('error', (err) => {
+      console.error('Archive error:', err);
+      event.node.res.statusCode = 500;
+      event.node.res.end('Error creating archive');
+      cleanup();
+    });
+    
+    archive.on('progress', (progress) => {
+      console.log(`Archive progress: ${progress.entries.processed}/${progress.entries.total} entries, ${progress.fs.processedBytes} bytes`);
+    });
+    
+    console.log('Setting response headers...');
     setResponseHeader(event, 'Content-Type', 'application/zip');
     setResponseHeader(event, 'Content-Disposition', 'attachment; filename="video-package.zip"');
     
+    console.log('Piping archive to response...');
     archive.pipe(event.node.res);
     
     const addEmptyFile = (name: string) => {
       try {
+        console.log(`Adding empty file: ${name}`);
         archive.append(Buffer.from([]), { name });
       } catch (err) {
         console.error(`Failed to add empty file ${name}:`, err);
       }
     };
     
-    const tasks: Promise<void>[] = [];
+    console.log('Adding info.txt to archive...');
+    archive.append(`Video URL: ${url}\nProcessed: ${new Date().toISOString()}\n`, { name: 'info.txt' });
     
-    tasks.push((async () => {
-      console.log('Generating thumbnail...');
-      try {
+    // Task 1: Generate thumbnail
+    console.log('Generating thumbnail...');
+    try {
+      const thumbnailBuffer = await new Promise<Buffer>((resolve, reject) => {
+        const chunks: Buffer[] = [];
         const thumbnailStream = new PassThrough();
-        await new Promise<void>((resolve, reject) => {
-          ffmpeg(getStream())
-            .seekInput('5') // Seek to 5 seconds (adjust as needed)
-            .frames(1)
-            .outputOptions([
-              '-f', 'image2',
-              '-vcodec', 'png'
-            ])
-            .on('start', (commandLine: string) => {
-              console.log('FFmpeg started:', commandLine);
-            })
-            .on('error', reject)
-            .pipe(thumbnailStream)
-            .on('end', resolve);
-        });
-        archive.append(thumbnailStream, { name: 'thumbnail.png' });
-      } catch (error) {
-        console.error('Thumbnail processing error:', error);
-        addEmptyFile('thumbnail.png');
-      }
-    })());
         
-    // Generate GIF directly to memory
-    tasks.push((async () => {
-      console.log('Generating GIF...');
-      try {
+        thumbnailStream.on('data', (chunk) => chunks.push(chunk));
+        thumbnailStream.on('error', reject);
+        thumbnailStream.on('end', () => resolve(Buffer.concat(chunks)));
+        
+        const ffmpegProcess = ffmpeg(getStream())
+          .seekInput('5') 
+          .frames(1)
+          .outputOptions([
+            '-f', 'image2',
+            '-vcodec', 'png'
+          ])
+          .on('start', (commandLine: any) => {
+            console.log('Thumbnail FFmpeg started:', commandLine);
+          })
+          .on('error', (err: Error) => {
+            console.error('Thumbnail FFmpeg error:', err);
+            reject(err);
+          });
+        
+        const timeout = setTimeout(() => {
+          console.error('Thumbnail process timed out after 60 seconds');
+          reject(new Error('Thumbnail process timed out'));
+        }, 60000);
+        
+        ffmpegProcess.pipe(thumbnailStream);
+        
+        thumbnailStream.on('end', () => {
+          clearTimeout(timeout);
+        });
+      });
+      
+      console.log(`Thumbnail generated: ${thumbnailBuffer.length} bytes`);
+      archive.append(thumbnailBuffer, { name: 'thumbnail.png' });
+    } catch (error) {
+      console.error('Thumbnail processing error:', error);
+      addEmptyFile('thumbnail.png');
+    }
+    
+    console.log('Generating GIF...');
+    try {
+      const gifBuffer = await new Promise<Buffer>((resolve, reject) => {
+        const chunks: Buffer[] = [];
         const gifStream = new PassThrough();
-        ffmpeg(getStream())
+        
+        gifStream.on('data', (chunk) => chunks.push(chunk));
+        gifStream.on('error', reject);
+        gifStream.on('end', () => resolve(Buffer.concat(chunks)));
+        
+        const ffmpegProcess = ffmpeg(getStream())
           .inputOptions(['-t', '3'])
           .outputOptions([
             '-vf', 'fps=10,scale=320:-1:flags=lanczos',
             '-f', 'gif'
           ])
-          .on('error', (err: Error) => console.error('GIF error:', err))
-          .pipe(gifStream, { end: true });
+          .on('start', (commandLine: string) => {
+            console.log('GIF FFmpeg started:', commandLine);
+          })
+          .on('error', (err: Error) => {
+            console.error('GIF FFmpeg error:', err);
+            reject(err);
+          });
         
-        archive.append(gifStream, { name: 'preview.gif' });
-      } catch (error) {
-        console.error('GIF processing error:', error);
-        addEmptyFile('preview.gif');
-      }
-    })());
+        const timeout = setTimeout(() => {
+          console.error('GIF process timed out after 60 seconds');
+          reject(new Error('GIF process timed out'));
+        }, 60000);
+        
+        ffmpegProcess.pipe(gifStream);
+        
+        gifStream.on('end', () => {
+          clearTimeout(timeout);
+        });
+      });
+      
+      console.log(`GIF generated: ${gifBuffer.length} bytes`);
+      archive.append(gifBuffer, { name: 'preview.gif' });
+    } catch (error) {
+      console.error('GIF processing error:', error);
+      addEmptyFile('preview.gif');
+    }
     
-    // Generate MKV
-    tasks.push((async () => {
-      console.log('Processing MKV...');
-      try {
+    console.log('Processing MKV...');
+    try {
+      const mkvBuffer = await new Promise<Buffer>((resolve, reject) => {
+        const chunks: Buffer[] = [];
         const mkvStream = new PassThrough();
+        
+        mkvStream.on('data', (chunk) => chunks.push(chunk));
+        mkvStream.on('error', reject);
+        mkvStream.on('end', () => resolve(Buffer.concat(chunks)));
+        
         ffmpeg(getStream())
           .outputOptions([
             '-c:v', 'copy',
             '-c:a', 'copy',
             '-f', 'matroska'
           ])
-          .on('error', (err: Error) => console.error('MKV error:', err))
-          .pipe(mkvStream, { end: true });
-        
-        archive.append(mkvStream, { name: 'video.mkv' });
-      } catch (error) {
-        console.error('MKV processing error:', error);
-        addEmptyFile('video.mkv');
-      }
-    })());
+          .on('error', (err: Error) => {
+            console.error('MKV error:', err);
+            reject(err);
+          })
+          .pipe(mkvStream);
+      });
+      
+      console.log(`MKV generated: ${mkvBuffer.length} bytes`);
+      archive.append(mkvBuffer, { name: 'video.mkv' });
+    } catch (error) {
+      console.error('MKV processing error:', error);
+      addEmptyFile('video.mkv');
+    }
     
-    // H.265 encoding
-    tasks.push((async () => {
-      console.log('Processing H.265 video...');
-      try {
+    console.log('Processing H.265 video...');
+    try {
+      const h265Buffer = await new Promise<Buffer>((resolve, reject) => {
+        const chunks: Buffer[] = [];
         const h265Stream = new PassThrough();
-        const ffmpegProcess = ffmpeg(getStream())
+        
+        h265Stream.on('data', (chunk) => chunks.push(chunk));
+        h265Stream.on('error', reject);
+        h265Stream.on('end', () => resolve(Buffer.concat(chunks)));
+        
+        ffmpeg(getStream())
           .outputOptions([
             '-c:v', 'libx265',
             '-preset', 'ultrafast',
             '-crf', '28',
-            '-f', 'matroska',
+            '-c:a', 'aac',
+            '-f', 'mpegts',    
             '-strict', 'experimental'
           ])
           .on('start', (commandLine: string) => {
             console.log('FFmpeg started:', commandLine);
           })
           .on('progress', (progress: any) => {
-            // Better progress reporting that handles missing percent
             let progressInfo = '';
             if (progress.percent) {
               progressInfo = `${progress.percent.toFixed(2)}%`;
@@ -245,24 +385,32 @@ export default eventHandler(async (event) => {
           .on('error', (err: Error) => {
             console.error('H.265 error:', err);
             console.error('Error details:', (err as any).message, (err as any).stderr || 'No stderr output');
-            h265Stream.end();
+            reject(err);
           })
-          .pipe(h265Stream, { end: true });
-        
-        archive.append(h265Stream, { name: 'video.mkv' });
-      } catch (error) {
-        console.error('H.265 processing error:', error);
-        addEmptyFile('video.mkv');
-      }
-    })());
+          .pipe(h265Stream);
+      });
+      
+      console.log(`H.265 video generated: ${h265Buffer.length} bytes`);
+      archive.append(h265Buffer, { name: 'video.h265.mp4' }); 
+    } catch (error) {
+      console.error('H.265 processing error:', error);
+      addEmptyFile('video.h265.mp4');
+    }
     
-    await Promise.all(tasks);
+    console.log('Finalizing archive...');
     await archive.finalize();
+    console.log('Archive finalized successfully and sent to client');
     cleanup();
     
   } catch (error) {
     console.error('Error processing video:', error);
     event.node.res.statusCode = 500;
-    return { error: 'Failed to process video' };
+    
+    const errorMessage = error instanceof Error 
+      ? error.message 
+      : 'Unknown error occurred';
+      
+    event.node.res.end(JSON.stringify({ error: 'Failed to process video: ' + errorMessage }));
+    return;
   }
 });
