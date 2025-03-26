@@ -8,6 +8,7 @@ import { pipeline } from 'stream'
 import { promisify } from 'util'
 
 
+
 const pipelineAsync = promisify(pipeline)
 
 const schema = z.object({
@@ -29,20 +30,12 @@ async function createClonableVideoStream(url: string): Promise<{
       '--no-check-certificates',
       '--force-overwrites',
       '--no-playlist',
+      '-f', 'best[height<=1080]'
     ];
-    
-    if (isYouTube) {
-      ytdlpArgs.push('-f', 'best'); 
-      ytdlpArgs.push('-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best');
-      ytdlpArgs.push('--extractor-args', 'tiktok:browser=chrome');
-    } else {
-      ytdlpArgs.push('-f', 'bestvideo+bestaudio/best');
-    }
     
     console.log(`Starting yt-dlp with args: ${ytdlpArgs.join(' ')}`);
     const ytdlpProcess = spawn('yt-dlp', ytdlpArgs);
 
-    // Handle process errors
     ytdlpProcess.on('error', (err) => {
       reject(new Error(`Failed to spawn yt-dlp: ${err.message}`));
     });
@@ -122,10 +115,8 @@ async function createClonableVideoStream(url: string): Promise<{
         }
       }, 30000);
       
-      // Collect data from yt-dlp
       ytdlpProcess.stdout.on('data', (chunk) => {
         dataChunks.push(Buffer.from(chunk));
-        // Send new data to all streams
         for (const stream of streams) {
           if (!stream.destroyed) {
             stream.write(chunk);
@@ -228,7 +219,6 @@ export default eventHandler(async (event) => {
     console.log('Adding info.txt to archive...');
     archive.append(`Video URL: ${url}\nProcessed: ${new Date().toISOString()}\n`, { name: 'info.txt' });
     
-    // Task 1: Generate thumbnail
     console.log('Generating thumbnail...');
     try {
       const thumbnailBuffer = await new Promise<Buffer>((resolve, reject) => {
