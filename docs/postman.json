@@ -36,35 +36,54 @@
       "response": []
     },
     {
-      "name": "Encode Video",
+      "name": "Process Video",
       "request": {
-        "method": "GET",
+        "method": "POST",
         "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/api/encode?url=https://example.com/sample-video.mp4",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "encode"],
-          "query": [
+        "body": {
+          "mode": "formdata",
+          "formdata": [
             {
-              "key": "url",
-              "value": "https://example.com/sample-video.mp4",
-              "description": "URL of the video to process"
+              "key": "video",
+              "type": "file",
+              "src": "sample-video.mp4",
+              "description": "Video file to be processed"
             }
           ]
         },
-        "description": "Processes a video URL and returns multiple formats:\n\n- PNG thumbnail (first frame)\n- 3-second GIF preview (320px width)\n- H.265 MP4 version\n- MKV version with H.264\n\nReturns a multipart response with all processed files."
+        "url": {
+          "raw": "{{baseUrl}}/api/encode",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "encode"]
+        },
+        "description": "Processes a video upload via multipart form data and returns multiple formats in a ZIP archive:\n\n- PNG thumbnail (frame at 5s)\n- 3-second GIF preview (320px width)\n- Matroska (MKV) version with original video and audio streams\n- H.265 MP4 version with AAC audio\n- info.txt with metadata\n\nSubmit the video file in a form field named 'video'."
       },
       "response": [
         {
-          "name": "Example Response",
+          "name": "Success Response",
           "status": "200",
           "header": [
             {
               "key": "Content-Type",
-              "value": "multipart/mixed; boundary=------------------------12345678"
+              "value": "application/zip"
+            },
+            {
+              "key": "Content-Disposition",
+              "value": "attachment; filename=\"video-package.zip\""
             }
           ],
-          "body": "Multipart response containing:\n1. thumbnail.png (image/png)\n2. preview.gif (image/gif)\n3. video-h265.mp4 (video/mp4)\n4. video.mkv (video/x-matroska)"
+          "body": "ZIP archive containing:\n1. thumbnail.png (image/png) - Single frame screenshot\n2. preview.gif (image/gif) - 3-second preview animation\n3. video.mkv (video/x-matroska) - MKV with original streams\n4. video.h265.mp4 (video/mp4) - H.265 encoded version\n5. info.txt (text/plain) - Processing metadata"
+        },
+        {
+          "name": "Error Response",
+          "status": "500",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"error\": \"Failed to process video: [error message]\"\n}"
         }
       ]
     }
@@ -104,7 +123,9 @@
   },
   "dependencies": {
     "fluent-ffmpeg": "^2.x",
-    "@ffmpeg-installer/ffmpeg": "latest"
+    "@ffmpeg-installer/ffmpeg": "latest",
+    "zod": "latest",
+    "archiver": "latest"
   },
   "examples": {
     "basic_usage": {
@@ -118,6 +139,10 @@
     "get_available_encoders": {
       "description": "Get list of available encoders",
       "code": "const availableEncoders = await encoders"
+    },
+    "upload_video": {
+      "description": "Process a video file via form data",
+      "code": "// Using fetch with FormData\nconst formData = new FormData();\nformData.append('video', videoFile);\n\nconst response = await fetch('http://localhost:3000/api/encode', {\n  method: 'POST',\n  body: formData\n});\n\n// If successful, response will be a ZIP file\nif (response.ok) {\n  const blob = await response.blob();\n  // Process the ZIP archive...\n}"
     }
   }
 }
