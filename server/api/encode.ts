@@ -67,6 +67,26 @@ async function processWithFFmpeg(
   }
 }
 
+async function generateThumbnail(inputPath: string): Promise<Buffer> {
+  const positions = [1, 3, 0];  
+  
+  for (const position of positions) {
+    try {
+      const result = await processWithFFmpeg(inputPath, {
+        name: `thumbnail_attempt_${position}.png`,
+        outputOptions: ['-vframes', '1', '-f', 'image2', '-vcodec', 'png'],
+        inputOptions: ['-ss', position.toString()]
+      });
+      
+      return result.buffer;
+    } catch (error) {
+      console.log(`Failed to generate thumbnail at position ${position}s:`, error);
+    }
+  }
+  
+  throw new Error('Failed to generate thumbnail at any position');
+}
+
 export default eventHandler(async (event) => {
   let tempFilePath = '';
   
@@ -130,11 +150,6 @@ export default eventHandler(async (event) => {
     
     const processings = [
       {
-        name: 'thumbnail.png',
-        inputOptions: ['-seekInput', '5'],
-        outputOptions: ['-frames', '1', '-f', 'image2', '-vcodec', 'png']
-      },
-      {
         name: 'preview.gif',
         inputOptions: ['-t', '3'],
         outputOptions: ['-vf', 'fps=10,scale=320:-1:flags=lanczos', '-f', 'gif']
@@ -171,6 +186,14 @@ export default eventHandler(async (event) => {
         return false;
       }
     });
+    
+    try {
+      const thumbnailBuffer = await generateThumbnail(tempFilePath);
+      archive.append(thumbnailBuffer, { name: 'thumbnail.png' });
+    } catch (error) {
+      console.error('Failed to generate thumbnail:', error);
+      addEmptyFile('thumbnail.png');
+    }
     
     await Promise.all(processingPromises);
     
