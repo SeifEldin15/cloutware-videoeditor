@@ -7,6 +7,7 @@ import { createWriteStream } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import fs from 'fs'
+import axios from 'axios'
 
 const fileSchema = z.object({
   video: z.object({
@@ -16,6 +17,10 @@ const fileSchema = z.object({
     filename: z.string().optional(),
     name: z.literal('video')
   })
+});
+
+const urlSchema = z.object({
+  url: z.string().url('Invalid video URL')
 });
 
 async function processWithFFmpeg(
@@ -87,39 +92,74 @@ async function generateThumbnail(inputPath: string): Promise<Buffer> {
   throw new Error('Failed to generate thumbnail at any position');
 }
 
+async function downloadVideoFromUrl(url: string): Promise<{ buffer: Buffer, filename: string }> {
+  const response = await axios({
+    method: 'GET',
+    url: url,
+    responseType: 'arraybuffer'
+  });
+  
+  const filename = url.split('/').pop() || 'video.mp4';
+  return {
+    buffer: Buffer.from(response.data),
+    filename
+  };
+}
+
 export default eventHandler(async (event) => {
   let tempFilePath = '';
   
   try {
-    console.log(`Processing uploaded video file`);
-    
-    const formData = await readMultipartFormData(event);
-    if (!formData || formData.length === 0) {
-      throw new Error('No file uploaded');
-    }
-    
-    const videoFile = formData.find(part => part.name === 'video' && part.filename && part.data);
-    if (!videoFile || !videoFile.data) {
-      throw new Error('Video file is required');
-    }
-    
-    try {
-      fileSchema.parse({ video: videoFile });
-    } catch (validationError) {
-      if (validationError instanceof z.ZodError) {
-        throw new Error(`Validation error: ${validationError.errors.map(e => e.message).join(', ')}`);
+    const body = await readBody(event);
+    let videoBuffer: Buffer;
+    let filename: string;
+
+    if (body.url) {
+      // Handle URL input
+      try {
+        urlSchema.parse({ url: body.url });
+        const result = await downloadVideoFromUrl(body.url);
+        videoBuffer = result.buffer;
+        filename = result.filename;
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          throw new Error(`Invalid URL: ${error.errors.map(e => e.message).join(', ')}`);
+        }
+        throw new Error(`Failed to download video from URL: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
-      throw validationError;
+    } else {
+      // Handle file upload
+      const formData = await readMultipartFormData(event);
+      if (!formData || formData.length === 0) {
+        throw new Error('No file uploaded or URL provided');
+      }
+      
+      const videoFile = formData.find(part => part.name === 'video' && part.filename && part.data);
+      if (!videoFile || !videoFile.data) {
+        throw new Error('Video file is required');
+      }
+      
+      try {
+        fileSchema.parse({ video: videoFile });
+      } catch (validationError) {
+        if (validationError instanceof z.ZodError) {
+          throw new Error(`Validation error: ${validationError.errors.map(e => e.message).join(', ')}`);
+        }
+        throw validationError;
+      }
+      
+      videoBuffer = videoFile.data;
+      filename = videoFile.filename || 'video.mp4';
     }
     
-    console.log(`Received video file: ${videoFile.filename}, size: ${videoFile.data.length} bytes`);
+    console.log(`Processing video: ${filename}, size: ${videoBuffer.length} bytes`);
     
     tempFilePath = join(tmpdir(), `video-${Date.now()}.mp4`);
     await new Promise<void>((resolve, reject) => {
       const writeStream = createWriteStream(tempFilePath);
       writeStream.on('finish', resolve);
       writeStream.on('error', reject);
-      writeStream.end(videoFile.data);
+      writeStream.end(videoBuffer);
     });
     console.log(`Saved video to temporary file: ${tempFilePath}`);
     
@@ -135,7 +175,7 @@ export default eventHandler(async (event) => {
     
     console.log('Setting response headers...');
     setResponseHeader(event, 'Content-Type', 'application/zip');
-    setResponseHeader(event, 'Content-Disposition', `attachment; filename="${videoFile.filename || 'video'}-package.zip"`);
+    setResponseHeader(event, 'Content-Disposition', `attachment; filename="${filename}-package.zip"`);
     
     console.log('Piping archive to response...');
     archive.pipe(event.node.res);
@@ -146,7 +186,7 @@ export default eventHandler(async (event) => {
     };
     
     console.log('Adding info.txt to archive...');
-    archive.append(`Uploaded File: ${videoFile.filename}\nProcessed: ${new Date().toISOString()}\n`, { name: 'info.txt' });
+    archive.append(`Uploaded File: ${filename}\nProcessed: ${new Date().toISOString()}\n`, { name: 'info.txt' });
     
     const processings = [
       {
