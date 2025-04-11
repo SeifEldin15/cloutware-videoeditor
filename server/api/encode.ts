@@ -2,8 +2,7 @@ import { z } from 'zod'
 import ffmpeg from '../utils/ffmpeg'
 import { PassThrough } from 'stream'
 import archiver from 'archiver'
-import { readMultipartFormData, readBody } from 'h3'
-import fs from 'fs'
+import { readBody } from 'h3'
 
 const urlSchema = z.object({
   url: z.string().url('Invalid video URL')
