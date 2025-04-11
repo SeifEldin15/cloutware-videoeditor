@@ -2,29 +2,15 @@ import { z } from 'zod'
 import ffmpeg from '../utils/ffmpeg'
 import { PassThrough } from 'stream'
 import archiver from 'archiver'
-import { readMultipartFormData } from 'h3'
-import { createWriteStream } from 'fs'
-import { join } from 'path'
-import { tmpdir } from 'os'
+import { readMultipartFormData, readBody } from 'h3'
 import fs from 'fs'
-import axios from 'axios'
-
-const fileSchema = z.object({
-  video: z.object({
-    data: z.instanceof(Buffer).refine(buf => buf.length > 0, {
-      message: 'Video file cannot be empty'
-    }),
-    filename: z.string().optional(),
-    name: z.literal('video')
-  })
-});
 
 const urlSchema = z.object({
   url: z.string().url('Invalid video URL')
 });
 
 async function processWithFFmpeg(
-  inputPath: string, 
+  inputUrl: string, 
   options: {
     outputOptions: string[],
     name: string,
@@ -41,13 +27,14 @@ async function processWithFFmpeg(
       outputStream.on('error', reject);
       outputStream.on('end', () => resolve(Buffer.concat(chunks)));
       
-      const ffmpegCommand = ffmpeg(inputPath);
+      const ffmpegCommand = ffmpeg(inputUrl);
       
       if (options.inputOptions?.length) {
         ffmpegCommand.inputOptions(options.inputOptions);
       }
       
       ffmpegCommand
+        .inputOptions(['-protocol_whitelist', 'file,http,https,tcp,tls'])
         .outputOptions(options.outputOptions)
         .on('start', (commandLine: string) => {
           console.log(`${options.name} FFmpeg started:`, commandLine);
@@ -61,7 +48,10 @@ async function processWithFFmpeg(
           console.error(`${options.name} FFmpeg error:`, err);
           reject(err);
         })
-        .pipe(outputStream);
+        .on('end', () => {
+          console.log(`${options.name} FFmpeg process ended`);
+        })
+        .pipe(outputStream, { end: true });
     });
     
     console.log(`${options.name} generated: ${buffer.length} bytes`);
@@ -72,12 +62,12 @@ async function processWithFFmpeg(
   }
 }
 
-async function generateThumbnail(inputPath: string): Promise<Buffer> {
+async function generateThumbnail(inputUrl: string): Promise<Buffer> {
   const positions = [1, 3, 0];  
   
   for (const position of positions) {
     try {
-      const result = await processWithFFmpeg(inputPath, {
+      const result = await processWithFFmpeg(inputUrl, {
         name: `thumbnail_attempt_${position}.png`,
         outputOptions: ['-vframes', '1', '-f', 'image2', '-vcodec', 'png'],
         inputOptions: ['-ss', position.toString()]
@@ -92,76 +82,31 @@ async function generateThumbnail(inputPath: string): Promise<Buffer> {
   throw new Error('Failed to generate thumbnail at any position');
 }
 
-async function downloadVideoFromUrl(url: string): Promise<{ buffer: Buffer, filename: string }> {
-  const response = await axios({
-    method: 'GET',
-    url: url,
-    responseType: 'arraybuffer'
-  });
-  
-  const filename = url.split('/').pop() || 'video.mp4';
-  return {
-    buffer: Buffer.from(response.data),
-    filename
-  };
-}
-
 export default eventHandler(async (event) => {
-  let tempFilePath = '';
-  
   try {
     const body = await readBody(event);
-    let videoBuffer: Buffer;
+    let videoUrl: string;
     let filename: string;
 
     if (body.url) {
-      // Handle URL input
       try {
         urlSchema.parse({ url: body.url });
-        const result = await downloadVideoFromUrl(body.url);
-        videoBuffer = result.buffer;
-        filename = result.filename;
+        videoUrl = body.url;
+        filename = body.url.split('/').pop() || 'video.mp4';
       } catch (error) {
         if (error instanceof z.ZodError) {
           throw new Error(`Invalid URL: ${error.errors.map(e => e.message).join(', ')}`);
         }
-        throw new Error(`Failed to download video from URL: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        if (error instanceof Error) {
+          throw new Error(`Failed to process video URL: ${error.message}`);
+        }
+        throw new Error('Failed to process video URL: Unknown error');
       }
     } else {
-      // Handle file upload
-      const formData = await readMultipartFormData(event);
-      if (!formData || formData.length === 0) {
-        throw new Error('No file uploaded or URL provided');
-      }
-      
-      const videoFile = formData.find(part => part.name === 'video' && part.filename && part.data);
-      if (!videoFile || !videoFile.data) {
-        throw new Error('Video file is required');
-      }
-      
-      try {
-        fileSchema.parse({ video: videoFile });
-      } catch (validationError) {
-        if (validationError instanceof z.ZodError) {
-          throw new Error(`Validation error: ${validationError.errors.map(e => e.message).join(', ')}`);
-        }
-        throw validationError;
-      }
-      
-      videoBuffer = videoFile.data;
-      filename = videoFile.filename || 'video.mp4';
+      throw new Error('URL is required');
     }
     
-    console.log(`Processing video: ${filename}, size: ${videoBuffer.length} bytes`);
-    
-    tempFilePath = join(tmpdir(), `video-${Date.now()}.mp4`);
-    await new Promise<void>((resolve, reject) => {
-      const writeStream = createWriteStream(tempFilePath);
-      writeStream.on('finish', resolve);
-      writeStream.on('error', reject);
-      writeStream.end(videoBuffer);
-    });
-    console.log(`Saved video to temporary file: ${tempFilePath}`);
+    console.log(`Processing video from URL: ${videoUrl}`);
     
     const archive = archiver('zip', {
       zlib: { level: 1 }
@@ -186,7 +131,7 @@ export default eventHandler(async (event) => {
     };
     
     console.log('Adding info.txt to archive...');
-    archive.append(`Uploaded File: ${filename}\nProcessed: ${new Date().toISOString()}\n`, { name: 'info.txt' });
+    archive.append(`Video URL: ${videoUrl}\nProcessed: ${new Date().toISOString()}\n`, { name: 'info.txt' });
     
     const processings = [
       {
@@ -213,7 +158,7 @@ export default eventHandler(async (event) => {
     
     const processingPromises = processings.map(async (config) => {
       try {
-        const result = await processWithFFmpeg(tempFilePath, {
+        const result = await processWithFFmpeg(videoUrl, {
           name: config.name,
           outputOptions: config.outputOptions,
           inputOptions: config.inputOptions
@@ -228,7 +173,7 @@ export default eventHandler(async (event) => {
     });
     
     try {
-      const thumbnailBuffer = await generateThumbnail(tempFilePath);
+      const thumbnailBuffer = await generateThumbnail(videoUrl);
       archive.append(thumbnailBuffer, { name: 'thumbnail.png' });
     } catch (error) {
       console.error('Failed to generate thumbnail:', error);
@@ -250,14 +195,5 @@ export default eventHandler(async (event) => {
       : 'Unknown error occurred';
       
     event.node.res.end(JSON.stringify({ error: 'Failed to process video: ' + errorMessage }));
-  } finally {
-    if (tempFilePath) {
-      try {
-        fs.unlinkSync(tempFilePath);
-        console.log(`Removed temporary file: ${tempFilePath}`);
-      } catch (err) {
-        console.error('Error removing temporary file:', err);
-      }
-    }
   }
 });
