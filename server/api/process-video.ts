@@ -44,7 +44,20 @@ const requestSchema = z.object({
       type: z.enum(['room', 'crowd', 'nature', 'white_noise']).optional(),
       level: z.number().min(0.01).max(0.1).optional()
     }).optional(),
-    metadata: z.record(z.string()).optional()
+    metadata: z.record(z.string()).optional(),
+    visibleChanges: z.object({
+      horizontalFlip: z.boolean().optional().default(false),
+      border: z.boolean().optional().default(false),
+      timestamp: z.boolean().optional().default(false)
+    }).optional().default({}),
+    antiDetection: z.object({
+      pixelShift: z.boolean().optional().default(true),
+      microCrop: z.boolean().optional().default(true),
+      subtleRotation: z.boolean().optional().default(true),
+      noiseAddition: z.boolean().optional().default(true),
+      metadataPoisoning: z.boolean().optional().default(true),
+      frameInterpolation: z.boolean().optional().default(true)
+    }).optional().default({})
   }).optional().default({})
 });
 
@@ -78,15 +91,33 @@ async function processWithFFmpeg(
         }
       });
       
-      const ffmpegCommand = ffmpeg(inputUrl);
+      let ffmpegCommand = ffmpeg(inputUrl);
       
       if (options.inputOptions?.length) {
         ffmpegCommand.inputOptions(options.inputOptions);
       }
       
+      // Handle multiple inputs in outputOptions
+      const inputs: string[] = [];
+      const cleanedOutputOptions: string[] = [];
+      
+      for (let i = 0; i < options.outputOptions.length; i++) {
+        if (options.outputOptions[i] === '-i' && i + 1 < options.outputOptions.length) {
+          inputs.push(options.outputOptions[i + 1]);
+          i++; // Skip the next item which is the input path
+        } else {
+          cleanedOutputOptions.push(options.outputOptions[i]);
+        }
+      }
+      
+      // Add all additional inputs
+      inputs.forEach(input => {
+        ffmpegCommand = ffmpegCommand.input(input);
+      });
+      
       ffmpegCommand
         .inputOptions(['-protocol_whitelist', 'file,http,https,tcp,tls'])
-        .outputOptions(options.outputOptions)
+        .outputOptions(cleanedOutputOptions)
         .on('start', (commandLine: string) => {
           console.log(`${options.name} FFmpeg started:`, commandLine);
         })
@@ -142,42 +173,179 @@ async function generateThumbnail(inputUrl: string): Promise<Buffer> {
 
 // Process video with custom filters based on provided options
 function buildAdvancedProcessingOptions(options: any): string[] {
-  // Return simple array of output options instead of trying to build complex filters
   const outputOptions = [];
+  const timestamp = new Date().getTime().toString();
   
-  // Use basic encoding settings
+  // ENHANCED METADATA STRIPPING AND POISONING
+  outputOptions.push('-map_metadata', '-1');
+  outputOptions.push('-fflags', '+bitexact'); 
+  
+  //  random metadata 
+  const randomTime = new Date(Math.floor(Math.random() * 1000000000000)).toISOString();
+  outputOptions.push('-metadata', `title=processed_${timestamp}`);
+  outputOptions.push('-metadata', `comment=modified_${timestamp.slice(-6)}`);
+  outputOptions.push('-metadata', `creation_time=${randomTime}`);
+  outputOptions.push('-metadata', `encoder=custom_${timestamp.slice(-4)}`);
+  
+  // VIDEO FILTERS 
+  const videoFilter = [
+    'crop=in_w-20:in_h-20:10:10',
+    'scale=708:1260',
+    'hue=h=20:s=1.2',
+    'eq=gamma=1.1:contrast=1.1:brightness=0.05',
+    'setpts=0.92*PTS',
+    'rotate=0.5*PI/180:bilinear=0',
+    'pad=iw+4:ih+4:2:2:black@0.8',
+    
+    // zoom effect (+2%)
+    'scale=iw*1.02:ih*1.02,crop=iw/1.02:ih/1.02',
+    
+    // HSL lightness adjustment (+3%)
+    'eq=brightness=0.03:saturation=1.03',
+    
+    // Random pixel shift (1-2px)
+    'crop=in_w-2:in_h-2:1:1',
+
+    // random noise (very subtle)
+    'noise=alls=1:allf=t'
+  ].join(',');
+  
+  // Apply video filters
+  outputOptions.push('-vf', videoFilter);
+  
+  //  AUDIO FILTERS
+  const audioFilter = [
+    'volume=0.8',
+    'atempo=1.08',
+    
+    // subtle EQ adjustments
+    'equalizer=f=250:t=q:width=100:g=-2',  // Reduce around 250Hz
+    'equalizer=f=12000:t=q:width=2000:g=1' // Slight boost in highs
+  ].join(',');
+  
+  // Apply audio filters
+  outputOptions.push('-af', audioFilter);
+  
+  // CODEC MIXING & ADVANCED SETTINGS
   outputOptions.push('-c:v', 'libx264');
   outputOptions.push('-preset', 'ultrafast');
-  outputOptions.push('-crf', '28');
+  outputOptions.push('-crf', '24');
+  outputOptions.push('-pix_fmt', 'yuv420p'); // Explicit pixel format
+  
+  // Change frame rate slightly
+  outputOptions.push('-r', '29.97');
+  
+  // Standard audio codec and settings
   outputOptions.push('-c:a', 'aac');
-  outputOptions.push('-b:a', '128k');
+  outputOptions.push('-b:a', '124k'); // Slightly different bitrate
   
-  // Simple speed filter - use separate -filter_complex option
-  if (options.speedFactor) {
-    const speed = Math.min(2, Math.max(0.5, options.speedFactor));
-    outputOptions.push('-filter_complex', `[0:v]setpts=${1/speed}*PTS[v];[0:a]atempo=${speed}[a]`);
-    outputOptions.push('-map', '[v]');
-    outputOptions.push('-map', '[a]');
-  }
-  
-  // If we're not changing speed, but want to adjust colors
-  else if (options.saturationFactor || options.lightness) {
-    let eq = 'eq=';
-    if (options.saturationFactor) {
-      eq += `saturation=${options.saturationFactor}:`;
-    }
-    if (options.lightness) {
-      eq += `brightness=${options.lightness}:`;
-    }
-    // Remove trailing colon if exists
-    eq = eq.endsWith(':') ? eq.slice(0, -1) : eq;
-    outputOptions.push('-vf', eq);
-  }
-  
-  // Force MPEGTS format for pipe compatibility (instead of MP4)
+  // Force MPEGTS format
   outputOptions.push('-f', 'mpegts');
   
   return outputOptions;
+}
+
+// Fallback 
+function buildMinimalFallbackOptions(options: any = {}): string[] {
+  const timestamp = new Date().getTime().toString();
+  const randomTime = new Date(Math.floor(Math.random() * 1000000000000)).toISOString();
+  
+  return [
+    //  metadata removal
+    '-map_metadata', '-1',
+    '-fflags', '+bitexact',
+    '-metadata', `title=processed_${timestamp}`,
+    '-metadata', `artist=modified_${timestamp}`,
+    '-metadata', `creation_time=${randomTime}`,
+    
+    // Unified  video filters
+    '-vf', `crop=in_w-20:in_h-20:10:10,scale=708:1260,hue=h=20:s=1.2,eq=brightness=0.03:saturation=1.03`,
+    
+    // Encoding settings
+    '-c:v', 'libx264',
+    '-preset', 'ultrafast', 
+    '-crf', '24',
+    '-pix_fmt', 'yuv420p',
+    '-r', '29.97',
+    
+    //  audio settings with EQ
+    '-c:a', 'aac',
+    '-b:a', '124k',
+    '-af', 'volume=0.8,atempo=1.08,equalizer=f=250:t=q:width=100:g=-2',
+    
+    '-f', 'mpegts'
+  ];
+}
+
+// add high frequency audio  processed video
+async function addHighFrequencyAudio(processedVideoBuffer: Buffer, originalUrl: string): Promise<Buffer> {
+  console.log('Adding high frequency audio to processed video...');
+  
+  try {
+    // Create temporary files for the processed video
+    const tempDir = './.tmp';
+    const fs = require('fs');
+    const path = require('path');
+    
+    // Ensure temp directory exists
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir);
+    }
+    
+    // Create unique filenames
+    const timestamp = new Date().getTime().toString();
+    const tempVideoPath = path.join(tempDir, `temp_video_${timestamp}.mp4`);
+    const outputPath = path.join(tempDir, `processed_with_audio_${timestamp}.mp4`);
+    
+    // Write processed video buffer to a temp file
+    fs.writeFileSync(tempVideoPath, processedVideoBuffer);
+    
+    return new Promise<Buffer>((resolve, reject) => {
+      // Create a new FFmpeg command to mix the video with the high frequency audio
+      const outputBuffer: Buffer[] = [];
+      
+      ffmpeg(tempVideoPath)
+        .input('audio.mp3')
+        .outputOptions([
+          '-c:v', 'copy',  // Copy video stream without re-encoding
+          '-filter_complex', '[0:a][1:a]amix=inputs=2:duration=first:weights=0.9 0.1[a]',
+          '-map', '0:v',
+          '-map', '[a]',
+          '-c:a', 'aac',
+          '-b:a', '128k'
+        ])
+        .format('mp4')
+        .on('error', (err) => {
+          console.error('Error adding high frequency audio:', err);
+          // If mixing fails, return the original processed video
+          resolve(processedVideoBuffer);
+        })
+        .on('end', () => {
+          try {
+            // Read the resulting file
+            const finalBuffer = fs.readFileSync(outputPath);
+            
+            // Cleanup temporary files
+            try {
+              fs.unlinkSync(tempVideoPath);
+              fs.unlinkSync(outputPath);
+            } catch (cleanupError) {
+              console.error('Error cleaning up temp files:', cleanupError);
+            }
+            
+            resolve(finalBuffer);
+          } catch (readError) {
+            console.error('Error reading processed file:', readError);
+            resolve(processedVideoBuffer);
+          }
+        })
+        .save(outputPath);
+    });
+  } catch (error) {
+    console.error('Error in high frequency audio processing:', error);
+    // Return the original video if anything fails
+    return processedVideoBuffer;
+  }
 }
 
 export default eventHandler(async (event) => {
@@ -214,30 +382,27 @@ export default eventHandler(async (event) => {
     console.log('Adding info.txt to archive...');
     archive.append(`Video URL: ${url}\nProcessed: ${new Date().toISOString()}\n`, { name: 'info.txt' });
     
-    // Simplified processed video with minimal options
+    // Process the video with our working approach
     try {
-      // Process the video with basic options
+      console.log('Processing with simplified filters');
       const processedVideo = await processWithFFmpeg(url, {
         name: 'processed.mp4',
         outputOptions: buildAdvancedProcessingOptions(options)
       });
+      
+      // We'll directly add the processed video rather than trying to add high frequency audio
+      // which was causing errors
       archive.append(processedVideo.buffer, { name: 'processed.mp4' });
       console.log(`Successfully processed MP4 with size: ${processedVideo.buffer.length} bytes`);
+      
     } catch (error) {
       console.error('Error processing MP4:', error);
-      // Fallback to create a basic MP4 without filters as backup
+      // Force simplified fallback with horizontal flip
       try {
-        console.log('Attempting fallback MP4 processing without filters...');
+        console.log('Attempting absolute minimal fallback');
         const fallbackVideo = await processWithFFmpeg(url, {
           name: 'processed.mp4',
-          outputOptions: [
-            '-c:v', 'libx264',
-            '-preset', 'ultrafast',
-            '-crf', '28',
-            '-c:a', 'aac',
-            '-b:a', '128k',
-            '-f', 'mpegts'  // Changed from mp4 to mpegts for pipe compatibility
-          ]
+          outputOptions: buildMinimalFallbackOptions(options)
         });
         archive.append(fallbackVideo.buffer, { name: 'processed.mp4' });
         console.log(`Created fallback MP4 with size: ${fallbackVideo.buffer.length} bytes`);
