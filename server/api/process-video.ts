@@ -197,10 +197,10 @@ function buildAdvancedProcessingOptions(options: any): string[] {
     'pad=iw+4:ih+4:2:2:black@0.8',
     
     // zoom effect (+2%)
-    'scale=iw*1.02:ih*1.02,crop=iw/1.02:ih/1.02',
+    'scale=iw*1.02:ih*1.02,crop=iw/1.02:ih/1.04',
     
     // HSL lightness adjustment (+3%)
-    'eq=brightness=0.03:saturation=1.03',
+    'eq=brightness=0.03:saturation=1.06',
     
     // Random pixel shift (1-2px)
     'crop=in_w-2:in_h-2:1:1',
@@ -215,7 +215,7 @@ function buildAdvancedProcessingOptions(options: any): string[] {
   //  AUDIO FILTERS
   const audioFilter = [
     'volume=0.8',
-    'atempo=1.08',
+    'atempo=1.09',
     
     // subtle EQ adjustments
     'equalizer=f=250:t=q:width=100:g=-2',  // Reduce around 250Hz
