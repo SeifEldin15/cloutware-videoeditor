@@ -190,7 +190,7 @@ function buildAdvancedProcessingOptions(options: any): string[] {
   const videoFilter = [
     'crop=in_w-20:in_h-20:10:10',
     'scale=708:1260',
-    'hue=h=20:s=1.2',
+    'hue=h=5:s=1.05',
     'eq=gamma=1.1:contrast=1.1:brightness=0.05',
     'setpts=0.92*PTS',
     'rotate=0.5*PI/180:bilinear=0',
@@ -258,7 +258,7 @@ function buildMinimalFallbackOptions(options: any = {}): string[] {
     '-metadata', `creation_time=${randomTime}`,
     
     // Unified  video filters
-    '-vf', `crop=in_w-20:in_h-20:10:10,scale=708:1260,hue=h=20:s=1.2,eq=brightness=0.03:saturation=1.03`,
+    '-vf', `crop=in_w-20:in_h-20:10:10,scale=708:1260,hue=h=5:s=1.05,eq=brightness=0.03:saturation=1.03`,
     
     // Encoding settings
     '-c:v', 'libx264',
