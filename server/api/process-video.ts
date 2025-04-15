@@ -171,12 +171,11 @@ async function generateThumbnail(inputUrl: string): Promise<Buffer> {
   throw new Error('Failed to generate thumbnail at any position');
 }
 
-// Process video with custom filters based on provided options
 function buildAdvancedProcessingOptions(options: any): string[] {
   const outputOptions = [];
   const timestamp = new Date().getTime().toString();
   
-  // ENHANCED METADATA STRIPPING AND POISONING
+  //  METADATA STRIPPING AND POISONING
   outputOptions.push('-map_metadata', '-1');
   outputOptions.push('-fflags', '+bitexact'); 
   
@@ -282,32 +281,26 @@ async function addHighFrequencyAudio(processedVideoBuffer: Buffer, originalUrl: 
   console.log('Adding high frequency audio to processed video...');
   
   try {
-    // Create temporary files for the processed video
-    const tempDir = './.tmp';
-    const fs = require('fs');
-    const path = require('path');
-    
-    // Ensure temp directory exists
-    if (!fs.existsSync(tempDir)) {
-      fs.mkdirSync(tempDir);
-    }
-    
-    // Create unique filenames
-    const timestamp = new Date().getTime().toString();
-    const tempVideoPath = path.join(tempDir, `temp_video_${timestamp}.mp4`);
-    const outputPath = path.join(tempDir, `processed_with_audio_${timestamp}.mp4`);
-    
-    // Write processed video buffer to a temp file
-    fs.writeFileSync(tempVideoPath, processedVideoBuffer);
+    // stream from the processed video buffer
+    const { Readable } = require('stream');
+    const videoStream = new Readable();
+    videoStream.push(processedVideoBuffer);
+    videoStream.push(null);
     
     return new Promise<Buffer>((resolve, reject) => {
-      // Create a new FFmpeg command to mix the video with the high frequency audio
-      const outputBuffer: Buffer[] = [];
+      const outputBuffers: Buffer[] = [];
       
-      ffmpeg(tempVideoPath)
+      const outputStream = new PassThrough();
+      outputStream.on('data', (chunk) => outputBuffers.push(chunk));
+      outputStream.on('end', () => {
+        const finalBuffer = Buffer.concat(outputBuffers);
+        resolve(finalBuffer);
+      });
+      
+      ffmpeg(videoStream)
         .input('audio.mp3')
         .outputOptions([
-          '-c:v', 'copy',  // Copy video stream without re-encoding
+          '-c:v', 'copy',  
           '-filter_complex', '[0:a][1:a]amix=inputs=2:duration=first:weights=0.9 0.1[a]',
           '-map', '0:v',
           '-map', '[a]',
@@ -317,33 +310,12 @@ async function addHighFrequencyAudio(processedVideoBuffer: Buffer, originalUrl: 
         .format('mp4')
         .on('error', (err) => {
           console.error('Error adding high frequency audio:', err);
-          // If mixing fails, return the original processed video
           resolve(processedVideoBuffer);
         })
-        .on('end', () => {
-          try {
-            // Read the resulting file
-            const finalBuffer = fs.readFileSync(outputPath);
-            
-            // Cleanup temporary files
-            try {
-              fs.unlinkSync(tempVideoPath);
-              fs.unlinkSync(outputPath);
-            } catch (cleanupError) {
-              console.error('Error cleaning up temp files:', cleanupError);
-            }
-            
-            resolve(finalBuffer);
-          } catch (readError) {
-            console.error('Error reading processed file:', readError);
-            resolve(processedVideoBuffer);
-          }
-        })
-        .save(outputPath);
+        .pipe(outputStream, { end: true });
     });
   } catch (error) {
     console.error('Error in high frequency audio processing:', error);
-    // Return the original video if anything fails
     return processedVideoBuffer;
   }
 }
@@ -352,7 +324,6 @@ export default eventHandler(async (event) => {
   try {
     const body = await readBody(event);
     
-    // Validate request
     const { url, outputName, options } = requestSchema.parse(body);
     
     console.log(`Processing video from URL: ${url} with options:`, JSON.stringify(options, null, 2));
@@ -382,7 +353,6 @@ export default eventHandler(async (event) => {
     console.log('Adding info.txt to archive...');
     archive.append(`Video URL: ${url}\nProcessed: ${new Date().toISOString()}\n`, { name: 'info.txt' });
     
-    // Process the video with our working approach
     try {
       console.log('Processing with simplified filters');
       const processedVideo = await processWithFFmpeg(url, {
@@ -390,14 +360,11 @@ export default eventHandler(async (event) => {
         outputOptions: buildAdvancedProcessingOptions(options)
       });
       
-      // We'll directly add the processed video rather than trying to add high frequency audio
-      // which was causing errors
       archive.append(processedVideo.buffer, { name: 'processed.mp4' });
       console.log(`Successfully processed MP4 with size: ${processedVideo.buffer.length} bytes`);
       
     } catch (error) {
       console.error('Error processing MP4:', error);
-      // Force simplified fallback with horizontal flip
       try {
         console.log('Attempting absolute minimal fallback');
         const fallbackVideo = await processWithFFmpeg(url, {
@@ -412,7 +379,6 @@ export default eventHandler(async (event) => {
       }
     }
     
-    // Process other formats
     const processings = [
       {
         name: 'preview.gif',
@@ -430,7 +396,7 @@ export default eventHandler(async (event) => {
           '-preset', 'ultrafast',
           '-crf', '28',
           '-c:a', 'aac',
-          '-f', 'mpegts',  // Already using mpegts, which is correct
+          '-f', 'mpegts',  
           '-strict', 'experimental'
         ]
       }
