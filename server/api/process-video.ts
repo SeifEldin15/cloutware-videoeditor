@@ -3,11 +3,10 @@ import ffmpeg from '../utils/ffmpeg'
 import { PassThrough } from 'stream'
 import { readBody, setResponseHeader } from 'h3'
 
-// Schema for request validation
 const requestSchema = z.object({
   url: z.string().url('Invalid video URL'),
   outputName: z.string().optional().default('video'),
-  format: z.enum(['mp4', 'gif', 'h265', 'png', 'mkv']).optional().default('mp4'),
+  format: z.enum(['mp4', 'gif', 'h265', 'png', 'mkv']).optional().default('h265'),
   options: z.object({
     speedFactor: z.number().min(0.5).max(2).optional(),
     zoomFactor: z.number().min(1).max(2).optional(),
@@ -17,6 +16,8 @@ const requestSchema = z.object({
     subtitleText: z.string().optional(),
     resolution: z.string().optional(),
     audioPitch: z.number().min(0.5).max(1.5).optional(),
+    backgroundAudio: z.boolean().optional().default(false),
+    backgroundAudioVolume: z.number().min(0.05).max(0.5).optional().default(0.2),
     smartCrop: z.object({
       percentage: z.number().min(0.1).max(2).optional(),
       direction: z.enum(['center', 'top', 'bottom', 'left', 'right', 'random']).optional()
@@ -61,7 +62,6 @@ const requestSchema = z.object({
   }).optional().default({})
 });
 
-// Define TypeScript type from the Zod schema
 type VideoProcessingOptions = z.infer<typeof requestSchema>['options'];
 
 async function processWithFFmpeg(
@@ -100,20 +100,18 @@ async function processWithFFmpeg(
         ffmpegCommand.inputOptions(options.inputOptions);
       }
       
-      // Handle multiple inputs in outputOptions
       const inputs: string[] = [];
       const cleanedOutputOptions: string[] = [];
       
       for (let i = 0; i < options.outputOptions.length; i++) {
         if (options.outputOptions[i] === '-i' && i + 1 < options.outputOptions.length) {
           inputs.push(options.outputOptions[i + 1]);
-          i++; // Skip the next item which is the input path
+          i++; 
         } else {
           cleanedOutputOptions.push(options.outputOptions[i]);
         }
       }
       
-      // Add all additional inputs
       inputs.forEach(input => {
         ffmpegCommand = ffmpegCommand.input(input);
       });
@@ -189,6 +187,10 @@ function buildAdvancedProcessingOptions(options: VideoProcessingOptions): string
   outputOptions.push('-metadata', `creation_time=${randomTime}`);
   outputOptions.push('-metadata', `encoder=custom_${timestamp.slice(-4)}`);
   
+  if (options.backgroundAudio) {
+    outputOptions.push('-i', 'audio.mp3');
+  }
+  
   // VIDEO FILTERS 
   const videoFilter = [
     'crop=in_w-20:in_h-20:10:10',
@@ -216,7 +218,7 @@ function buildAdvancedProcessingOptions(options: VideoProcessingOptions): string
   outputOptions.push('-vf', videoFilter);
   
   //  AUDIO FILTERS
-  const audioFilter = [
+  let audioFilter = [
     'volume=0.8',
     'atempo=1.09',
     
@@ -225,8 +227,21 @@ function buildAdvancedProcessingOptions(options: VideoProcessingOptions): string
     'equalizer=f=12000:t=q:width=2000:g=1' // Slight boost in highs
   ].join(',');
   
-  // Apply audio filters
-  outputOptions.push('-af', audioFilter);
+  if (options.backgroundAudio) {
+    const afIndex = outputOptions.indexOf('-af');
+    if (afIndex !== -1) {
+      outputOptions.splice(afIndex, 2);
+    }
+    
+    const bgVolume = options.backgroundAudioVolume || 0.2;
+    
+    outputOptions.push('-filter_complex', 
+      `[0:a]${audioFilter}[a0]; [1:a]volume=${bgVolume},aloop=loop=-1:size=2048[a1]; [a0][a1]amix=inputs=2:duration=first[aout]`);
+    
+    outputOptions.push('-map', '0:v', '-map', '[aout]');
+  } else {
+    outputOptions.push('-af', audioFilter);
+  }
   
   // CODEC MIXING & ADVANCED SETTINGS
   outputOptions.push('-c:v', 'libx264');
@@ -248,7 +263,6 @@ function buildAdvancedProcessingOptions(options: VideoProcessingOptions): string
   return outputOptions;
 }
 
-// Function to get output options based on format
 function getOutputOptionsForFormat(format: string, options: VideoProcessingOptions): { 
   outputOptions: string[],
   inputOptions?: string[],
@@ -264,16 +278,13 @@ function getOutputOptionsForFormat(format: string, options: VideoProcessingOptio
         fileExtension: 'gif'
       };
     case 'h265':
-      // Get the same advanced processing options as MP4
       const h265Options = buildAdvancedProcessingOptions(options);
       
-      // Replace h264 codec with h265 codec
       const codecIndex = h265Options.indexOf('-c:v');
       if (codecIndex !== -1 && codecIndex + 1 < h265Options.length) {
         h265Options[codecIndex + 1] = 'libx265';
       }
       
-      // Add h265-specific options
       h265Options.push('-tag:v', 'hvc1', '-strict', 'experimental');
       
       return {
@@ -282,10 +293,8 @@ function getOutputOptionsForFormat(format: string, options: VideoProcessingOptio
         fileExtension: 'mp4'
       };
     case 'mkv':
-      // Get the same advanced processing options as MP4
       const mkvOptions = buildAdvancedProcessingOptions(options);
       
-      // Replace mp4-specific options with matroska format
       const formatIndex = mkvOptions.indexOf('-f');
       if (formatIndex !== -1 && formatIndex + 1 < mkvOptions.length) {
         mkvOptions[formatIndex + 1] = 'matroska';
@@ -293,7 +302,6 @@ function getOutputOptionsForFormat(format: string, options: VideoProcessingOptio
         mkvOptions.push('-f', 'matroska');
       }
       
-      // Remove MP4-specific options that don't apply to MKV
       const removeOptions = ['-movflags'];
       for (const opt of removeOptions) {
         const idx = mkvOptions.indexOf(opt);
@@ -329,16 +337,13 @@ export default eventHandler(async (event) => {
     const body = await readBody(event);
     const query = getQuery(event);
     
-    // Get format from query parameter or body
     const formatFromQuery = typeof query.format === 'string' ? query.format : undefined;
     
-    // Parse the request with validation
     const requestData = { ...body, format: formatFromQuery || body.format };
     const { url, outputName, format, options } = requestSchema.parse(requestData);
     
     console.log(`Processing video from URL: ${url} with format: ${format} and options:`, JSON.stringify(options, null, 2));
     
-    // Get output configuration based on format
     const outputConfig = getOutputOptionsForFormat(format, options);
     
     try {
@@ -350,11 +355,9 @@ export default eventHandler(async (event) => {
       
       console.log(`Successfully processed ${format} with size: ${result.buffer.length} bytes`);
       
-      // Set appropriate content type and headers
       setResponseHeader(event, 'Content-Type', outputConfig.contentType);
       setResponseHeader(event, 'Content-Disposition', `attachment; filename="${outputName}.${outputConfig.fileExtension}"`);
       
-      // Send the processed file directly
       return result.buffer;
       
     } catch (error) {
