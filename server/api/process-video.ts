@@ -61,6 +61,9 @@ const requestSchema = z.object({
   }).optional().default({})
 });
 
+// Define TypeScript type from the Zod schema
+type VideoProcessingOptions = z.infer<typeof requestSchema>['options'];
+
 async function processWithFFmpeg(
   inputUrl: string, 
   options: {
@@ -171,7 +174,7 @@ async function generateThumbnail(inputUrl: string): Promise<Buffer> {
   throw new Error('Failed to generate thumbnail at any position');
 }
 
-function buildAdvancedProcessingOptions(options: any): string[] {
+function buildAdvancedProcessingOptions(options: VideoProcessingOptions): string[] {
   const outputOptions = [];
   const timestamp = new Date().getTime().toString();
   
@@ -245,41 +248,7 @@ function buildAdvancedProcessingOptions(options: any): string[] {
   return outputOptions;
 }
 
-// Fallback 
-function buildMinimalFallbackOptions(options: any = {}): string[] {
-  const timestamp = new Date().getTime().toString();
-  const randomTime = new Date(Math.floor(Math.random() * 1000000000000)).toISOString();
-  
-  return [
-    //  metadata removal
-    '-map_metadata', '-1',
-    '-fflags', '+bitexact',
-    '-metadata', `title=processed_${timestamp}`,
-    '-metadata', `artist=modified_${timestamp}`,
-    '-metadata', `creation_time=${randomTime}`,
-    
-    // Unified  video filters
-    '-vf', `crop=in_w-20:in_h-20:10:10,scale=708:1260,hue=h=5:s=1.05,eq=brightness=0.03:saturation=1.03`,
-    
-    // Encoding settings
-    '-c:v', 'libx264',
-    '-preset', 'ultrafast', 
-    '-crf', '24',
-    '-pix_fmt', 'yuv420p',
-    '-r', '29.97',
-    
-    //  audio settings with EQ
-    '-c:a', 'aac',
-    '-b:a', '124k',
-    '-af', 'volume=0.8,atempo=1.08,equalizer=f=250:t=q:width=100:g=-2',
-    
-    '-movflags', 'isml+frag_keyframe+faststart',
-    '-tune', 'zerolatency',
-    '-f', 'mp4'
-  ];
-}
-
-// add high frequency audio  processed video
+// add high frequency audio processed video
 async function addHighFrequencyAudio(processedVideoBuffer: Buffer, originalUrl: string): Promise<Buffer> {
   console.log('Adding high frequency audio to processed video...');
   
@@ -368,18 +337,8 @@ export default eventHandler(async (event) => {
       
     } catch (error) {
       console.error('Error processing MP4:', error);
-      try {
-        console.log('Attempting absolute minimal fallback');
-        const fallbackVideo = await processWithFFmpeg(url, {
-          name: 'processed.mp4',
-          outputOptions: buildMinimalFallbackOptions(options)
-        });
-        archive.append(fallbackVideo.buffer, { name: 'processed.mp4' });
-        console.log(`Created fallback MP4 with size: ${fallbackVideo.buffer.length} bytes`);
-      } catch (fallbackError) {
-        console.error('Fallback MP4 processing failed:', fallbackError);
-        addEmptyFile('processed.mp4');
-      }
+      // No fallback - just add an empty file and let the error propagate through the other formats
+      addEmptyFile('processed.mp4');
     }
     
     const processings = [
