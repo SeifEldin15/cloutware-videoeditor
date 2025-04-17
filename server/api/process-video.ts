@@ -1,13 +1,13 @@
 import { z } from 'zod'
 import ffmpeg from '../utils/ffmpeg'
 import { PassThrough } from 'stream'
-import archiver from 'archiver'
-import { readBody } from 'h3'
+import { readBody, setResponseHeader } from 'h3'
 
 // Schema for request validation
 const requestSchema = z.object({
   url: z.string().url('Invalid video URL'),
   outputName: z.string().optional().default('video'),
+  format: z.enum(['mp4', 'gif', 'h265', 'png', 'mkv']).optional().default('mp4'),
   options: z.object({
     speedFactor: z.number().min(0.5).max(2).optional(),
     zoomFactor: z.number().min(1).max(2).optional(),
@@ -248,171 +248,119 @@ function buildAdvancedProcessingOptions(options: VideoProcessingOptions): string
   return outputOptions;
 }
 
-// add high frequency audio processed video
-async function addHighFrequencyAudio(processedVideoBuffer: Buffer, originalUrl: string): Promise<Buffer> {
-  console.log('Adding high frequency audio to processed video...');
-  
-  try {
-    // stream from the processed video buffer
-    const { Readable } = require('stream');
-    const videoStream = new Readable();
-    videoStream.push(processedVideoBuffer);
-    videoStream.push(null);
-    
-    return new Promise<Buffer>((resolve, reject) => {
-      const outputBuffers: Buffer[] = [];
+// Function to get output options based on format
+function getOutputOptionsForFormat(format: string, options: VideoProcessingOptions): { 
+  outputOptions: string[],
+  inputOptions?: string[],
+  contentType: string,
+  fileExtension: string
+} {
+  switch (format) {
+    case 'gif':
+      return {
+        inputOptions: ['-t', '3'],
+        outputOptions: ['-vf', 'fps=10,scale=320:-1:flags=lanczos', '-f', 'gif'],
+        contentType: 'image/gif',
+        fileExtension: 'gif'
+      };
+    case 'h265':
+      // Get the same advanced processing options as MP4
+      const h265Options = buildAdvancedProcessingOptions(options);
       
-      const outputStream = new PassThrough();
-      outputStream.on('data', (chunk) => outputBuffers.push(chunk));
-      outputStream.on('end', () => {
-        const finalBuffer = Buffer.concat(outputBuffers);
-        resolve(finalBuffer);
-      });
+      // Replace h264 codec with h265 codec
+      const codecIndex = h265Options.indexOf('-c:v');
+      if (codecIndex !== -1 && codecIndex + 1 < h265Options.length) {
+        h265Options[codecIndex + 1] = 'libx265';
+      }
       
-      ffmpeg(videoStream)
-        .input('audio.mp3')
-        .outputOptions([
-          '-c:v', 'copy',  
-          '-filter_complex', '[0:a][1:a]amix=inputs=2:duration=first:weights=0.9 0.1[a]',
-          '-map', '0:v',
-          '-map', '[a]',
-          '-c:a', 'aac',
-          '-b:a', '128k'
-        ])
-        .format('mp4')
-        .on('error', (err) => {
-          console.error('Error adding high frequency audio:', err);
-          resolve(processedVideoBuffer);
-        })
-        .pipe(outputStream, { end: true });
-    });
-  } catch (error) {
-    console.error('Error in high frequency audio processing:', error);
-    return processedVideoBuffer;
+      // Add h265-specific options
+      h265Options.push('-tag:v', 'hvc1', '-strict', 'experimental');
+      
+      return {
+        outputOptions: h265Options,
+        contentType: 'video/mp4',
+        fileExtension: 'mp4'
+      };
+    case 'mkv':
+      // Get the same advanced processing options as MP4
+      const mkvOptions = buildAdvancedProcessingOptions(options);
+      
+      // Replace mp4-specific options with matroska format
+      const formatIndex = mkvOptions.indexOf('-f');
+      if (formatIndex !== -1 && formatIndex + 1 < mkvOptions.length) {
+        mkvOptions[formatIndex + 1] = 'matroska';
+      } else {
+        mkvOptions.push('-f', 'matroska');
+      }
+      
+      // Remove MP4-specific options that don't apply to MKV
+      const removeOptions = ['-movflags'];
+      for (const opt of removeOptions) {
+        const idx = mkvOptions.indexOf(opt);
+        if (idx !== -1 && idx + 1 < mkvOptions.length) {
+          mkvOptions.splice(idx, 2);
+        }
+      }
+      
+      return {
+        outputOptions: mkvOptions,
+        contentType: 'video/x-matroska',
+        fileExtension: 'mkv'
+      };
+    case 'png':
+      return {
+        inputOptions: ['-ss', '1'],
+        outputOptions: ['-vframes', '1', '-f', 'image2', '-vcodec', 'png'],
+        contentType: 'image/png',
+        fileExtension: 'png'
+      };
+    case 'mp4':
+    default:
+      return {
+        outputOptions: buildAdvancedProcessingOptions(options),
+        contentType: 'video/mp4',
+        fileExtension: 'mp4'
+      };
   }
 }
 
 export default eventHandler(async (event) => {
   try {
     const body = await readBody(event);
+    const query = getQuery(event);
     
-    const { url, outputName, options } = requestSchema.parse(body);
+    // Get format from query parameter or body
+    const formatFromQuery = typeof query.format === 'string' ? query.format : undefined;
     
-    console.log(`Processing video from URL: ${url} with options:`, JSON.stringify(options, null, 2));
+    // Parse the request with validation
+    const requestData = { ...body, format: formatFromQuery || body.format };
+    const { url, outputName, format, options } = requestSchema.parse(requestData);
     
-    const archive = archiver('zip', {
-      zlib: { level: 1 }
-    });
+    console.log(`Processing video from URL: ${url} with format: ${format} and options:`, JSON.stringify(options, null, 2));
     
-    archive.on('error', (err) => {
-      console.error('Archive error:', err);
-      event.node.res.statusCode = 500;
-      event.node.res.end('Error creating archive');
-    });
-    
-    console.log('Setting response headers...');
-    setResponseHeader(event, 'Content-Type', 'application/zip');
-    setResponseHeader(event, 'Content-Disposition', `attachment; filename="${outputName}-package.zip"`);
-    
-    console.log('Piping archive to response...');
-    archive.pipe(event.node.res);
-    
-    const addEmptyFile = (name: string) => {
-      console.log(`Adding empty file: ${name}`);
-      archive.append(Buffer.from([]), { name });
-    };
-    
-    console.log('Adding info.txt to archive...');
-    archive.append(`Video URL: ${url}\nProcessed: ${new Date().toISOString()}\n`, { name: 'info.txt' });
+    // Get output configuration based on format
+    const outputConfig = getOutputOptionsForFormat(format, options);
     
     try {
-      console.log('Processing with simplified filters');
-      const processedVideo = await processWithFFmpeg(url, {
-        name: 'processed.mp4',
-        outputOptions: buildAdvancedProcessingOptions(options)
+      const result = await processWithFFmpeg(url, {
+        name: `${outputName}.${outputConfig.fileExtension}`,
+        outputOptions: outputConfig.outputOptions,
+        inputOptions: outputConfig.inputOptions
       });
       
-      archive.append(processedVideo.buffer, { name: 'processed.mp4' });
-      console.log(`Successfully processed MP4 with size: ${processedVideo.buffer.length} bytes`);
+      console.log(`Successfully processed ${format} with size: ${result.buffer.length} bytes`);
+      
+      // Set appropriate content type and headers
+      setResponseHeader(event, 'Content-Type', outputConfig.contentType);
+      setResponseHeader(event, 'Content-Disposition', `attachment; filename="${outputName}.${outputConfig.fileExtension}"`);
+      
+      // Send the processed file directly
+      return result.buffer;
       
     } catch (error) {
-      console.error('Error processing MP4:', error);
-      // No fallback - just add an empty file and let the error propagate through the other formats
-      addEmptyFile('processed.mp4');
+      console.error(`Error processing ${format}:`, error);
+      throw error;
     }
-    
-    const processings = [
-      {
-        name: 'preview.gif',
-        inputOptions: ['-t', '3'],
-        outputOptions: ['-vf', 'fps=10,scale=320:-1:flags=lanczos', '-f', 'gif']
-      },
-      {
-        name: 'video.mp4',
-        outputOptions: [
-          '-c:v', 'libx264',
-          '-c:a', 'copy', 
-          '-movflags', 'isml+frag_keyframe+faststart',
-          '-tune', 'zerolatency',
-          '-f', 'mp4'
-        ]
-      },
-      {
-        name: 'video.h265.mp4',
-        outputOptions: [
-          '-c:v', 'libx265',
-          '-preset', 'ultrafast',
-          '-crf', '28',
-          '-c:a', 'aac',
-          '-movflags', 'isml+frag_keyframe+faststart',
-          '-tune', 'zerolatency',
-          '-f', 'mp4',
-          '-strict', 'experimental'
-        ]
-      }
-    ];
-    
-    // Process each output format
-    const processingPromises = processings.map(async (config) => {
-      try {
-        const result = await processWithFFmpeg(url, {
-          name: config.name,
-          outputOptions: config.outputOptions,
-          inputOptions: config.inputOptions
-        });
-        
-        archive.append(result.buffer, { name: config.name });
-        return true;
-      } catch (error) {
-        console.error(`Error processing ${config.name}:`, error);
-        addEmptyFile(config.name);
-        return false;
-      }
-    });
-    
-    // Generate thumbnail
-    try {
-      const thumbnailBuffer = await generateThumbnail(url);
-      archive.append(thumbnailBuffer, { name: 'thumbnail.png' });
-    } catch (error) {
-      console.error('Failed to generate thumbnail:', error);
-      addEmptyFile('thumbnail.png');
-    }
-    
-    // Wait for all processing to complete
-    await Promise.all(processingPromises);
-    
-    // Add metadata if provided
-    if (options.metadata) {
-      const metadataStr = Object.entries(options.metadata)
-        .map(([key, value]) => `${key}: ${value}`)
-        .join('\n');
-      archive.append(metadataStr, { name: 'metadata.txt' });
-    }
-    
-    console.log('Finalizing archive...');
-    await archive.finalize();
-    console.log('Archive finalized successfully and sent to client');
     
   } catch (error) {
     console.error('Error processing video:', error);
@@ -422,6 +370,6 @@ export default eventHandler(async (event) => {
       ? error.message 
       : 'Unknown error occurred';
       
-    event.node.res.end(JSON.stringify({ error: 'Failed to process video: ' + errorMessage }));
+    return { error: 'Failed to process video: ' + errorMessage };
   }
 }); 
