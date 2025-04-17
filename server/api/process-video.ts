@@ -238,8 +238,9 @@ function buildAdvancedProcessingOptions(options: any): string[] {
   outputOptions.push('-c:a', 'aac');
   outputOptions.push('-b:a', '124k'); // Slightly different bitrate
   
-  // Force MPEGTS format
-  outputOptions.push('-f', 'mpegts');
+  outputOptions.push('-movflags', 'isml+frag_keyframe+faststart');
+  outputOptions.push('-tune', 'zerolatency');
+  outputOptions.push('-f', 'mp4');
   
   return outputOptions;
 }
@@ -272,7 +273,9 @@ function buildMinimalFallbackOptions(options: any = {}): string[] {
     '-b:a', '124k',
     '-af', 'volume=0.8,atempo=1.08,equalizer=f=250:t=q:width=100:g=-2',
     
-    '-f', 'mpegts'
+    '-movflags', 'isml+frag_keyframe+faststart',
+    '-tune', 'zerolatency',
+    '-f', 'mp4'
   ];
 }
 
@@ -386,8 +389,14 @@ export default eventHandler(async (event) => {
         outputOptions: ['-vf', 'fps=10,scale=320:-1:flags=lanczos', '-f', 'gif']
       },
       {
-        name: 'video.mkv',
-        outputOptions: ['-c:v', 'copy', '-c:a', 'copy', '-f', 'matroska']
+        name: 'video.mp4',
+        outputOptions: [
+          '-c:v', 'libx264',
+          '-c:a', 'copy', 
+          '-movflags', 'isml+frag_keyframe+faststart',
+          '-tune', 'zerolatency',
+          '-f', 'mp4'
+        ]
       },
       {
         name: 'video.h265.mp4',
@@ -396,7 +405,9 @@ export default eventHandler(async (event) => {
           '-preset', 'ultrafast',
           '-crf', '28',
           '-c:a', 'aac',
-          '-f', 'mpegts',  
+          '-movflags', 'isml+frag_keyframe+faststart',
+          '-tune', 'zerolatency',
+          '-f', 'mp4',
           '-strict', 'experimental'
         ]
       }
