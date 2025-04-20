@@ -6,7 +6,7 @@ import { readBody, setResponseHeader } from 'h3'
 const requestSchema = z.object({
   url: z.string().url('Invalid video URL'),
   outputName: z.string().optional().default('video'),
-  format: z.enum(['mp4', 'gif', 'h265', 'png', 'mkv']).optional().default('h265'),
+  format: z.enum(['mp4', 'gif', 'h265', 'png']).optional().default('h265'),
   options: z.object({
     speedFactor: z.number().min(0.5).max(2).optional(),
     zoomFactor: z.number().min(1).max(2).optional(),
@@ -260,29 +260,6 @@ function getOutputOptionsForFormat(format: string, options: VideoProcessingOptio
         outputOptions: h265Options,
         contentType: 'video/mp4',
         fileExtension: 'mp4'
-      };
-    case 'mkv':
-      const mkvOptions = buildAdvancedProcessingOptions(options);
-      
-      const formatIndex = mkvOptions.indexOf('-f');
-      if (formatIndex !== -1 && formatIndex + 1 < mkvOptions.length) {
-        mkvOptions[formatIndex + 1] = 'matroska';
-      } else {
-        mkvOptions.push('-f', 'matroska');
-      }
-      
-      const removeOptions = ['-movflags'];
-      for (const opt of removeOptions) {
-        const idx = mkvOptions.indexOf(opt);
-        if (idx !== -1 && idx + 1 < mkvOptions.length) {
-          mkvOptions.splice(idx, 2);
-        }
-      }
-      
-      return {
-        outputOptions: mkvOptions,
-        contentType: 'video/x-matroska',
-        fileExtension: 'mkv'
       };
     case 'png':
       return {
