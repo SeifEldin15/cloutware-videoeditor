@@ -69,37 +69,25 @@ async function processWithFFmpeg(
   options: {
     outputOptions: string[],
     name: string,
+    contentType: string,
     inputOptions?: string[]
   }
-): Promise<{ buffer: Buffer, name: string }> {
+): Promise<PassThrough> {
   console.log(`Processing ${options.name}...`);
-  try {
-    const buffer = await new Promise<Buffer>((resolve, reject) => {
-      const chunks: Buffer[] = [];
+  
+  return new Promise<PassThrough>((resolve, reject) => {
+    try {
+      // Create a stream that will be sent directly to the client
       const outputStream = new PassThrough();
+      
       let commandOutput = '';
-      
-      outputStream.on('data', (chunk) => chunks.push(chunk));
-      outputStream.on('error', (err) => {
-        console.error(`${options.name} stream error:`, err);
-        reject(new Error(`Stream error: ${err.message}\nCommand output: ${commandOutput}`));
-      });
-      outputStream.on('end', () => {
-        const buffer = Buffer.concat(chunks);
-        console.log(`${options.name} stream ended with ${buffer.length} bytes`);
-        if (buffer.length === 0) {
-          reject(new Error(`Zero bytes returned. Command output: ${commandOutput}`));
-        } else {
-          resolve(buffer);
-        }
-      });
-      
       let ffmpegCommand = ffmpeg(inputUrl);
       
       if (options.inputOptions?.length) {
         ffmpegCommand.inputOptions(options.inputOptions);
       }
       
+      // Handle additional inputs
       const inputs: string[] = [];
       const cleanedOutputOptions: string[] = [];
       
@@ -117,7 +105,7 @@ async function processWithFFmpeg(
       });
       
       ffmpegCommand
-        .inputOptions(['-protocol_whitelist', 'file,http,https,tcp,tls'])
+        .inputOptions(['-protocol_whitelist', 'file,http,https,tcp,tls', '-reconnect', '1', '-reconnect_streamed', '1'])
         .outputOptions(cleanedOutputOptions)
         .on('start', (commandLine: string) => {
           console.log(`${options.name} FFmpeg started:`, commandLine);
@@ -129,9 +117,7 @@ async function processWithFFmpeg(
         })
         .on('stderr', (stderrLine: string) => {
           commandOutput += stderrLine + '\n';
-          if (stderrLine.includes('Error')) {
-            console.error(`${options.name} FFmpeg stderr:`, stderrLine);
-          }
+          console.log(`${options.name} FFmpeg stderr:`, stderrLine);
         })
         .on('error', (err: Error) => {
           console.error(`${options.name} FFmpeg error:`, err);
@@ -140,18 +126,20 @@ async function processWithFFmpeg(
         })
         .on('end', () => {
           console.log(`${options.name} FFmpeg process ended`);
-        })
-        .pipe(outputStream, { end: true });
-    });
-    
-    console.log(`${options.name} generated: ${buffer.length} bytes`);
-    return { buffer, name: options.name };
-  } catch (error) {
-    console.error(`${options.name} processing error:`, error);
-    throw error;
-  }
+        });
+      
+      // Pipe FFmpeg output directly to the response stream
+      ffmpegCommand.pipe(outputStream, { end: true });
+      
+      // Resolve with the stream instead of a buffer
+      resolve(outputStream);
+      
+    } catch (error) {
+      console.error(`${options.name} processing error:`, error);
+      reject(error);
+    }
+  });
 }
-
 
 function buildAdvancedProcessingOptions(options: VideoProcessingOptions): string[] {
   const outputOptions = [];
@@ -328,18 +316,21 @@ export default eventHandler(async (event) => {
     const outputConfig = getOutputOptionsForFormat(format, options);
     
     try {
-      const result = await processWithFFmpeg(url, {
+      const videoStream = await processWithFFmpeg(url, {
         name: `${outputName}.${outputConfig.fileExtension}`,
         outputOptions: outputConfig.outputOptions,
-        inputOptions: outputConfig.inputOptions
+        inputOptions: outputConfig.inputOptions,
+        contentType: outputConfig.contentType
       });
       
-      console.log(`Successfully processed ${format} with size: ${result.buffer.length} bytes`);
+      console.log(`Successfully processing ${format} stream`);
       
+      // Set response headers for the video stream
       setResponseHeader(event, 'Content-Type', outputConfig.contentType);
       setResponseHeader(event, 'Content-Disposition', `attachment; filename="${outputName}.${outputConfig.fileExtension}"`);
       
-      return result.buffer;
+      // Return the stream directly
+      return videoStream;
       
     } catch (error) {
       console.error(`Error processing ${format}:`, error);
