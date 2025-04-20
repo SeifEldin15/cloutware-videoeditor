@@ -152,25 +152,6 @@ async function processWithFFmpeg(
   }
 }
 
-async function generateThumbnail(inputUrl: string): Promise<Buffer> {
-  const positions = [1, 3, 0];  
-  
-  for (const position of positions) {
-    try {
-      const result = await processWithFFmpeg(inputUrl, {
-        name: `thumbnail.png`,
-        outputOptions: ['-vframes', '1', '-f', 'image2', '-vcodec', 'png'],
-        inputOptions: ['-ss', position.toString()]
-      });
-      
-      return result.buffer;
-    } catch (error) {
-      console.log(`Failed to generate thumbnail at position ${position}s:`, error);
-    }
-  }
-  
-  throw new Error('Failed to generate thumbnail at any position');
-}
 
 function buildAdvancedProcessingOptions(options: VideoProcessingOptions): string[] {
   const outputOptions = [];
