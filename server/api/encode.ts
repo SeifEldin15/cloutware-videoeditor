@@ -3,7 +3,6 @@ import ffmpeg from '../utils/ffmpeg'
 import { PassThrough } from 'stream'
 import { readBody, readValidatedBody, getValidatedQuery, setResponseHeader } from 'h3'
 
-// Define schemas 
 const querySchema = z.object({
   format: z.enum(['mp4', 'gif', 'h265', 'png']).optional()
 });
@@ -284,7 +283,6 @@ export default eventHandler(async (event) => {
     const query = await getValidatedQuery(event, querySchema.parse);
     const body = await readValidatedBody(event, bodySchema.parse);
     
-    // Use query format if provided, otherwise use body format
     const format = query.format || body.format;
     const { url, outputName, options } = body;
     
