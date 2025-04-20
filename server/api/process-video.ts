@@ -1,9 +1,14 @@
 import { z } from 'zod'
 import ffmpeg from '../utils/ffmpeg'
 import { PassThrough } from 'stream'
-import { readBody, setResponseHeader } from 'h3'
+import { readBody, readValidatedBody, getValidatedQuery, setResponseHeader } from 'h3'
 
-const requestSchema = z.object({
+// Define schemas 
+const querySchema = z.object({
+  format: z.enum(['mp4', 'gif', 'h265', 'png']).optional()
+});
+
+const bodySchema = z.object({
   url: z.string().url('Invalid video URL'),
   outputName: z.string().optional().default('video'),
   format: z.enum(['mp4', 'gif', 'h265', 'png']).optional().default('h265'),
@@ -62,7 +67,7 @@ const requestSchema = z.object({
   }).optional().default({})
 });
 
-type VideoProcessingOptions = z.infer<typeof requestSchema>['options'];
+type VideoProcessingOptions = z.infer<typeof bodySchema>['options'];
 
 async function processWithFFmpeg(
   inputUrl: string, 
@@ -77,7 +82,6 @@ async function processWithFFmpeg(
   
   return new Promise<PassThrough>((resolve, reject) => {
     try {
-      // Create a stream that will be sent directly to the client
       const outputStream = new PassThrough();
       
       let commandOutput = '';
@@ -87,7 +91,6 @@ async function processWithFFmpeg(
         ffmpegCommand.inputOptions(options.inputOptions);
       }
       
-      // Handle additional inputs
       const inputs: string[] = [];
       const cleanedOutputOptions: string[] = [];
       
@@ -128,10 +131,8 @@ async function processWithFFmpeg(
           console.log(`${options.name} FFmpeg process ended`);
         });
       
-      // Pipe FFmpeg output directly to the response stream
       ffmpegCommand.pipe(outputStream, { end: true });
       
-      // Resolve with the stream instead of a buffer
       resolve(outputStream);
       
     } catch (error) {
@@ -280,13 +281,12 @@ function getOutputOptionsForFormat(format: string, options: VideoProcessingOptio
 
 export default eventHandler(async (event) => {
   try {
-    const body = await readBody(event);
-    const query = getQuery(event);
+    const query = await getValidatedQuery(event, querySchema.parse);
+    const body = await readValidatedBody(event, bodySchema.parse);
     
-    const formatFromQuery = typeof query.format === 'string' ? query.format : undefined;
-    
-    const requestData = { ...body, format: formatFromQuery || body.format };
-    const { url, outputName, format, options } = requestSchema.parse(requestData);
+    // Use query format if provided, otherwise use body format
+    const format = query.format || body.format;
+    const { url, outputName, options } = body;
     
     console.log(`Processing video from URL: ${url} with format: ${format} and options:`, JSON.stringify(options, null, 2));
     
@@ -302,11 +302,9 @@ export default eventHandler(async (event) => {
       
       console.log(`Successfully processing ${format} stream`);
       
-      // Set response headers for the video stream
       setResponseHeader(event, 'Content-Type', outputConfig.contentType);
       setResponseHeader(event, 'Content-Disposition', `attachment; filename="${outputName}.${outputConfig.fileExtension}"`);
       
-      // Return the stream directly
       return videoStream;
       
     } catch (error) {
