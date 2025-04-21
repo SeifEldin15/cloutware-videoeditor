@@ -11,7 +11,8 @@ const requestSchema = z.object({
   fontColor: z.string().optional().default('white'),
   subtitlePosition: z.string().optional().default('bottom'),
   horizontalAlignment: z.enum(['left', 'center', 'right']).optional().default('center'),
-  verticalMargin: z.number().optional().default(50) 
+  verticalMargin: z.number().optional().default(50),
+  showBackground: z.boolean().optional().default(true)
 });
 
 if (!process.env.ASSEMBLYAI_API_KEY) {
@@ -176,7 +177,11 @@ async function processVideoWithTimedSubtitles(inputUrl: string, transcript: any,
         
         const enableExpr = `between(t,${startTime},${endTime})`;
         
-        return `drawtext=text='${escapedText}':fontsize=${options.fontSize}:fontcolor=${options.fontColor}:x=${xPosition}:y=${yPosition}:box=1:boxcolor=black@0.5:boxborderw=5:enable='${enableExpr}'`;
+        const boxSettings = options.showBackground 
+          ? ':box=1:boxcolor=black@0.5:boxborderw=5' 
+          : '';
+        
+        return `drawtext=text='${escapedText}':fontsize=${options.fontSize}:fontcolor=${options.fontColor}:x=${xPosition}:y=${yPosition}${boxSettings}:enable='${enableExpr}'`;
       });
       
       const command = ffmpeg(inputUrl, { timeout: 240 })
@@ -219,7 +224,7 @@ async function processVideoWithTimedSubtitles(inputUrl: string, transcript: any,
 export default eventHandler(async (event) => {
   try {
     const body = await readBody(event);
-    const { url, outputName, language, fontSize, fontColor, subtitlePosition, horizontalAlignment, verticalMargin } = requestSchema.parse(body);
+    const { url, outputName, language, fontSize, fontColor, subtitlePosition, horizontalAlignment, verticalMargin, showBackground } = requestSchema.parse(body);
     
     try {
       const headResponse = await fetch(url, { method: 'HEAD' });
@@ -236,7 +241,8 @@ export default eventHandler(async (event) => {
       fontColor,
       subtitlePosition,
       horizontalAlignment,
-      verticalMargin
+      verticalMargin,
+      showBackground
     });
     
     setResponseHeader(event, 'Content-Type', 'video/mp4');
