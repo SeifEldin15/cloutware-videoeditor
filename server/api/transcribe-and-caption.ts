@@ -12,7 +12,8 @@ const requestSchema = z.object({
   subtitlePosition: z.string().optional().default('bottom'),
   horizontalAlignment: z.enum(['left', 'center', 'right']).optional().default('center'),
   verticalMargin: z.number().optional().default(50),
-  showBackground: z.boolean().optional().default(true)
+  showBackground: z.boolean().optional().default(true),
+  backgroundColor: z.string().optional().default('black@0.5')
 });
 
 if (!process.env.ASSEMBLYAI_API_KEY) {
@@ -178,7 +179,7 @@ async function processVideoWithTimedSubtitles(inputUrl: string, transcript: any,
         const enableExpr = `between(t,${startTime},${endTime})`;
         
         const boxSettings = options.showBackground 
-          ? ':box=1:boxcolor=black@0.5:boxborderw=5' 
+          ? ':box=1:boxcolor=' + options.backgroundColor + ':boxborderw=5' 
           : '';
         
         return `drawtext=text='${escapedText}':fontsize=${options.fontSize}:fontcolor=${options.fontColor}:x=${xPosition}:y=${yPosition}${boxSettings}:enable='${enableExpr}'`;
@@ -224,7 +225,7 @@ async function processVideoWithTimedSubtitles(inputUrl: string, transcript: any,
 export default eventHandler(async (event) => {
   try {
     const body = await readBody(event);
-    const { url, outputName, language, fontSize, fontColor, subtitlePosition, horizontalAlignment, verticalMargin, showBackground } = requestSchema.parse(body);
+    const { url, outputName, language, fontSize, fontColor, subtitlePosition, horizontalAlignment, verticalMargin, showBackground, backgroundColor } = requestSchema.parse(body);
     
     try {
       const headResponse = await fetch(url, { method: 'HEAD' });
@@ -242,7 +243,8 @@ export default eventHandler(async (event) => {
       subtitlePosition,
       horizontalAlignment,
       verticalMargin,
-      showBackground
+      showBackground,
+      backgroundColor
     });
     
     setResponseHeader(event, 'Content-Type', 'video/mp4');
