@@ -9,7 +9,9 @@ const requestSchema = z.object({
   language: z.string().optional().default('en'),
   fontSize: z.number().optional().default(24),
   fontColor: z.string().optional().default('white'),
-  subtitlePosition: z.string().optional().default('bottom') 
+  subtitlePosition: z.string().optional().default('bottom'),
+  horizontalAlignment: z.enum(['left', 'center', 'right']).optional().default('center'),
+  verticalMargin: z.number().optional().default(50) 
 });
 
 if (!process.env.ASSEMBLYAI_API_KEY) {
@@ -76,14 +78,32 @@ async function processVideoWithSimpleSubtitle(inputUrl: string, transcript: any,
       let subtitleText = '';
       if (transcript.text) {
         subtitleText = transcript.text.substring(0, 200)
-          .replace(/'/g, "\\'")
-          .replace(/"/g, '\\"');
+          .replace(/'/g, "")
+          .replace(/"/g, "")
+          .replace(/\n/g, " ")
+          .replace(/:/g, "\\:")
+          .replace(/\\/g, "\\\\");
       }
       
-      const yPosition = 
-        options.subtitlePosition === 'top' ? '20' :
-        options.subtitlePosition === 'middle' ? '(h/2)' : 
-        '(h-50)'; 
+      let yPosition;
+      if (options.subtitlePosition === 'top') {
+        yPosition = options.verticalMargin;
+      } else if (options.subtitlePosition === 'middle') {
+        yPosition = "(h-th)/2";
+      } else { 
+        yPosition = `h-th-${options.verticalMargin}`;
+      }
+      
+      let xPosition;
+      if (options.horizontalAlignment === 'left') {
+        xPosition = options.verticalMargin; 
+      } else if (options.horizontalAlignment === 'right') {
+        xPosition = `w-tw-${options.verticalMargin}`;
+      } else { 
+        xPosition = "(w-tw)/2";
+      }
+      
+      console.log(`Setting subtitle position - x: ${xPosition}, y: ${yPosition}`);
       
       const command = ffmpeg(inputUrl, { timeout: 180 })
         .inputOptions([
@@ -95,7 +115,7 @@ async function processVideoWithSimpleSubtitle(inputUrl: string, transcript: any,
       
       if (subtitleText) {
         command.videoFilters([
-          `drawtext=text='${subtitleText}':fontsize=${options.fontSize}:fontcolor=${options.fontColor}:x=(w-text_w)/2:y=${yPosition}:box=1:boxcolor=black@0.5:boxborderw=5`
+          `drawtext=text='${subtitleText}':fontsize=${options.fontSize}:fontcolor=${options.fontColor}:x=${xPosition}:y=${yPosition}:box=1:boxcolor=black@0.5:boxborderw=5`
         ]);
       }
       
@@ -135,7 +155,7 @@ async function processVideoWithSimpleSubtitle(inputUrl: string, transcript: any,
 export default eventHandler(async (event) => {
   try {
     const body = await readBody(event);
-    const { url, outputName, language, fontSize, fontColor, subtitlePosition } = requestSchema.parse(body);
+    const { url, outputName, language, fontSize, fontColor, subtitlePosition, horizontalAlignment, verticalMargin } = requestSchema.parse(body);
     
     console.log('Step 1: Transcribing video...');
     const transcript = await transcribeVideo(url, language);
@@ -144,7 +164,9 @@ export default eventHandler(async (event) => {
     const videoStream = await processVideoWithSimpleSubtitle(url, transcript, {
       fontSize,
       fontColor,
-      subtitlePosition
+      subtitlePosition,
+      horizontalAlignment,
+      verticalMargin
     });
     
     setResponseHeader(event, 'Content-Type', 'video/MP2T');
