@@ -7,11 +7,11 @@ const requestSchema = z.object({
   url: z.string().url('Invalid video URL'),
   outputName: z.string().optional().default('captioned_video'),
   language: z.string().optional().default('en'),
-  fontSize: z.number().optional().default(24),
+  fontSize: z.number().min(8).max(72).optional().default(24),
   fontColor: z.string().optional().default('white'),
   subtitlePosition: z.string().optional().default('bottom'),
   horizontalAlignment: z.enum(['left', 'center', 'right']).optional().default('center'),
-  verticalMargin: z.number().optional().default(50),
+  verticalMargin: z.number().min(0).max(200).optional().default(50),
   showBackground: z.boolean().optional().default(true),
   backgroundColor: z.string().optional().default('black@0.5')
 });
