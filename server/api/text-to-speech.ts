@@ -6,7 +6,7 @@ import { PassThrough } from 'stream'
 const requestSchema = z.object({
   videoUrl: z.string().url('Invalid video URL'),
   text: z.string().min(1, 'Text is required'),
-  outputName: z.string().optional().default('voiceover_video'),
+  outputName: z.string().regex(/^[a-zA-Z0-9_-]+$/, 'Output name can only contain letters, numbers, underscores and hyphens').optional().default('voiceover_video'),
   voice: z.string().optional().default('21m00Tcm4TlvDq8ikWAM'), // Default Voice ID for ElevenLabs (Rachel)
   speed: z.number().min(0.5).max(2.0).optional().default(1.0)
 });

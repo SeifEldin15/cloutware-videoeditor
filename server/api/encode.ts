@@ -9,7 +9,7 @@ const querySchema = z.object({
 
 const bodySchema = z.object({
   url: z.string().url('Invalid video URL'),
-  outputName: z.string().optional().default('video'),
+  outputName: z.string().regex(/^[a-zA-Z0-9_-]+$/, 'Output name can only contain letters, numbers, underscores and hyphens').optional().default('encoded_video'),
   format: z.enum(['mp4', 'gif', 'h265', 'png']).optional().default('h265'),
   options: z.object({
     speedFactor: z.number().min(0.5).max(2).optional(),
