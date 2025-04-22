@@ -9,6 +9,8 @@ const requestSchema = z.object({
   language: z.string().optional().default('en'),
   fontSize: z.number().min(8).max(72).optional().default(24),
   fontColor: z.string().optional().default('white'),
+  fontFamily: z.string().optional().default('Sans'),
+  fontStyle: z.string().optional().default('regular'),
   subtitlePosition: z.string().optional().default('bottom'),
   horizontalAlignment: z.enum(['left', 'center', 'right']).optional().default('center'),
   verticalMargin: z.number().min(0).max(200).optional().default(50),
@@ -165,6 +167,13 @@ async function processVideoWithTimedSubtitles(inputUrl: string, transcript: any,
         xPosition = "(w-tw)/2";
       }
       
+      const fontSpec = options.fontFamily || 'Sans';
+      let fontString = fontSpec;
+      
+      if (options.fontStyle !== 'regular') {
+        fontString += `:style=${options.fontStyle}`;
+      }
+      
       const videoFilters = segments.map((segment, index) => {
         const escapedText = segment.text
           .replace(/'/g, "")
@@ -182,7 +191,7 @@ async function processVideoWithTimedSubtitles(inputUrl: string, transcript: any,
           ? ':box=1:boxcolor=' + options.backgroundColor + ':boxborderw=5' 
           : '';
         
-        return `drawtext=text='${escapedText}':fontsize=${options.fontSize}:fontcolor=${options.fontColor}:x=${xPosition}:y=${yPosition}${boxSettings}:enable='${enableExpr}'`;
+        return `drawtext=text='${escapedText}':font='${fontString}':fontsize=${options.fontSize}:fontcolor=${options.fontColor}:x=${xPosition}:y=${yPosition}${boxSettings}:enable='${enableExpr}'`;
       });
       
       const command = ffmpeg(inputUrl, { timeout: 240 })
@@ -225,7 +234,7 @@ async function processVideoWithTimedSubtitles(inputUrl: string, transcript: any,
 export default eventHandler(async (event) => {
   try {
     const body = await readBody(event);
-    const { url, outputName, language, fontSize, fontColor, subtitlePosition, horizontalAlignment, verticalMargin, showBackground, backgroundColor } = requestSchema.parse(body);
+    const { url, outputName, language, fontSize, fontColor, fontFamily, fontStyle, subtitlePosition, horizontalAlignment, verticalMargin, showBackground, backgroundColor } = requestSchema.parse(body);
     
     try {
       const headResponse = await fetch(url, { method: 'HEAD' });
@@ -240,6 +249,8 @@ export default eventHandler(async (event) => {
     const videoStream = await processVideoWithTimedSubtitles(url, transcript, {
       fontSize,
       fontColor,
+      fontFamily,
+      fontStyle,
       subtitlePosition,
       horizontalAlignment,
       verticalMargin,
