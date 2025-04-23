@@ -16,6 +16,41 @@ if (!process.env.ASSEMBLYAI_API_KEY) {
 
 const apiKey = process.env.ASSEMBLYAI_API_KEY;
 
+
+function convertToSRT(words: any[]) {
+  if (!words || words.length === 0) {
+    return '';
+  }
+
+  const segments = [];
+  const wordsPerSegment = 5;
+  
+  for (let i = 0; i < words.length; i += wordsPerSegment) {
+    const segmentWords = words.slice(i, i + wordsPerSegment);
+    if (segmentWords.length > 0) {
+      segments.push({
+        start: segmentWords[0].start,
+        end: segmentWords[segmentWords.length - 1].end,
+        text: segmentWords.map(w => w.text).join(' ')
+      });
+    }
+  }
+
+  return segments.map((segment, index) => {
+    const formatTime = (ms: number) => {
+      const totalSeconds = Math.floor(ms / 1000);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+      const milliseconds = ms % 1000;
+      
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')},${String(milliseconds).padStart(3, '0')}`;
+    };
+
+    return `${index + 1}\n${formatTime(segment.start)} --> ${formatTime(segment.end)}\n${segment.text}\n`;
+  }).join('\n');
+}
+
 export default eventHandler(async (event) => {
   try {
     const body = await readBody(event);
@@ -65,7 +100,7 @@ export default eventHandler(async (event) => {
           case 'text':
             return transcript.text;
           case 'srt':
-            return transcript.text;
+            return convertToSRT(transcript.words);
           case 'vtt':
             return transcript.text;
           case 'json':
