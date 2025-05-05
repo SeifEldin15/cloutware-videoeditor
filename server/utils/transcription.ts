@@ -72,6 +72,7 @@ export async function transcribeVideo(url: string, language: string) {
 
 export const requestSchema = z.object({
   url: z.string().url('Invalid video URL'),
+  srtContent: z.string().optional(),
   outputName: z.string().regex(/^[a-zA-Z0-9_-]+$/, 'Output name can only contain letters, numbers, underscores and hyphens').optional().default('captioned_video'),
   language: z.string().optional().default('en'),
   fontSize: z.number().min(8).max(72).optional().default(24),

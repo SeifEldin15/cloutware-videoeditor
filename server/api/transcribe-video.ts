@@ -22,31 +22,65 @@ function convertToSRT(words: any[]) {
     return '';
   }
 
+  // Format time from milliseconds to SRT format (HH:MM:SS,mmm)
+  const formatTime = (ms: number) => {
+    const totalSeconds = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const milliseconds = ms % 1000;
+    
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')},${String(milliseconds).padStart(3, '0')}`;
+  };
+
+  // Create segments based on pauses in speech
+  // We'll consider a pause significant if it's more than 700ms
+  const PAUSE_THRESHOLD = 700;
   const segments = [];
-  const wordsPerSegment = 5;
-  
-  for (let i = 0; i < words.length; i += wordsPerSegment) {
-    const segmentWords = words.slice(i, i + wordsPerSegment);
-    if (segmentWords.length > 0) {
+  let currentSegment = {
+    words: [words[0]],
+    start: words[0].start,
+    end: words[0].end
+  };
+
+  for (let i = 1; i < words.length; i++) {
+    const currentWord = words[i];
+    const previousWord = words[i-1];
+    const pause = currentWord.start - previousWord.end;
+
+    // If there's a significant pause or we've accumulated enough words (max 10)
+    if (pause > PAUSE_THRESHOLD || currentSegment.words.length >= 10) {
+      // Finish current segment
       segments.push({
-        start: segmentWords[0].start,
-        end: segmentWords[segmentWords.length - 1].end,
-        text: segmentWords.map(w => w.text).join(' ')
+        start: currentSegment.start,
+        end: currentSegment.end,
+        text: currentSegment.words.map(w => w.text).join(' ')
       });
+
+      // Start new segment
+      currentSegment = {
+        words: [currentWord],
+        start: currentWord.start,
+        end: currentWord.end
+      };
+    } else {
+      // Add word to current segment
+      currentSegment.words.push(currentWord);
+      currentSegment.end = currentWord.end;
     }
   }
 
-  return segments.map((segment, index) => {
-    const formatTime = (ms: number) => {
-      const totalSeconds = Math.floor(ms / 1000);
-      const hours = Math.floor(totalSeconds / 3600);
-      const minutes = Math.floor((totalSeconds % 3600) / 60);
-      const seconds = totalSeconds % 60;
-      const milliseconds = ms % 1000;
-      
-      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')},${String(milliseconds).padStart(3, '0')}`;
-    };
+  // Add the last segment if it has any words
+  if (currentSegment.words.length > 0) {
+    segments.push({
+      start: currentSegment.start,
+      end: currentSegment.end,
+      text: currentSegment.words.map(w => w.text).join(' ')
+    });
+  }
 
+  // Convert segments to SRT format
+  return segments.map((segment, index) => {
     return `${index + 1}\n${formatTime(segment.start)} --> ${formatTime(segment.end)}\n${segment.text}\n`;
   }).join('\n');
 }
