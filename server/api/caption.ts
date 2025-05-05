@@ -1,11 +1,11 @@
 import { readBody, setResponseHeader } from 'h3'
-import { transcribeVideo, requestSchema } from '../utils/transcription'
-import { processVideoWithTimedSubtitles } from '../utils/captioning'
+import { requestSchema } from '../utils/transcription'
+import { processVideoWithSubtitlesFile } from '../utils/captioning'
 
 export default eventHandler(async (event) => {
   try {
     const body = await readBody(event);
-    const { url, outputName, language, fontSize, fontColor, fontFamily, fontStyle, subtitlePosition, horizontalAlignment, verticalMargin, showBackground, backgroundColor } = requestSchema.parse(body);
+    const { url, srtContent, outputName, fontSize, fontColor, fontFamily, fontStyle, subtitlePosition, horizontalAlignment, verticalMargin, showBackground, backgroundColor } = requestSchema.parse(body);
     
     try {
       const headResponse = await fetch(url, { method: 'HEAD' });
@@ -16,8 +16,10 @@ export default eventHandler(async (event) => {
       throw new Error(`Cannot access video URL`);
     }
     
-    const transcript = await transcribeVideo(url, language);
-    const videoStream = await processVideoWithTimedSubtitles(url, transcript, {
+    if (!srtContent) {
+      throw new Error('SRT subtitle content is required');
+    }
+    const videoStream = await processVideoWithSubtitlesFile(url, srtContent, {
       fontSize,
       fontColor,
       fontFamily,
