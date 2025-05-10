@@ -2,15 +2,16 @@ import { z } from 'zod'
 import ffmpeg from '../utils/ffmpeg'
 import { PassThrough } from 'stream'
 import { readBody, readValidatedBody, getValidatedQuery, setResponseHeader } from 'h3'
+import os from 'os'
 
 const querySchema = z.object({
-  format: z.enum(['mp4', 'gif', 'h265', 'png']).optional()
+  format: z.enum(['mp4', 'gif', 'png']).optional()
 });
 
 const bodySchema = z.object({
   url: z.string().url('Invalid video URL'),
   outputName: z.string().regex(/^[a-zA-Z0-9_-]+$/, 'Output name can only contain letters, numbers, underscores and hyphens').optional().default('encoded_video'),
-  format: z.enum(['mp4', 'gif', 'h265', 'png']).optional().default('h265'),
+  format: z.enum(['mp4', 'gif', 'png']).optional().default('mp4'),
   options: z.object({
     speedFactor: z.number().min(0.5).max(2).optional(),
     zoomFactor: z.number().min(1).max(2).optional(),
@@ -68,6 +69,9 @@ const bodySchema = z.object({
 
 type VideoProcessingOptions = z.infer<typeof bodySchema>['options'];
 
+const availableCpuCores = os.cpus().length;
+const optimalThreads = Math.max(2, Math.floor(availableCpuCores * 0.75)).toString();
+
 async function processWithFFmpeg(
   inputUrl: string, 
   options: {
@@ -81,10 +85,21 @@ async function processWithFFmpeg(
   
   return new Promise<PassThrough>((resolve, reject) => {
     try {
-      const outputStream = new PassThrough();
+      const outputStream = new PassThrough({highWaterMark: 4 * 1024 * 1024}); 
       
       let commandOutput = '';
       let ffmpegCommand = ffmpeg(inputUrl);
+      
+      ffmpegCommand.inputOptions([
+        '-protocol_whitelist', 'file,http,https,tcp,tls', 
+        '-reconnect', '1', 
+        '-reconnect_streamed', '1',
+        '-analyzeduration', '10000000', 
+        '-probesize', '10000000', 
+        '-thread_queue_size', '512',
+        '-hwaccel', 'auto',
+        '-threads', optimalThreads 
+      ]);
       
       if (options.inputOptions?.length) {
         ffmpegCommand.inputOptions(options.inputOptions);
@@ -93,13 +108,34 @@ async function processWithFFmpeg(
       const inputs: string[] = [];
       const cleanedOutputOptions: string[] = [];
       
+      let hasFormatOption = false;
       for (let i = 0; i < options.outputOptions.length; i++) {
-        if (options.outputOptions[i] === '-i' && i + 1 < options.outputOptions.length) {
+        if (options.outputOptions[i] === '-f' && i + 1 < options.outputOptions.length) {
+          hasFormatOption = true;
+          if (options.outputOptions[i + 1] === 'mp4') {
+            cleanedOutputOptions.push('-f');
+            cleanedOutputOptions.push('mpegts');
+            i++; 
+          } else {
+            cleanedOutputOptions.push(options.outputOptions[i]);
+            cleanedOutputOptions.push(options.outputOptions[i + 1]);
+            i++; 
+          }
+        } else if (options.outputOptions[i] === '-movflags') {
+          i++; 
+        } else if (options.outputOptions[i] === '-i' && i + 1 < options.outputOptions.length) {
           inputs.push(options.outputOptions[i + 1]);
+          i++; 
+        } else if (options.outputOptions[i] === '-hwaccel') {
           i++; 
         } else {
           cleanedOutputOptions.push(options.outputOptions[i]);
         }
+      }
+      
+      if (!hasFormatOption) {
+        cleanedOutputOptions.push('-f');
+        cleanedOutputOptions.push('mpegts');
       }
       
       inputs.forEach(input => {
@@ -107,7 +143,6 @@ async function processWithFFmpeg(
       });
       
       ffmpegCommand
-        .inputOptions(['-protocol_whitelist', 'file,http,https,tcp,tls', '-reconnect', '1', '-reconnect_streamed', '1'])
         .outputOptions(cleanedOutputOptions)
         .on('start', (commandLine: string) => {
           console.log(`${options.name} FFmpeg started:`, commandLine);
@@ -130,6 +165,8 @@ async function processWithFFmpeg(
           console.log(`${options.name} FFmpeg process ended`);
         });
       
+      ffmpegCommand.outputOptions(['-preset', 'veryfast', '-threads', optimalThreads]);
+      
       ffmpegCommand.pipe(outputStream, { end: true });
       
       resolve(outputStream);
@@ -145,11 +182,9 @@ function buildAdvancedProcessingOptions(options: VideoProcessingOptions): string
   const outputOptions = [];
   const timestamp = new Date().getTime().toString();
   
-  //  METADATA STRIPPING AND POISONING
   outputOptions.push('-map_metadata', '-1');
   outputOptions.push('-fflags', '+bitexact'); 
   
-  //  random metadata 
   const randomTime = new Date(Math.floor(Math.random() * 1000000000000)).toISOString();
   outputOptions.push('-metadata', `title=processed_${timestamp}`);
   outputOptions.push('-metadata', `comment=modified_${timestamp.slice(-6)}`);
@@ -160,40 +195,25 @@ function buildAdvancedProcessingOptions(options: VideoProcessingOptions): string
     outputOptions.push('-i', 'audio.mp3');
   }
   
-  // VIDEO FILTERS 
   const videoFilter = [
-    'crop=in_w-20:in_h-20:10:10',
-    'scale=708:1260',
-    'hue=h=5:s=1.05',
-    'eq=gamma=1.1:contrast=1.1:brightness=0.05',
+    'crop=in_w-10:in_h-10:5:5,scale=708:1260:flags=fast_bilinear',
+    
+    'hue=s=1.05,eq=gamma=1.05:contrast=1.05:brightness=0.05:saturation=1.05',
+    
     'setpts=0.92*PTS',
-    'rotate=0.5*PI/180:bilinear=0',
-    'pad=iw+4:ih+4:2:2:black@0.8',
     
-    // zoom effect (+2%)
-    'scale=iw*1.02:ih*1.02,crop=iw/1.02:ih/1.04',
+    'rotate=0.25*PI/180:bilinear=0',
     
-    // HSL lightness adjustment (+3%)
-    'eq=brightness=0.03:saturation=1.06',
+    'pad=iw+2:ih+2:1:1:black@0.8',
     
-    // Random pixel shift (1-2px)
-    'crop=in_w-2:in_h-2:1:1',
-
-    // random noise (very subtle)
     'noise=alls=1:allf=t'
   ].join(',');
   
-  // Apply video filters
   outputOptions.push('-vf', videoFilter);
   
-  //  AUDIO FILTERS
   let audioFilter = [
-    'volume=0.8',
-    'atempo=1.09',
-    
-    // subtle EQ adjustments
-    'equalizer=f=250:t=q:width=100:g=-2',  // Reduce around 250Hz
-    'equalizer=f=12000:t=q:width=2000:g=1' // Slight boost in highs
+    'volume=0.8,atempo=1.09',
+    'equalizer=f=1000:width=200:g=-1'
   ].join(',');
   
   if (options.backgroundAudio) {
@@ -205,28 +225,29 @@ function buildAdvancedProcessingOptions(options: VideoProcessingOptions): string
     const bgVolume = options.backgroundAudioVolume || 0.2;
     
     outputOptions.push('-filter_complex', 
-      `[0:a]${audioFilter}[a0]; [1:a]volume=${bgVolume},aloop=loop=-1:size=2048[a1]; [a0][a1]amix=inputs=2:duration=first[aout]`);
+      `[0:a]${audioFilter}[a0]; [1:a]volume=${bgVolume}[a1]; [a0][a1]amix=inputs=2:duration=first[aout]`);
     
     outputOptions.push('-map', '0:v', '-map', '[aout]');
   } else {
     outputOptions.push('-af', audioFilter);
   }
   
-  // CODEC MIXING & ADVANCED SETTINGS
   outputOptions.push('-c:v', 'libx264');
-  outputOptions.push('-preset', 'ultrafast');
-  outputOptions.push('-crf', '24');
-  outputOptions.push('-pix_fmt', 'yuv420p'); // Explicit pixel format
+  outputOptions.push('-preset', 'veryfast');
+  outputOptions.push('-crf', '28');
   
-  // Change frame rate slightly
+  outputOptions.push('-threads', optimalThreads);
+  
+  outputOptions.push('-pix_fmt', 'yuv420p');
   outputOptions.push('-r', '29.97');
   
-  // Standard audio codec and settings
   outputOptions.push('-c:a', 'aac');
-  outputOptions.push('-b:a', '124k'); // Slightly different bitrate
+  outputOptions.push('-b:a', '128k');
   
-  outputOptions.push('-movflags', 'isml+frag_keyframe+faststart');
-  outputOptions.push('-tune', 'zerolatency');
+  outputOptions.push('-max_muxing_queue_size', '4096');
+  
+  outputOptions.push('-movflags', '+faststart');  
+  outputOptions.push('-tune', 'zerolatency'); 
   outputOptions.push('-f', 'mp4');
   
   return outputOptions;
@@ -241,25 +262,10 @@ function getOutputOptionsForFormat(format: string, options: VideoProcessingOptio
   switch (format) {
     case 'gif':
       return {
-        inputOptions: ['-t', '3'],
+        inputOptions: ['-t', '3', '-threads', optimalThreads],
         outputOptions: ['-vf', 'fps=10,scale=320:-1:flags=lanczos', '-f', 'gif'],
         contentType: 'image/gif',
         fileExtension: 'gif'
-      };
-    case 'h265':
-      const h265Options = buildAdvancedProcessingOptions(options);
-      
-      const codecIndex = h265Options.indexOf('-c:v');
-      if (codecIndex !== -1 && codecIndex + 1 < h265Options.length) {
-        h265Options[codecIndex + 1] = 'libx265';
-      }
-      
-      h265Options.push('-tag:v', 'hvc1', '-strict', 'experimental');
-      
-      return {
-        outputOptions: h265Options,
-        contentType: 'video/mp4',
-        fileExtension: 'mp4'
       };
     case 'png':
       return {
@@ -300,7 +306,12 @@ export default eventHandler(async (event) => {
       
       console.log(`Successfully processing ${format} stream`);
       
-      setResponseHeader(event, 'Content-Type', outputConfig.contentType);
+      if (format === 'mp4') {
+        setResponseHeader(event, 'Content-Type', 'video/mp2t');
+      } else {
+        setResponseHeader(event, 'Content-Type', outputConfig.contentType);
+      }
+      
       setResponseHeader(event, 'Content-Disposition', `attachment; filename="${outputName}.${outputConfig.fileExtension}"`);
       
       return videoStream;
