@@ -3,6 +3,7 @@ import ffmpeg from '../utils/ffmpeg'
 import { PassThrough } from 'stream'
 import { readBody, readValidatedBody, getValidatedQuery, setResponseHeader } from 'h3'
 import os from 'os'
+import { processVideoWithSubtitlesFile } from '../utils/captioning'
 
 const querySchema = z.object({
   format: z.enum(['mp4', 'gif', 'png']).optional()
@@ -64,7 +65,19 @@ const bodySchema = z.object({
       metadataPoisoning: z.boolean().optional().default(true),
       frameInterpolation: z.boolean().optional().default(true)
     }).optional().default({})
-  }).optional().default({})
+  }).optional().default({}),
+  caption: z.object({
+    srtContent: z.string().optional(),
+    fontSize: z.number().min(10).max(72).optional().default(24),
+    fontColor: z.string().optional().default('white'),
+    fontFamily: z.string().optional().default('Sans'),
+    fontStyle: z.enum(['regular', 'bold', 'italic']).optional().default('regular'),
+    subtitlePosition: z.enum(['top', 'middle', 'bottom']).optional().default('bottom'),
+    horizontalAlignment: z.enum(['left', 'center', 'right']).optional().default('center'),
+    verticalMargin: z.number().min(10).max(100).optional().default(30),
+    showBackground: z.boolean().optional().default(true),
+    backgroundColor: z.string().optional().default('black@0.5')
+  }).optional()
 });
 
 type VideoProcessingOptions = z.infer<typeof bodySchema>['options'];
@@ -290,9 +303,51 @@ export default eventHandler(async (event) => {
     const body = await readValidatedBody(event, bodySchema.parse);
     
     const format = query.format || body.format;
-    const { url, outputName, options } = body;
+    const { url, outputName, options, caption } = body;
     
     console.log(`Processing video from URL: ${url} with format: ${format} and options:`, JSON.stringify(options, null, 2));
+    if (caption) {
+      console.log('Caption options included:', JSON.stringify(caption, null, 2));
+    }
+    
+    if (format !== 'mp4' && caption && caption.srtContent) {
+      throw new Error('Captions can only be applied to MP4 format videos');
+    }
+    
+    if (format === 'mp4' && caption && caption.srtContent) {
+      try {
+        try {
+          const headResponse = await fetch(url, { method: 'HEAD' });
+          if (!headResponse.ok) {
+            throw new Error(`Video URL not accessible: ${url}`);
+          }
+        } catch (error: any) {
+          throw new Error(`Cannot access video URL: ${url}`);
+        }
+        
+        const videoStream = await processVideoWithSubtitlesFile(url, caption.srtContent, {
+          fontSize: caption.fontSize,
+          fontColor: caption.fontColor,
+          fontFamily: caption.fontFamily,
+          fontStyle: caption.fontStyle,
+          subtitlePosition: caption.subtitlePosition,
+          horizontalAlignment: caption.horizontalAlignment,
+          verticalMargin: caption.verticalMargin,
+          showBackground: caption.showBackground,
+          backgroundColor: caption.backgroundColor
+        });
+        
+        console.log(`Successfully processing ${format} stream with captions`);
+        
+        setResponseHeader(event, 'Content-Type', 'video/mp4');
+        setResponseHeader(event, 'Content-Disposition', `attachment; filename="${outputName}.mp4"`);
+        
+        return videoStream;
+      } catch (error) {
+        console.error(`Error processing ${format} with captions:`, error);
+        throw error;
+      }
+    }
     
     const outputConfig = getOutputOptionsForFormat(format, options);
     
@@ -307,7 +362,7 @@ export default eventHandler(async (event) => {
       console.log(`Successfully processing ${format} stream`);
       
       if (format === 'mp4') {
-        setResponseHeader(event, 'Content-Type', 'video/mp2t');
+        setResponseHeader(event, 'Content-Type', 'video/mp4');
       } else {
         setResponseHeader(event, 'Content-Type', outputConfig.contentType);
       }
