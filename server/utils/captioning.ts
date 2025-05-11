@@ -107,7 +107,7 @@ export async function processVideoWithTimedSubtitles(inputUrl: string, transcrip
         return `drawtext=text='${escapedText}':font='${fontString}':fontsize=${options.fontSize}:fontcolor=${options.fontColor}:x=${xPosition}:y=${yPosition}${boxSettings}:enable='${enableExpr}'`;
       });
       
-      const command = ffmpeg(inputUrl, { timeout: 240 })
+      const command = ffmpeg(inputUrl)
         .inputOptions([
           '-protocol_whitelist', 'file,http,https,tcp,tls',
           '-reconnect', '1',
@@ -147,7 +147,7 @@ export async function processVideoWithTimedSubtitles(inputUrl: string, transcrip
 export async function processVideoWithSubtitlesFile(inputUrl: string, srtContent: string, options: any) {
   return new Promise((resolve, reject) => {
     try {
-      const outputStream = new PassThrough();
+      const outputStream = new PassThrough({highWaterMark: 4 * 1024 * 1024});
       
       // Parse SRT content to get segments
       const segments = parseSRTContent(srtContent);
@@ -170,11 +170,14 @@ export async function processVideoWithSubtitlesFile(inputUrl: string, srtContent
         xPosition = "(w-tw)/2";
       }
       
-      const fontSpec = options.fontFamily || 'Sans';
-      let fontString = fontSpec;
-      
-      if (options.fontStyle !== 'regular') {
-        fontString += `:style=${options.fontStyle}`;
+      // Modify font string depending on style
+      let fontString;
+      if (options.fontStyle === 'bold') {
+        fontString = options.fontFamily || 'Sans-Bold';
+      } else if (options.fontStyle === 'italic') {
+        fontString = options.fontFamily || 'Sans-Italic';
+      } else {
+        fontString = options.fontFamily || 'Sans';
       }
       
       const videoFilters = segments.map((segment) => {
@@ -197,12 +200,16 @@ export async function processVideoWithSubtitlesFile(inputUrl: string, srtContent
         return `drawtext=text='${escapedText}':font='${fontString}':fontsize=${options.fontSize}:fontcolor=${options.fontColor}:x=${xPosition}:y=${yPosition}${boxSettings}:enable='${enableExpr}'`;
       });
       
-      const command = ffmpeg(inputUrl, { timeout: 240 })
+      const command = ffmpeg(inputUrl)
         .inputOptions([
           '-protocol_whitelist', 'file,http,https,tcp,tls',
           '-reconnect', '1',
           '-reconnect_streamed', '1',
-          '-reconnect_delay_max', '5'
+          '-reconnect_delay_max', '5',
+          '-analyzeduration', '10000000',
+          '-probesize', '10000000',
+          '-thread_queue_size', '512',
+          '-hwaccel', 'auto'
         ]);
       
       if (videoFilters.length > 0) {
@@ -212,16 +219,26 @@ export async function processVideoWithSubtitlesFile(inputUrl: string, srtContent
       command.outputOptions([
         '-c:v', 'libx264',      
         '-preset', 'ultrafast', 
-        '-crf', '18',           
-        '-c:a', 'copy',         
-        '-map_metadata', '0',   
+        '-crf', '23',           
+        '-c:a', 'aac',
+        '-b:a', '128k',         
+        '-map_metadata', '-1',   
         '-movflags', 'frag_keyframe+empty_moov+faststart', 
+        '-pix_fmt', 'yuv420p',
         '-f', 'mp4'            
       ])
+      .on('start', (commandLine: string) => {
+        console.log('FFmpeg started with command:', commandLine);
+      })
+      .on('stderr', (stderrLine: string) => {
+        console.log('FFmpeg stderr:', stderrLine);
+      })
       .on('error', (err: Error) => {
-        reject(new Error('Error processing video'));
+        console.error('Error processing video with captions:', err);
+        reject(new Error('Error processing video with captions: ' + err.message));
       })
       .on('end', () => {
+        console.log('FFmpeg caption processing finished');
       });
       
       command.pipe(outputStream, { end: true });
@@ -229,6 +246,7 @@ export async function processVideoWithSubtitlesFile(inputUrl: string, srtContent
       resolve(outputStream);
       
     } catch (error) {
+      console.error('Caption processing error:', error);
       reject(error);
     }
   });
