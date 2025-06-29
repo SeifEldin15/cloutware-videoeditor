@@ -112,11 +112,7 @@ export const Girlboss = (
   const shadowAlpha = Math.round(133 - (shadowStrength * 24)); // 133 -> 85 as strength goes 0->2
   const blurAlpha = Math.round(96 - (shadowStrength * 28));    // 96 -> 40 as strength goes 0->2
   
-  // Base glow layer with adjusted intensity
-  const events = [`Dialogue: 0,${formatTime(start)},${formatTime(end)},Default,,0,0,0,,{\\c${lightGlowColorASS}\\bord${0.1 * shadowStrength}\\blur${4 * shadowStrength}\\3c${lightGlowColorASS}\\4c${lightGlowColorASS}\\4a&H${blurAlpha.toString(16)}&\\3a&H${shadowAlpha.toString(16)}&}${subtitle.text}`];
-  
-  // Base text layer
-  events.push(`Dialogue: 1,${formatTime(start)},${formatTime(end)},Default,,0,0,0,,{\\c&HFFFFFF&\\shad0}${subtitle.text}`);
+  const events: string[] = [];
   
   let currentPosition = lastPosition || { x: 670, y: 0 };
 
@@ -147,6 +143,14 @@ export const Girlboss = (
       currentPosition = endPosition;
     }
 
+    const glowWords = words.map((w, i) => {
+      if (i === index || i < index) {
+        return `{${moveTag}\\c${lightGlowColorASS}\\bord${0.1 * shadowStrength}\\blur${4 * shadowStrength}\\3c${lightGlowColorASS}\\4c${lightGlowColorASS}\\4a&H${blurAlpha.toString(16)}&\\3a&H${shadowAlpha.toString(16)}&}${w}`;
+      } else {
+        return `{\\c&HFFFFFF&\\alpha&HFF&}${w}`; // Hidden for inactive words
+      }
+    }).join(' ');
+
     const finalColoredWords = moveTag
       ? words.map((w, i) => {
           if (i === index || i < index) {
@@ -157,6 +161,7 @@ export const Girlboss = (
         }).join(' ')
       : coloredWords;
 
+    events.push(`Dialogue: 1,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${glowWords}`);
     events.push(`Dialogue: 2,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${finalColoredWords}`);
   });
   
@@ -223,12 +228,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 // Font mapping for different animation styles
 export const getStyleFont = (styleType: string, defaultFont?: string): string => {
   const fontMappings: Record<string, string> = {
-    // ThinToBold styles use Montserrat Thin
     'alternatingBoldThinAnimation': 'Montserrat-Thin',
     'ThinToBold': 'Montserrat-Thin',
     'thintobold': 'Montserrat-Thin',
     
-    // All other advanced styles use Luckiest Guy font (trying different name formats)
     'HormoziViralSentence2': 'Luckiest Guy',
     'PewDiePie': 'Luckiest Guy',
     'Enlarge': 'Luckiest Guy',
@@ -260,8 +263,6 @@ export const getStyleFont = (styleType: string, defaultFont?: string): string =>
   return defaultFont || fontMappings[styleType] || 'Arial';
 };
 
-// Generate [Fonts] section for ASS file - following ffmpeggenerator.js pattern
-// Get direct font file path - Reddit solution approach
 export const getFontFilePath = (fontFamily: string): string => {
   const fontFileMap: Record<string, string> = {
     'Montserrat Thin': 'Montserrat Thin.ttf',
@@ -293,7 +294,7 @@ export const getFontFilePath = (fontFamily: string): string => {
   
   const fontFile = fontFileMap[fontFamily];
   if (!fontFile) {
-    return ''; // Return empty if font not found
+    return ''; 
   }
   
   const { join } = require('path');
@@ -303,10 +304,9 @@ export const getFontFilePath = (fontFamily: string): string => {
 export const generateFontsSection = (fontFamily: string): string => {
   const fontFilePath = getFontFilePath(fontFamily);
   if (!fontFilePath) {
-    return ''; // No fonts section if font not found
+    return '';    
   }
   
-  // Generate fonts section with full path - Reddit solution approach
   const fontKey = fontFamily.toLowerCase().replace(/\s+/g, '_');
   return `[Fonts]
 ${fontKey}: ${fontFilePath}`;
@@ -328,13 +328,11 @@ export const generateAdvancedASSFile = (
   if (subtitles.length === 0) return '';
 
   const fontSize = style.fontSize || 50;
-  // Use font name instead of file path for ASS compatibility
   const fontFamily = style.fontFamily || getStyleFont(styleType, style.fontFamily);
   const alignment = style.textAlign === 'left' ? '1' : style.textAlign === 'right' ? '3' : '2';
   const marginV = Math.round((720 * (100 - (style.verticalPosition || 50))) / 100);
 
   const fontColorASS = convertColorToASS(style.color || '#FFFFFF');
-  // Make bold fonts appear bold
   const boldValue = (fontFamily.includes('Arial Black') || fontFamily.includes('Luckiest Guy') || fontFamily.toLowerCase().includes('black')) ? 1 : 0;
   
   console.log(`🎨 ASS File using font: "${fontFamily}" (Bold: ${boldValue})`);
@@ -386,7 +384,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   return header + events;
 };
 
-// HormoziViral alternating colors animation
 export const alternatingColorsAnimation = (
   subtitle: SubtitleSegment,
   start: number,
