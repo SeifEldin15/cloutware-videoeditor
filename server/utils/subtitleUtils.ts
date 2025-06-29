@@ -173,16 +173,22 @@ export const generateASSFile = (
     fontFamily?: string;
     textAlign?: string;
     verticalPosition?: number;
-  }
+  },
+  styleType?: string
 ): string => {
   if (subtitles.length === 0) return '';
 
   const fontSize = style.fontSize || 50;
-  const fontFamily = style.fontFamily || 'Arial';
+  const fontFamily = getStyleFont(styleType || 'basic', style.fontFamily);
   const alignment = style.textAlign === 'left' ? '1' : style.textAlign === 'right' ? '3' : '2';
   const marginV = Math.round((720 * (100 - (style.verticalPosition || 50))) / 100);
 
   const fontColorASS = convertColorToASS(style.color || '#FFFFFF');
+  // Fallback to system fonts if custom fonts not available
+  const systemFontFamily = fontFamily === 'Luckiest Guy' ? 'Impact' : 
+                          fontFamily === 'Montserrat Thin' ? 'Arial' : 
+                          fontFamily;
+  const boldValue = fontFamily === 'Luckiest Guy' ? 1 : 0; // Bold for Luckiest Guy font
   
   const header = `[Script Info]
 ScriptType: v4.00+
@@ -192,7 +198,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,${fontFamily},${fontSize},${fontColorASS},&H000000FF&,&H00000000&,&H00000000&,0,0,0,0,100,100,0,0,1,2,0,${alignment},10,10,${marginV},1
+Style: Default,${fontFamily},${fontSize},${fontColorASS},&H000000FF&,&H00000000&,&H00000000&,${boldValue},0,0,0,100,100,0,0,1,2,0,${alignment},10,10,${marginV},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -214,11 +220,104 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   return header + events;
 };
 
+// Font mapping for different animation styles
+export const getStyleFont = (styleType: string, defaultFont?: string): string => {
+  const fontMappings: Record<string, string> = {
+    // ThinToBold styles use Montserrat Thin
+    'alternatingBoldThinAnimation': 'Montserrat-Thin',
+    'ThinToBold': 'Montserrat-Thin',
+    'thintobold': 'Montserrat-Thin',
+    
+    // All other advanced styles use Luckiest Guy font (trying different name formats)
+    'HormoziViralSentence2': 'Luckiest Guy',
+    'PewDiePie': 'Luckiest Guy',
+    'Enlarge': 'Luckiest Guy',
+    'WormEffect': 'Luckiest Guy',
+    'quickfox4': 'Luckiest Guy',
+    'HormoziViralSentence4': 'Luckiest Guy',
+    'ShrinkingPairs': 'Luckiest Guy',
+    'Wavycolors': 'Luckiest Guy',
+    'wavycolors': 'Luckiest Guy',
+    'quickfox': 'Luckiest Guy',
+    'Girlboss': 'Luckiest Guy',
+    'girlboss': 'Luckiest Guy',
+    'GreenToRedPair': 'Luckiest Guy',
+    'hormoziViral': 'Luckiest Guy',
+    'hormozi': 'Luckiest Guy',
+    'quickfox5': 'Luckiest Guy',
+    'RevealEnlarge': 'Luckiest Guy',
+    'TrendingAli': 'Luckiest Guy',
+    'HormoziViralSentence': 'Luckiest Guy',
+    'weakGlitch': 'Luckiest Guy',
+    'HormoziViralWord': 'Luckiest Guy',
+    'SimpleDisplay': 'Luckiest Guy',
+    'none': 'Luckiest Guy',
+    
+    // Basic uses Arial
+    'basic': 'Arial'
+  };
+
+  return defaultFont || fontMappings[styleType] || 'Arial';
+};
+
+// Generate [Fonts] section for ASS file - following ffmpeggenerator.js pattern
+// Get direct font file path - Reddit solution approach
+export const getFontFilePath = (fontFamily: string): string => {
+  const fontFileMap: Record<string, string> = {
+    'Montserrat Thin': 'Montserrat Thin.ttf',
+    'Montserrat': 'Montserrat.ttf',
+    'Luckiest Guy': 'Luckiest Guy.ttf',  // Using original file name
+    'Arial': 'arial.ttf',
+    'Arial Black': 'Arial Black.ttf',
+    'Impact': 'impact.ttf',
+    'Helvetica': 'helvetica.ttf',
+    'Georgia': 'georgia.ttf',
+    'Times New Roman': 'TimesNewRoman.ttf',
+    'Verdana': 'Verdana.ttf',
+    'Trebuchet': 'Trebuchet.ttf',
+    'Comic Sans MS': 'Comic Sans MS.ttf',
+    'Courier New': 'Courier New.ttf',
+    'Garamond': 'Garamond.ttf',
+    'Palatino Linotype': 'Palatino Linotype.ttf',
+    'Bookman Old Style': 'Bookman Old Style.ttf',
+    'Erica One': 'Erica One.ttf',
+    'Bungee': 'bungee.ttf',
+    'Sigmar': 'sigmar.ttf',
+    'Sora': 'sora.ttf',
+    'Tahoma': 'tahoma.ttf',
+    'Gotham Ultra': 'Gotham Ultra.ttf',
+    'Bodoni Moda': 'Bodoni Moda.ttf',
+    'Montserrat ExtraBold': 'Montserrat ExtraBold.ttf',
+    'Montserrat Black': 'Montserrat Black.ttf'
+  };
+  
+  const fontFile = fontFileMap[fontFamily];
+  if (!fontFile) {
+    return ''; // Return empty if font not found
+  }
+  
+  const { join } = require('path');
+  return join(process.cwd(), 'public', 'fonts', fontFile);
+};
+
+export const generateFontsSection = (fontFamily: string): string => {
+  const fontFilePath = getFontFilePath(fontFamily);
+  if (!fontFilePath) {
+    return ''; // No fonts section if font not found
+  }
+  
+  // Generate fonts section with full path - Reddit solution approach
+  const fontKey = fontFamily.toLowerCase().replace(/\s+/g, '_');
+  return `[Fonts]
+${fontKey}: ${fontFilePath}`;
+};
+
 export const generateAdvancedASSFile = (
   subtitles: SubtitleSegment[],
   style: GirlbossStyle & {
     fontSize?: number;
     fontFamily?: string;
+    fontFilePath?: string; // NEW: Direct font file path
     textAlign?: string;
     verticalPosition?: number;
     alternateColors?: string[];
@@ -229,11 +328,16 @@ export const generateAdvancedASSFile = (
   if (subtitles.length === 0) return '';
 
   const fontSize = style.fontSize || 50;
-  const fontFamily = style.fontFamily || 'Arial';
+  // Use font name instead of file path for ASS compatibility
+  const fontFamily = style.fontFamily || getStyleFont(styleType, style.fontFamily);
   const alignment = style.textAlign === 'left' ? '1' : style.textAlign === 'right' ? '3' : '2';
   const marginV = Math.round((720 * (100 - (style.verticalPosition || 50))) / 100);
 
   const fontColorASS = convertColorToASS(style.color || '#FFFFFF');
+  // Make bold fonts appear bold
+  const boldValue = (fontFamily.includes('Arial Black') || fontFamily.includes('Luckiest Guy') || fontFamily.toLowerCase().includes('black')) ? 1 : 0;
+  
+  console.log(`🎨 ASS File using font: "${fontFamily}" (Bold: ${boldValue})`);
   
   const header = `[Script Info]
 ScriptType: v4.00+
@@ -243,7 +347,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,${fontFamily},${fontSize},${fontColorASS},&H000000FF&,&H00000000&,&H00000000&,0,0,0,0,100,100,0,0,1,2,0,${alignment},10,10,${marginV},1
+Style: Default,${fontFamily},${fontSize},${fontColorASS},&H000000FF&,&H00000000&,&H00000000&,${boldValue},0,0,0,100,100,0,0,1,2,0,${alignment},10,10,${marginV},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

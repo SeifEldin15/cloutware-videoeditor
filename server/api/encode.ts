@@ -28,7 +28,7 @@ export default eventHandler(async (event) => {
     if (format === 'mp4' && caption?.srtContent) {
       // Process video with subtitles
       videoStream = await processVideoWithSubtitles(url, caption, options)
-    } else {
+  } else {
       // Process video without subtitles
       videoStream = await VideoProcessor.process(url, format, options, outputName)
     }
@@ -54,10 +54,10 @@ export default eventHandler(async (event) => {
 async function validateVideoUrl(url: string): Promise<void> {
   try {
     const headResponse = await fetch(url, { method: 'HEAD' })
-    if (!headResponse.ok) {
+          if (!headResponse.ok) {
       throw new Error(`Video URL not accessible: ${url}`)
-    }
-  } catch (error: any) {
+          }
+        } catch (error: any) {
     throw new Error(`Cannot access video URL: ${url}`)
   }
 }
@@ -67,10 +67,10 @@ async function processVideoWithSubtitles(
   caption: any, 
   options: any
 ): Promise<PassThrough> {
-  if (caption.subtitleStyle && caption.subtitleStyle !== 'basic') {
+        if (caption.subtitleStyle && caption.subtitleStyle !== 'basic') {
     console.log(`Using ${caption.subtitleStyle} style subtitles with advanced processing`)
     return SubtitleProcessor.processAdvanced(url, caption, options)
-  } else {
+        } else {
     console.log('Using basic subtitle processing')
     return SubtitleProcessor.processBasic(url, caption)
   }

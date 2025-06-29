@@ -1,15 +1,71 @@
 import { PassThrough } from 'stream'
 import ffmpeg from './ffmpeg'
 import os from 'os'
-import { writeFileSync, unlinkSync } from 'fs'
+import { writeFileSync, unlinkSync, existsSync, copyFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { processVideoWithSubtitlesFile } from './captioning'
-import { generateAdvancedASSFile, parseSRT, type SubtitleSegment, type GirlbossStyle } from './subtitleUtils'
+import { generateAdvancedASSFile, parseSRT, getStyleFont, getFontFilePath, type SubtitleSegment, type GirlbossStyle } from './subtitleUtils'
 import type { CaptionOptions, VideoProcessingOptions } from './validation-schemas'
+import { resolve, join as pathJoin } from 'path'
 
 const availableCpuCores = os.cpus().length
 const optimalThreads = Math.max(2, Math.floor(availableCpuCores * 0.75)).toString()
+
+// Font file mappings - matching the working ffmpeggenerator.js pattern
+const fontFileMap: Record<string, string> = {
+  'Montserrat Thin': 'Montserrat Thin.ttf',
+  'Montserrat': 'Montserrat.ttf', 
+  'Luckiest Guy': 'luckiestguy.ttf',
+  'Arial': 'arial.ttf',
+  'Arial Black': 'Arial Black.ttf',
+  'Impact': 'impact.ttf',
+  'Helvetica': 'helvetica.ttf',
+  'Georgia': 'georgia.ttf',
+  'Times New Roman': 'TimesNewRoman.ttf',
+  'Verdana': 'Verdana.ttf',
+  'Trebuchet': 'Trebuchet.ttf',
+  'Comic Sans MS': 'Comic Sans MS.ttf',
+  'Courier New': 'Courier New.ttf',
+  'Garamond': 'Garamond.ttf',
+  'Palatino Linotype': 'Palatino Linotype.ttf',
+  'Bookman Old Style': 'Bookman Old Style.ttf',
+  'Erica One': 'Erica One.ttf',
+  'Bungee': 'bungee.ttf',
+  'Sigmar': 'sigmar.ttf',
+  'Sora': 'sora.ttf',
+  'Tahoma': 'tahoma.ttf',
+  'Gotham Ultra': 'Gotham Ultra.ttf',
+  'Bodoni Moda': 'Bodoni Moda.ttf',
+  'Montserrat ExtraBold': 'Montserrat ExtraBold.ttf',
+  'Montserrat Black': 'Montserrat Black.ttf'
+};
+
+
+interface StyleOptions {
+  fontSize?: number
+  fontFamily?: string
+  textAlign?: string
+  subtitleStyle?: string
+  // Girlboss options
+  girlbossColor?: string
+  girlbossShadowStrength?: number
+  girlbossAnimation?: string
+  girlbossVerticalPosition?: number
+  // Hormozi options
+  hormoziColors?: string[]
+  hormoziShadowStrength?: number
+  hormoziAnimation?: string
+  hormoziVerticalPosition?: number
+  // ThinToBold options
+  thinToBoldColor?: string
+  thinToBoldShadowStrength?: number
+  thinToBoldAnimation?: string
+  thinToBoldVerticalPosition?: number
+  // WavyColors options
+  wavyColorsOutlineWidth?: number
+  wavyColorsVerticalPosition?: number
+}
 
 export class SubtitleProcessor {
   static async processBasic(url: string, caption: CaptionOptions): Promise<PassThrough> {
@@ -27,7 +83,7 @@ export class SubtitleProcessor {
       verticalMargin: caption.verticalMargin,
       showBackground: caption.showBackground,
       backgroundColor: caption.backgroundColor
-    })
+    }) as Promise<PassThrough>
   }
 
   static async processAdvanced(
@@ -49,10 +105,13 @@ export class SubtitleProcessor {
     )
   }
 
-  private static buildStyleOptions(caption: CaptionOptions) {
+  private static buildStyleOptions(caption: CaptionOptions): StyleOptions {
+    // Get the style-specific font
+    const styleFont = getStyleFont(caption?.subtitleStyle || 'basic', caption?.fontFamily);
+    
     return {
       fontSize: caption?.fontSize,
-      fontFamily: caption?.fontFamily,
+      fontFamily: styleFont,
       textAlign: caption?.horizontalAlignment,
       subtitleStyle: caption?.subtitleStyle,
       // Girlboss options
@@ -79,13 +138,14 @@ export class SubtitleProcessor {
   private static async processVideoWithAdvancedSubtitles(
     inputUrl: string,
     srtContent: string,
-    styleOptions: ReturnType<SubtitleProcessor['buildStyleOptions']>,
+    styleOptions: StyleOptions,
     videoOptions?: VideoProcessingOptions
   ): Promise<PassThrough> {
     console.log(`Processing video with ${styleOptions.subtitleStyle} style subtitles...`)
 
     return new Promise<PassThrough>((resolve, reject) => {
       let tempAssFile: string | null = null
+      let fontCleanup: (() => void) | null = null
 
       try {
         const subtitleSegments = parseSRT(srtContent)
@@ -94,12 +154,46 @@ export class SubtitleProcessor {
           throw new Error('No valid subtitle segments found in SRT content')
         }
 
+        // Setup font for the style - Reddit solution approach
+        console.log(`🔍 Style: ${styleOptions.subtitleStyle}, Font requested: ${styleOptions.fontFamily}`)
+        
+        // Get direct font file path
+        const fontFilePath = getFontFilePath(styleOptions.fontFamily || 'Arial')
+        let fontFile: string | null = null
+        
+        if (fontFilePath && existsSync(fontFilePath)) {
+          // Copy font to temp directory alongside ASS file for direct access
+          const fontFileName = pathJoin('font_' + Date.now() + '.ttf')
+          fontFile = pathJoin(tmpdir(), fontFileName)
+          try {
+            
+            copyFileSync(fontFilePath, fontFile)
+            console.log(`✅ Font copied: ${fontFilePath} -> ${fontFile}`)
+          } catch (error) {
+            console.warn(`⚠️ Font copy failed: ${error}`)
+            fontFile = null
+          }
+        }
+        
+        fontCleanup = () => {
+          if (fontFile && existsSync(fontFile)) {
+            try {
+              unlinkSync(fontFile)
+              console.log(`🧹 Cleaned up font file: ${fontFile}`)
+            } catch (error) {
+              console.warn(`⚠️ Font cleanup failed: ${error}`)
+            }
+          }
+        }
+
         let assContent = ''
 
         if (styleOptions.subtitleStyle === 'girlboss') {
+          console.log(`🎨 Setting up Girlboss with font: ${styleOptions.fontFamily} -> ${styleOptions.fontFamily}`)
           const girlbossStyle: GirlbossStyle & {
             fontSize?: number
             fontFamily?: string
+            fontFilePath?: string
             textAlign?: string
           } = {
             color: styleOptions.girlbossColor || '#F361D8',
@@ -108,14 +202,17 @@ export class SubtitleProcessor {
             verticalPosition: styleOptions.girlbossVerticalPosition || 15,
             fontSize: styleOptions.fontSize || 50,
             fontFamily: styleOptions.fontFamily || 'Arial',
+            fontFilePath: fontFile || styleOptions.fontFamily || 'Arial',
             textAlign: styleOptions.textAlign || 'center'
           }
           assContent = generateAdvancedASSFile(subtitleSegments, girlbossStyle, 'girlboss')
 
         } else if (styleOptions.subtitleStyle === 'hormozi') {
+          console.log(`🚀 Setting up Hormozi with font: ${styleOptions.fontFamily} -> ${styleOptions.fontFamily}`)
           const hormoziStyle: GirlbossStyle & {
             fontSize?: number
             fontFamily?: string
+            fontFilePath?: string
             textAlign?: string
             alternateColors?: string[]
           } = {
@@ -124,15 +221,18 @@ export class SubtitleProcessor {
             verticalPosition: styleOptions.hormoziVerticalPosition || 15,
             fontSize: styleOptions.fontSize || 50,
             fontFamily: styleOptions.fontFamily || 'Arial',
+            fontFilePath: fontFile || styleOptions.fontFamily || 'Arial',
             textAlign: styleOptions.textAlign || 'center',
             alternateColors: styleOptions.hormoziColors || ['#0BF431', '#2121FF', '#1DE0FE', '#FFFF00']
           }
           assContent = generateAdvancedASSFile(subtitleSegments, hormoziStyle, 'hormozi')
 
         } else if (styleOptions.subtitleStyle === 'thintobold') {
+          console.log(`✨ Setting up ThinToBold with font: ${styleOptions.fontFamily} -> ${styleOptions.fontFamily}`)
           const thinToBoldStyle: GirlbossStyle & {
             fontSize?: number
             fontFamily?: string
+            fontFilePath?: string
             textAlign?: string
           } = {
             color: styleOptions.thinToBoldColor || '#FFFFFF',
@@ -140,21 +240,25 @@ export class SubtitleProcessor {
             animation2: styleOptions.thinToBoldAnimation === 'shake' ? 'Shake' : 'none',
             verticalPosition: styleOptions.thinToBoldVerticalPosition || 15,
             fontSize: styleOptions.fontSize || 50,
-            fontFamily: styleOptions.fontFamily || 'Montserrat',
+            fontFamily: styleOptions.fontFamily || 'Arial',
+            fontFilePath: fontFile || styleOptions.fontFamily || 'Arial',
             textAlign: styleOptions.textAlign || 'center'
           }
           assContent = generateAdvancedASSFile(subtitleSegments, thinToBoldStyle, 'thintobold')
 
         } else if (styleOptions.subtitleStyle === 'wavycolors') {
+          console.log(`🌈 Setting up WavyColors with font: ${styleOptions.fontFamily} -> ${styleOptions.fontFamily}`)
           const wavyStyle: GirlbossStyle & {
             fontSize?: number
             fontFamily?: string
+            fontFilePath?: string
             textAlign?: string
             textOutlineWidth?: number
           } = {
             verticalPosition: styleOptions.wavyColorsVerticalPosition || 15,
             fontSize: styleOptions.fontSize || 50,
             fontFamily: styleOptions.fontFamily || 'Arial',
+            fontFilePath: fontFile || styleOptions.fontFamily || 'Arial',
             textAlign: styleOptions.textAlign || 'center',
             textOutlineWidth: styleOptions.wavyColorsOutlineWidth || 2
           }
@@ -168,6 +272,8 @@ export class SubtitleProcessor {
 
         let commandOutput = ''
         const ffmpegCommand = ffmpeg(inputUrl)
+
+        // Using system fonts now for compatibility
 
         ffmpegCommand.inputOptions([
           '-protocol_whitelist', 'file,http,https,tcp,tls',
@@ -189,7 +295,7 @@ export class SubtitleProcessor {
         }
 
         const escapedPath = tempAssFile.replace(/\\/g, '/').replace(/:/g, '\\:')
-        const subtitleFilter = `subtitles=filename='${escapedPath}'`
+        const subtitleFilter = `subtitles='${escapedPath}'`
 
         const videoFilter = baseVideoFilter
           ? `${baseVideoFilter},${subtitleFilter}`
@@ -213,6 +319,8 @@ export class SubtitleProcessor {
             }
           }
         }
+
+        // Using system fonts for compatibility
 
         const codecOptions = advancedOptions.filter((opt, idx) =>
           opt === '-c:v' || opt === '-c:a' || opt === '-crf' || opt === '-b:a' ||
@@ -245,11 +353,13 @@ export class SubtitleProcessor {
             console.error('Advanced subtitle FFmpeg error:', err)
             console.error('Command output:', commandOutput)
             this.cleanupTempFile(tempAssFile)
+            if (fontCleanup) fontCleanup()
             reject(new Error(`FFmpeg error: ${err.message}\nCommand output: ${commandOutput}`))
           })
           .on('end', () => {
             console.log('Advanced subtitle FFmpeg process ended')
             this.cleanupTempFile(tempAssFile)
+            if (fontCleanup) fontCleanup()
           })
 
         ffmpegCommand.pipe(outputStream, { end: true })
@@ -259,6 +369,7 @@ export class SubtitleProcessor {
       } catch (error) {
         console.error('Advanced subtitle processing error:', error)
         this.cleanupTempFile(tempAssFile)
+        if (fontCleanup) fontCleanup()
         reject(error)
       }
     })
@@ -268,6 +379,7 @@ export class SubtitleProcessor {
     const outputOptions = []
     const timestamp = new Date().getTime().toString()
 
+    // Basic metadata handling
     outputOptions.push('-map_metadata', '-1')
     outputOptions.push('-fflags', '+bitexact')
 
@@ -277,54 +389,70 @@ export class SubtitleProcessor {
     outputOptions.push('-metadata', `creation_time=${randomTime}`)
     outputOptions.push('-metadata', `encoder=custom_${timestamp.slice(-4)}`)
 
-    if (options?.backgroundAudio) {
-      outputOptions.push('-i', 'audio.mp3')
+    // Simplified video processing - only apply if specific options are provided
+    const videoFilters = []
+    
+    if (options?.speedFactor && options.speedFactor !== 1) {
+      const ptsValue = 1 / options.speedFactor
+      videoFilters.push(`setpts=${ptsValue}*PTS`)
+    }
+    
+    if (options?.zoomFactor && options.zoomFactor !== 1) {
+      videoFilters.push(`scale=iw*${options.zoomFactor}:ih*${options.zoomFactor}`)
+    }
+    
+    if (options?.saturationFactor && options.saturationFactor !== 1) {
+      videoFilters.push(`hue=s=${options.saturationFactor}`)
+    }
+    
+    if (options?.lightness && options.lightness !== 0) {
+      videoFilters.push(`eq=brightness=${options.lightness}`)
     }
 
-    const videoFilter = [
-      'crop=in_w-10:in_h-10:5:5,scale=708:1260:flags=fast_bilinear',
-      'hue=s=1.05,eq=gamma=1.05:contrast=1.05:brightness=0.05:saturation=1.05',
-      'setpts=0.92*PTS',
-      'rotate=0.25*PI/180:bilinear=0',
-      'pad=iw+2:ih+2:1:1:black@0.8',
-      'noise=alls=1:allf=t'
-    ].join(',')
-
-    outputOptions.push('-vf', videoFilter)
-
-    let audioFilter = [
-      'volume=0.8,atempo=1.09',
-      'equalizer=f=1000:width=200:g=-1'
-    ].join(',')
-
-    if (options?.backgroundAudio) {
-      const afIndex = outputOptions.indexOf('-af')
-      if (afIndex !== -1) {
-        outputOptions.splice(afIndex, 2)
-      }
-
-      const bgVolume = options.backgroundAudioVolume || 0.2
-
-      outputOptions.push('-filter_complex',
-        `[0:a]${audioFilter}[a0]; [1:a]volume=${bgVolume}[a1]; [a0][a1]amix=inputs=2:duration=first[aout]`)
-
-      outputOptions.push('-map', '0:v', '-map', '[aout]')
-    } else {
-      outputOptions.push('-af', audioFilter)
+    // Anti-detection effects (simplified)
+    if (options?.antiDetection?.pixelShift) {
+      videoFilters.push('crop=in_w-2:in_h-2:1:1')
+    }
+    
+    if (options?.antiDetection?.noiseAddition) {
+      videoFilters.push('noise=alls=1:allf=t')
+    }
+    
+    if (options?.antiDetection?.subtleRotation) {
+      videoFilters.push('rotate=0.1*PI/180')
     }
 
+    // Apply video filters if any exist
+    if (videoFilters.length > 0) {
+      outputOptions.push('-vf', videoFilters.join(','))
+    }
+
+    // Simplified audio processing
+    const audioFilters = []
+    
+    if (options?.audioPitch && options.audioPitch !== 1) {
+      audioFilters.push(`asetrate=44100*${options.audioPitch},aresample=44100`)
+    }
+    
+    if (options?.audioTempoMod?.tempoFactor && options.audioTempoMod.tempoFactor !== 1) {
+      audioFilters.push(`atempo=${options.audioTempoMod.tempoFactor}`)
+    }
+
+    // Apply audio filters if any exist
+    if (audioFilters.length > 0) {
+      outputOptions.push('-af', audioFilters.join(','))
+    }
+
+    // Standard encoding options
     outputOptions.push('-c:v', 'libx264')
     outputOptions.push('-preset', 'veryfast')
-    outputOptions.push('-crf', '28')
+    outputOptions.push('-crf', '23')
     outputOptions.push('-threads', optimalThreads)
     outputOptions.push('-pix_fmt', 'yuv420p')
-    outputOptions.push('-r', '29.97')
     outputOptions.push('-c:a', 'aac')
     outputOptions.push('-b:a', '128k')
     outputOptions.push('-max_muxing_queue_size', '4096')
     outputOptions.push('-movflags', '+faststart')
-    outputOptions.push('-tune', 'zerolatency')
-    outputOptions.push('-f', 'mp4')
 
     return outputOptions
   }
