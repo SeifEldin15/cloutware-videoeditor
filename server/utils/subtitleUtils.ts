@@ -505,7 +505,7 @@ export const ThinToBold = (
 
   const timePerPair = totalDuration / wordPairs.length;
   const textColor = convertColorToASS(style.color || '#FFFFFF');
-  const shadowStrength = style.shadowStrength ? style.shadowStrength + 0.2 : 1;
+  const shadowStrength = style.shadowStrength ? style.shadowStrength + 0.2 : 0;
   const textShadowColor = convertColorToASS(style.color || '#FFFFFF');
   
   // Handle outline settings
