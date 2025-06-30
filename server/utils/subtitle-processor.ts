@@ -47,6 +47,10 @@ interface StyleOptions {
   fontFamily?: string
   textAlign?: string
   subtitleStyle?: string
+  // Universal outline options
+  outlineWidth?: number
+  outlineColor?: string
+  outlineBlur?: number
   // Girlboss options
   girlbossColor?: string
   girlbossShadowStrength?: number
@@ -82,7 +86,10 @@ export class SubtitleProcessor {
       horizontalAlignment: caption.horizontalAlignment,
       verticalMargin: caption.verticalMargin,
       showBackground: caption.showBackground,
-      backgroundColor: caption.backgroundColor
+      backgroundColor: caption.backgroundColor,
+      outlineWidth: caption.outlineWidth,
+      outlineColor: caption.outlineColor,
+      outlineBlur: caption.outlineBlur
     }) as Promise<PassThrough>
   }
 
@@ -114,6 +121,10 @@ export class SubtitleProcessor {
       fontFamily: styleFont,
       textAlign: caption?.horizontalAlignment,
       subtitleStyle: caption?.subtitleStyle,
+      // Universal outline options
+      outlineWidth: caption?.outlineWidth,
+      outlineColor: caption?.outlineColor,
+      outlineBlur: caption?.outlineBlur,
       // Girlboss options
       girlbossColor: caption?.girlbossColor,
       girlbossShadowStrength: caption?.girlbossShadowStrength,
@@ -195,6 +206,9 @@ export class SubtitleProcessor {
             fontFamily?: string
             fontFilePath?: string
             textAlign?: string
+            outlineWidth?: number
+            outlineColor?: string
+            outlineBlur?: number
           } = {
             color: styleOptions.girlbossColor || '#F361D8',
             shadowStrength: styleOptions.girlbossShadowStrength || 1,
@@ -203,7 +217,10 @@ export class SubtitleProcessor {
             fontSize: styleOptions.fontSize || 50,
             fontFamily: styleOptions.fontFamily || 'Arial',
             fontFilePath: fontFile || styleOptions.fontFamily || 'Arial',
-            textAlign: styleOptions.textAlign || 'center'
+            textAlign: styleOptions.textAlign || 'center',
+            outlineWidth: styleOptions.outlineWidth || 2,
+            outlineColor: styleOptions.outlineColor || '#000000',
+            outlineBlur: styleOptions.outlineBlur || 0
           }
           assContent = generateAdvancedASSFile(subtitleSegments, girlbossStyle, 'girlboss')
 
@@ -215,6 +232,9 @@ export class SubtitleProcessor {
             fontFilePath?: string
             textAlign?: string
             alternateColors?: string[]
+            outlineWidth?: number
+            outlineColor?: string
+            outlineBlur?: number
           } = {
             shadowStrength: styleOptions.hormoziShadowStrength || 3,
             animation2: styleOptions.hormoziAnimation === 'shake' ? 'Shake' : 'none',
@@ -223,7 +243,10 @@ export class SubtitleProcessor {
             fontFamily: styleOptions.fontFamily || 'Arial',
             fontFilePath: fontFile || styleOptions.fontFamily || 'Arial',
             textAlign: styleOptions.textAlign || 'center',
-            alternateColors: styleOptions.hormoziColors || ['#0BF431', '#2121FF', '#1DE0FE', '#FFFF00']
+            alternateColors: styleOptions.hormoziColors || ['#0BF431', '#2121FF', '#1DE0FE', '#FFFF00'],
+            outlineWidth: styleOptions.outlineWidth || 2,
+            outlineColor: styleOptions.outlineColor || '#000000',
+            outlineBlur: styleOptions.outlineBlur || 0
           }
           assContent = generateAdvancedASSFile(subtitleSegments, hormoziStyle, 'hormozi')
 
@@ -234,6 +257,9 @@ export class SubtitleProcessor {
             fontFamily?: string
             fontFilePath?: string
             textAlign?: string
+            outlineWidth?: number
+            outlineColor?: string
+            outlineBlur?: number
           } = {
             color: styleOptions.thinToBoldColor || '#FFFFFF',
             shadowStrength: styleOptions.thinToBoldShadowStrength || 1,
@@ -242,7 +268,10 @@ export class SubtitleProcessor {
             fontSize: styleOptions.fontSize || 50,
             fontFamily: styleOptions.fontFamily || 'Arial',
             fontFilePath: fontFile || styleOptions.fontFamily || 'Arial',
-            textAlign: styleOptions.textAlign || 'center'
+            textAlign: styleOptions.textAlign || 'center',
+            outlineWidth: styleOptions.outlineWidth || 2,
+            outlineColor: styleOptions.outlineColor || '#000000',
+            outlineBlur: styleOptions.outlineBlur || 0
           }
           assContent = generateAdvancedASSFile(subtitleSegments, thinToBoldStyle, 'thintobold')
 
@@ -254,13 +283,19 @@ export class SubtitleProcessor {
             fontFilePath?: string
             textAlign?: string
             textOutlineWidth?: number
+            outlineWidth?: number
+            outlineColor?: string
+            outlineBlur?: number
           } = {
             verticalPosition: styleOptions.wavyColorsVerticalPosition || 15,
             fontSize: styleOptions.fontSize || 50,
             fontFamily: styleOptions.fontFamily || 'Arial',
             fontFilePath: fontFile || styleOptions.fontFamily || 'Arial',
             textAlign: styleOptions.textAlign || 'center',
-            textOutlineWidth: styleOptions.wavyColorsOutlineWidth || 2
+            textOutlineWidth: styleOptions.wavyColorsOutlineWidth || 2,
+            outlineWidth: styleOptions.outlineWidth || 2,
+            outlineColor: styleOptions.outlineColor || '#000000',
+            outlineBlur: styleOptions.outlineBlur || 0
           }
           assContent = generateAdvancedASSFile(subtitleSegments, wavyStyle, 'wavycolors')
         }

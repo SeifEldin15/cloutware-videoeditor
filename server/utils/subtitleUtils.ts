@@ -1,4 +1,6 @@
 // Utility functions for subtitle processing
+import { join } from 'path';
+
 export const formatTime = (seconds: number): string => {
   const pad = (num: number) => num.toString().padStart(2, '0');
   const hours = Math.floor(seconds / 3600);
@@ -98,7 +100,7 @@ export const Girlboss = (
   subtitle: SubtitleSegment,
   start: number,
   end: number,
-  style: GirlbossStyle,
+  style: GirlbossStyle & { outlineWidth?: number; outlineColor?: string; outlineBlur?: number },
   lastPosition: { x: number; y: number } | null = null
 ): GirlbossResult | string => {
   const words = subtitle.text.split(' ');
@@ -116,15 +118,20 @@ export const Girlboss = (
   
   let currentPosition = lastPosition || { x: 670, y: 0 };
 
+  // Handle outline settings
+  const outlineWidth = style.outlineWidth || 2;
+  const outlineColorASS = convertColorToASS(style.outlineColor || '#000000');
+  const outlineBlur = style.outlineBlur || 0;
+
   words.forEach((word, index) => {
     const wordStart = start + index * timePerWord;
     const wordEnd = start + (index + 1) * timePerWord;
     
     const coloredWords = words.map((w, i) => {
       if (i === index || i < index) {
-        return `{\\c${textColor}\\shad0}${w}`;
+        return `{\\c${textColor}\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
       } else {
-        return `{\\c&HFFFFFF&\\shad0}${w}`;
+        return `{\\c&HFFFFFF&\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
       }
     }).join(' ');
     
@@ -154,9 +161,9 @@ export const Girlboss = (
     const finalColoredWords = moveTag
       ? words.map((w, i) => {
           if (i === index || i < index) {
-            return `{${moveTag}\\c${textColor}\\shad0}${w}`;
+            return `{${moveTag}\\c${textColor}\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
           } else {
-            return `{\\c&HFFFFFF&\\shad0}${w}`;
+            return `{\\c&HFFFFFF&\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
           }
         }).join(' ')
       : coloredWords;
@@ -231,7 +238,6 @@ export const getStyleFont = (styleType: string, defaultFont?: string): string =>
     'alternatingBoldThinAnimation': 'Montserrat-Thin',
     'ThinToBold': 'Montserrat-Thin',
     'thintobold': 'Montserrat-Thin',
-    
     'HormoziViralSentence2': 'Luckiest Guy',
     'PewDiePie': 'Luckiest Guy',
     'Enlarge': 'Luckiest Guy',
@@ -297,7 +303,6 @@ export const getFontFilePath = (fontFamily: string): string => {
     return ''; 
   }
   
-  const { join } = require('path');
   return join(process.cwd(), 'public', 'fonts', fontFile);
 };
 
@@ -322,6 +327,9 @@ export const generateAdvancedASSFile = (
     verticalPosition?: number;
     alternateColors?: string[];
     textOutlineWidth?: number;
+    outlineWidth?: number;
+    outlineColor?: string;
+    outlineBlur?: number;
   },
   styleType: string
 ): string => {
@@ -335,7 +343,12 @@ export const generateAdvancedASSFile = (
   const fontColorASS = convertColorToASS(style.color || '#FFFFFF');
   const boldValue = (fontFamily.includes('Arial Black') || fontFamily.includes('Luckiest Guy') || fontFamily.toLowerCase().includes('black')) ? 1 : 0;
   
-  console.log(`🎨 ASS File using font: "${fontFamily}" (Bold: ${boldValue})`);
+  // Handle outline settings
+  const outlineWidth = style.outlineWidth || 2;
+  const outlineColorASS = convertColorToASS(style.outlineColor || '#000000');
+  const shadowValue = style.outlineBlur || 0;
+  
+  console.log(`🎨 ASS File using font: "${fontFamily}" (Bold: ${boldValue}, Outline: ${outlineWidth}, Shadow: ${shadowValue})`);
   
   const header = `[Script Info]
 ScriptType: v4.00+
@@ -345,7 +358,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,${fontFamily},${fontSize},${fontColorASS},&H000000FF&,&H00000000&,&H00000000&,${boldValue},0,0,0,100,100,0,0,1,2,0,${alignment},10,10,${marginV},1
+Style: Default,${fontFamily},${fontSize},${fontColorASS},&H000000FF&,${outlineColorASS},&H00000000&,${boldValue},0,0,0,100,100,0,0,1,${outlineWidth},${shadowValue},${alignment},10,10,${marginV},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -388,7 +401,7 @@ export const alternatingColorsAnimation = (
   subtitle: SubtitleSegment,
   start: number,
   end: number,
-  style: GirlbossStyle & { alternateColors?: string[]; shadowColor?: string },
+  style: GirlbossStyle & { alternateColors?: string[]; shadowColor?: string; outlineWidth?: number; outlineColor?: string; outlineBlur?: number },
   lastPosition: { x: number; y: number } | null = null
 ): GirlbossResult | string => {
   const words = subtitle.text.split(' ');
@@ -413,6 +426,11 @@ export const alternatingColorsAnimation = (
     : Object.fromEntries(hormoziColors.map(color => [color, color]));
 
   const whiteASS = convertColorToASS('#FFFFFF');
+  
+  // Handle outline settings
+  const outlineWidth = style.outlineWidth || 2;
+  const outlineColorASS = convertColorToASS(style.outlineColor || '#000000');
+  const outlineBlur = style.outlineBlur || 0;
   
   let events: string[] = [];
   let currentPosition = lastPosition || { x: 670, y: 0 };
@@ -440,11 +458,11 @@ export const alternatingColorsAnimation = (
 
     const coloredText = words.map((w, i) => {
       if (i === index) {
-        return `{${moveTag}\\c&H${color}&\\bord0\\shad0}${w}`;
+        return `{${moveTag}\\c&H${color}&\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
       } else if (i < index) {
-        return `{\\c${whiteASS}\\bord0\\shad0}${w}`;
+        return `{\\c${whiteASS}\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
       } else {
-        return `{\\c${whiteASS}\\bord0\\shad0}${w}`;
+        return `{\\c${whiteASS}\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
       }
     }).join(' ');
 
@@ -470,7 +488,7 @@ export const ThinToBold = (
   subtitle: SubtitleSegment,
   start: number,
   end: number,
-  style: GirlbossStyle,
+  style: GirlbossStyle & { outlineWidth?: number; outlineColor?: string; outlineBlur?: number },
   lastPosition: { x: number; y: number } | null = null
 ): GirlbossResult | string => {
   const words = subtitle.text.split(' ');
@@ -489,6 +507,11 @@ export const ThinToBold = (
   const textColor = convertColorToASS(style.color || '#FFFFFF');
   const shadowStrength = style.shadowStrength ? style.shadowStrength + 0.2 : 1;
   const textShadowColor = convertColorToASS(style.color || '#FFFFFF');
+  
+  // Handle outline settings
+  const outlineWidth = style.outlineWidth || 2;
+  const outlineColorASS = convertColorToASS(style.outlineColor || '#000000');
+  const outlineBlur = style.outlineBlur || 0;
   
   let currentPosition = lastPosition || { x: 670, y: 0 };
   let events: string[] = []; 
@@ -510,9 +533,9 @@ export const ThinToBold = (
 
     const coloredText = wordPairs.map((w, i) => {
       if (i === index) {
-        return `{${moveTag}\\c${textColor}\\bord0\\fn@Montserrat\\fscx120\\fscy120}${w}`;
+        return `{${moveTag}\\c${textColor}\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\fn@Montserrat\\fscx120\\fscy120}${w}`;
       }
-      return `{\\c${textColor}\\bord0\\fn@Montserrat Thin}${w}`;
+      return `{\\c${textColor}\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\fn@Montserrat Thin}${w}`;
     }).join('\\N');
     
     const glowText = wordPairs.map((w, i) => {
@@ -522,7 +545,7 @@ export const ThinToBold = (
         
         return `{${moveTag}\\c${textShadowColor}\\bord${0.1 * shadowStrength}\\blur${4 * shadowStrength}\\3c${textShadowColor}\\3a&H${shadowAlpha.toString(16)}&\\4c${textShadowColor}\\4a&H${blurAlpha.toString(16)}&\\xshad0\\yshad${-1}\\fn@Montserrat\\fscx120\\fscy120}${w}`;
       }
-      return `{\\c${textShadowColor}\\bord0\\blur0\\shad0\\fn@Montserrat Thin}${w}`;
+      return `{\\c${textShadowColor}\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0\\fn@Montserrat Thin}${w}`;
     }).join('\\N');
     
     events.push(`Dialogue: 0,${formatTime(pairStart)},${formatTime(pairEnd)},Default,,0,0,0,,${glowText}`);
@@ -540,7 +563,7 @@ export const Wavycolors = (
   subtitle: SubtitleSegment,
   start: number,
   end: number,
-  style: GirlbossStyle & { textOutlineWidth?: number }
+  style: GirlbossStyle & { textOutlineWidth?: number; outlineWidth?: number; outlineColor?: string; outlineBlur?: number }
 ): string => {
   const words = subtitle.text.split(' ');
   const duration = end - start;
@@ -548,6 +571,11 @@ export const Wavycolors = (
   const events: string[] = [];
 
   const colors = ['&H00FF00&', '&HFFFF00&', '&H00FFFF&']; // Green, Yellow, Light blue
+  
+  // Handle outline settings
+  const baseOutlineWidth = style.outlineWidth || 2;
+  const outlineColorASS = convertColorToASS(style.outlineColor || '#000000');
+  const outlineBlur = style.outlineBlur || 0;
 
   words.forEach((word, wordIndex) => {
     const wordStart = start + (wordIndex * timePerWord);
@@ -566,10 +594,10 @@ export const Wavycolors = (
       let wordDisplay = '';
       charSets.forEach((chars, setIndex) => {
         const isColored = setIndex === coloredSetIndex;
-        const outlineWidth = style?.textOutlineWidth || 2;
+        const effectOutlineWidth = style?.textOutlineWidth || 2;
         const setStyle = isColored 
-          ? `{\\3c${color}\\bord${outlineWidth}\\c${color}\\blur8\\alpha&H60&\\shad5}` 
-          : `{\\c&HFFFFFF&\\bord0\\blur0\\alpha&H00&\\shad0}`;
+          ? `{\\3c${color}\\bord${effectOutlineWidth}\\c${color}\\blur8\\alpha&H60&\\shad5}` 
+          : `{\\c&HFFFFFF&\\bord${baseOutlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\alpha&H00&\\shad0}`;
         wordDisplay += setStyle + chars;
       });
 

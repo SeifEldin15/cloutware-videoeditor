@@ -92,7 +92,10 @@ export const ValidationSchemas = {
       thinToBoldVerticalPosition: z.number().min(0).max(100).optional().default(15),
       // WavyColors options
       wavyColorsOutlineWidth: z.number().min(1).max(5).optional().default(2),
-      wavyColorsVerticalPosition: z.number().min(0).max(100).optional().default(15)
+      wavyColorsVerticalPosition: z.number().min(0).max(100).optional().default(15),
+      outlineWidth: z.number().min(0).max(8).optional().default(2),
+      outlineColor: z.string().optional().default('#000000'),
+      outlineBlur: z.number().min(0).max(10).optional().default(0)
     }).optional()
   })
 }

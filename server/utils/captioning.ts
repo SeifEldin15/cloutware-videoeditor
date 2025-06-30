@@ -104,7 +104,12 @@ export async function processVideoWithTimedSubtitles(inputUrl: string, transcrip
           ? ':box=1:boxcolor=' + options.backgroundColor + ':boxborderw=5' 
           : '';
         
-        return `drawtext=text='${escapedText}':font='${fontString}':fontsize=${options.fontSize}:fontcolor=${options.fontColor}:x=${xPosition}:y=${yPosition}${boxSettings}:enable='${enableExpr}'`;
+        // Add outline settings
+        const outlineSettings = options.outlineWidth && options.outlineWidth > 0 
+          ? `:borderw=${options.outlineWidth}:bordercolor=${options.outlineColor || '#000000'}` 
+          : '';
+        
+        return `drawtext=text='${escapedText}':font='${fontString}':fontsize=${options.fontSize}:fontcolor=${options.fontColor}:x=${xPosition}:y=${yPosition}${boxSettings}${outlineSettings}:enable='${enableExpr}'`;
       });
       
       const command = ffmpeg(inputUrl)
@@ -197,7 +202,12 @@ export async function processVideoWithSubtitlesFile(inputUrl: string, srtContent
           ? ':box=1:boxcolor=' + options.backgroundColor + ':boxborderw=5' 
           : '';
         
-        return `drawtext=text='${escapedText}':font='${fontString}':fontsize=${options.fontSize}:fontcolor=${options.fontColor}:x=${xPosition}:y=${yPosition}${boxSettings}:enable='${enableExpr}'`;
+        // Add outline settings
+        const outlineSettings = options.outlineWidth && options.outlineWidth > 0 
+          ? `:borderw=${options.outlineWidth}:bordercolor=${options.outlineColor || '#000000'}` 
+          : '';
+        
+        return `drawtext=text='${escapedText}':font='${fontString}':fontsize=${options.fontSize}:fontcolor=${options.fontColor}:x=${xPosition}:y=${yPosition}${boxSettings}${outlineSettings}:enable='${enableExpr}'`;
       });
       
       const command = ffmpeg(inputUrl)
