@@ -445,6 +445,36 @@ export const alternatingColorsAnimation = (
 
   const globalWordStartIndex = subtitle.wordStartIndex || 0;
   
+  if (words.length === 1) {
+    const globalWordIndex = globalWordStartIndex;
+    const colorIndex = globalWordIndex % hormoziColors.length;
+    const color = hormoziColors[colorIndex];
+    const glowColor = glowColors[color];
+    const borderWidth = 0.1 * shadowStrength;
+    const blurAmount = 2 * shadowStrength;
+
+    let moveTag = '';
+    if (style?.animation2 === 'Shake') {
+      const duration = end - start;
+      const endPosition = calculateNextPosition(currentPosition.x, currentPosition.y, duration);
+      const marginV = style?.verticalPosition 
+        ? Math.round((720 * (100 - style.verticalPosition)) / 100)
+        : 0;
+      moveTag = `\\move(${Math.round(currentPosition.x)},${Math.round(currentPosition.y + marginV)},${Math.round(endPosition.x)},${Math.round(endPosition.y + marginV)})`;
+      currentPosition = endPosition;
+    }
+
+    const coloredText = `{${moveTag}\\c&H${color}&\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${words[0]}`;
+    const glowText = `{${moveTag}\\c&H${glowColor}&\\bord${borderWidth}\\blur${blurAmount}\\3c&H${glowColor}&\\3a&H${shadowAlpha.toString(16)}&\\4c&H${glowColor}&\\4a&H${blurAlpha.toString(16)}&\\xshad0\\yshad${-1}}${words[0]}`;
+
+    events.push(`Dialogue: 0,${formatTime(start)},${formatTime(end)},Default,,0,0,0,,${glowText}`);
+    events.push(`Dialogue: 1,${formatTime(start)},${formatTime(end)},Default,,0,0,0,,${coloredText}`);
+
+    return style?.animation2 === 'Shake' ? {
+      events: events.join('\n'),
+      lastPosition: currentPosition
+    } : events.join('\n');
+  }
 
   words.forEach((word, index) => {
     const wordStart = start + index * timePerWord;
@@ -469,16 +499,10 @@ export const alternatingColorsAnimation = (
     }
 
     const coloredText = words.map((w, i) => {
-      const wordGlobalIndex = globalWordStartIndex + i;
-      const wordColorIndex = wordGlobalIndex % hormoziColors.length;
-      const wordColor = hormoziColors[wordColorIndex];
-      
       if (i === index) {
-        return `{${moveTag}\\c&H${wordColor}&\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
-      } else if (i < index) {
-        return `{\\c&H${wordColor}&\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
+        return `{${moveTag}\\c&H${color}&\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
       } else {
-        return `{\\c&H${wordColor}&\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
+        return `{\\c&HFFFFFF&\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
       }
     }).join(' ');
 
