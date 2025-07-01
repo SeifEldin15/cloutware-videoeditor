@@ -206,10 +206,8 @@ export const generateASSFile = (
   const marginV = Math.round((720 * (100 - (style.verticalPosition || 50))) / 100);
 
   const fontColorASS = convertColorToASS(style.color || '#FFFFFF');
-  // Fallback to system fonts if custom fonts not available
-  const systemFontFamily = fontFamily === 'Luckiest Guy' ? 'Impact' : 
-                          fontFamily === 'Montserrat Thin' ? 'Arial' : 
-                          fontFamily;
+  // Use the actual font family name for better font loading
+  const systemFontFamily = fontFamily;
   const boldValue = fontFamily === 'Luckiest Guy' ? 1 : 0; // Bold for Luckiest Guy font
   
   const header = `[Script Info]
@@ -283,7 +281,7 @@ export const getFontFilePath = (fontFamily: string): string => {
   const fontFileMap: Record<string, string> = {
     'Montserrat Thin': 'Montserrat Thin.ttf',
     'Montserrat': 'Montserrat.ttf',
-    'Luckiest Guy': 'Luckiest Guy.ttf',  // Using original file name
+    'Luckiest Guy': 'luckiestguy.ttf',  // Using lowercase filename to match actual file
     'Arial': 'arial.ttf',
     'Arial Black': 'Arial Black.ttf',
     'Impact': 'impact.ttf',

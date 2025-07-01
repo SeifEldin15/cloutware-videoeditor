@@ -1,7 +1,7 @@
 import { PassThrough } from 'stream'
 import ffmpeg from './ffmpeg'
 import os from 'os'
-import { writeFileSync, unlinkSync, existsSync, copyFileSync } from 'fs'
+import { writeFileSync, unlinkSync, existsSync, copyFileSync, mkdirSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { processVideoWithSubtitlesFile } from './captioning'
@@ -16,7 +16,7 @@ const optimalThreads = Math.max(2, Math.floor(availableCpuCores * 0.75)).toStrin
 const fontFileMap: Record<string, string> = {
   'Montserrat Thin': 'Montserrat Thin.ttf',
   'Montserrat': 'Montserrat.ttf', 
-  'Luckiest Guy': 'luckiestguy.ttf',
+  'Luckiest Guy': 'luckiestguy.ttf',  // Consistent with actual font file
   'Arial': 'arial.ttf',
   'Arial Black': 'Arial Black.ttf',
   'Impact': 'impact.ttf',
@@ -204,17 +204,27 @@ export class SubtitleProcessor {
         
         const fontFilePath = getFontFilePath(styleOptions.fontFamily || 'Arial')
         let fontFile: string | null = null
+        let fontsDir: string | null = null
         
         if (fontFilePath && existsSync(fontFilePath)) {
-          const fontFileName = pathJoin('font_' + Date.now() + '.ttf')
-          fontFile = pathJoin(tmpdir(), fontFileName)
+          // Create a temporary fonts directory
+          fontsDir = pathJoin(tmpdir(), 'fonts_' + Date.now())
           try {
-            
+            mkdirSync(fontsDir, { recursive: true })
+          } catch (error) {
+            console.warn(`⚠️ Fonts directory creation failed: ${error}`)
+          }
+          
+          // Copy font to the fonts directory with the expected name
+          const fontFileName = `${styleOptions.fontFamily || 'Arial'}.ttf`
+          fontFile = pathJoin(fontsDir, fontFileName)
+          try {
             copyFileSync(fontFilePath, fontFile)
             console.log(`✅ Font copied: ${fontFilePath} -> ${fontFile}`)
           } catch (error) {
             console.warn(`⚠️ Font copy failed: ${error}`)
             fontFile = null
+            fontsDir = null
           }
         }
         
@@ -225,6 +235,14 @@ export class SubtitleProcessor {
               console.log(`🧹 Cleaned up font file: ${fontFile}`)
             } catch (error) {
               console.warn(`⚠️ Font cleanup failed: ${error}`)
+            }
+          }
+          if (fontsDir && existsSync(fontsDir)) {
+            try {
+              rmSync(fontsDir, { recursive: true, force: true })
+              console.log(`🧹 Cleaned up fonts directory: ${fontsDir}`)
+            } catch (error) {
+              console.warn(`⚠️ Fonts directory cleanup failed: ${error}`)
             }
           }
         }
@@ -362,7 +380,12 @@ export class SubtitleProcessor {
         }
 
         const escapedPath = tempAssFile.replace(/\\/g, '/').replace(/:/g, '\\:')
-        const subtitleFilter = `subtitles='${escapedPath}'`
+        const escapedFontsDir = fontsDir ? fontsDir.replace(/\\/g, '/').replace(/:/g, '\\:') : null
+        const subtitleFilter = escapedFontsDir 
+          ? `subtitles='${escapedPath}':fontsdir='${escapedFontsDir}'`
+          : `subtitles='${escapedPath}'`
+        
+        console.log(`🎨 Using subtitle filter: ${subtitleFilter}`)
 
         const videoFilter = baseVideoFilter
           ? `${baseVideoFilter},${subtitleFilter}`
