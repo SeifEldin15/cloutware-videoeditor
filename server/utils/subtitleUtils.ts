@@ -10,6 +10,15 @@ export const formatTime = (seconds: number): string => {
   return `${pad(hours)}:${pad(minutes)}:${pad(secs)}.${pad(ms)}`;
 };
 
+export const formatTimeForSRT = (seconds: number): string => {
+  const pad = (num: number) => num.toString().padStart(2, '0');
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  const ms = Math.floor((seconds % 1) * 1000);
+  return `${pad(hours)}:${pad(minutes)}:${pad(secs)},${ms.toString().padStart(3, '0')}`;
+};
+
 export const convertColorToASS = (color: string): string => {
   if (color.startsWith('#')) {
     let hex = color.replace('#', '');
@@ -646,4 +655,67 @@ export const parseSRT = (srtContent: string): SubtitleSegment[] => {
   }
   
   return segments;
+};
+
+/**
+ * Splits subtitle segments into word-level segments based on the specified word mode
+ * @param segments - Original subtitle segments
+ * @param wordMode - 'normal' (no splitting), 'single' (one word per segment), 'multiple' (multiple words per segment)
+ * @param wordsPerGroup - Number of words per group when using 'multiple' mode
+ * @returns Array of word-level subtitle segments
+ */
+export const processWordModeSegments = (
+  segments: SubtitleSegment[],
+  wordMode: 'normal' | 'single' | 'multiple',
+  wordsPerGroup: number = 1
+): SubtitleSegment[] => {
+  if (wordMode === 'normal') {
+    return segments;
+  }
+
+  const wordSegments: SubtitleSegment[] = [];
+
+  for (const segment of segments) {
+    const words = segment.text.split(' ').filter(word => word.trim() !== '');
+    const duration = segment.end - segment.start;
+    
+    if (wordMode === 'single') {
+      // Split into individual words
+      const timePerWord = duration / words.length;
+      
+      words.forEach((word, index) => {
+        const wordStart = segment.start + (index * timePerWord);
+        const wordEnd = segment.start + ((index + 1) * timePerWord);
+        
+        wordSegments.push({
+          text: word,
+          start: wordStart,
+          end: wordEnd
+        });
+      });
+    } else if (wordMode === 'multiple') {
+      // Group words based on wordsPerGroup
+      const wordGroups: string[] = [];
+      
+      for (let i = 0; i < words.length; i += wordsPerGroup) {
+        const group = words.slice(i, i + wordsPerGroup).join(' ');
+        wordGroups.push(group);
+      }
+      
+      const timePerGroup = duration / wordGroups.length;
+      
+      wordGroups.forEach((group, index) => {
+        const groupStart = segment.start + (index * timePerGroup);
+        const groupEnd = segment.start + ((index + 1) * timePerGroup);
+        
+        wordSegments.push({
+          text: group,
+          start: groupStart,
+          end: groupEnd
+        });
+      });
+    }
+  }
+
+  return wordSegments;
 }; 

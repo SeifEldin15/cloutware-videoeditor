@@ -5,7 +5,7 @@ import { writeFileSync, unlinkSync, existsSync, copyFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { processVideoWithSubtitlesFile } from './captioning'
-import { generateAdvancedASSFile, parseSRT, getStyleFont, getFontFilePath, type SubtitleSegment, type GirlbossStyle } from './subtitleUtils'
+import { generateAdvancedASSFile, parseSRT, getStyleFont, getFontFilePath, type SubtitleSegment, type GirlbossStyle, processWordModeSegments, formatTimeForSRT } from './subtitleUtils'
 import type { CaptionOptions, VideoProcessingOptions } from './validation-schemas'
 import { resolve, join as pathJoin } from 'path'
 
@@ -67,6 +67,9 @@ interface StyleOptions {
   thinToBoldAnimation?: string
   // WavyColors options
   wavyColorsOutlineWidth?: number
+  // Word processing mode options
+  wordMode?: 'normal' | 'single' | 'multiple'
+  wordsPerGroup?: number
 }
 
 export class SubtitleProcessor {
@@ -75,7 +78,30 @@ export class SubtitleProcessor {
       throw new Error('SRT content is required for basic subtitle processing')
     }
 
-    return processVideoWithSubtitlesFile(url, caption.srtContent, {
+    let srtContent = caption.srtContent;
+
+    // Apply word mode processing for basic subtitles if specified
+    if (caption.wordMode && caption.wordMode !== 'normal') {
+      console.log(`🔀 Processing basic subtitles in ${caption.wordMode} word mode with ${caption.wordsPerGroup || 1} words per group`)
+      
+      const segments = parseSRT(caption.srtContent);
+      const wordSegments = processWordModeSegments(
+        segments,
+        caption.wordMode,
+        caption.wordsPerGroup || 1
+      );
+      
+      // Convert word segments back to SRT format
+      srtContent = wordSegments.map((segment, index) => {
+        const startTime = formatTimeForSRT(segment.start);
+        const endTime = formatTimeForSRT(segment.end);
+        return `${index + 1}\n${startTime} --> ${endTime}\n${segment.text}\n`;
+      }).join('\n');
+      
+      console.log(`📝 Generated ${wordSegments.length} word-level segments for basic processing`)
+    }
+
+    return processVideoWithSubtitlesFile(url, srtContent, {
       fontSize: caption.fontSize,
       fontColor: caption.fontColor,
       fontFamily: caption.fontFamily,
@@ -138,7 +164,10 @@ export class SubtitleProcessor {
       thinToBoldShadowStrength: caption?.thinToBoldShadowStrength,
       thinToBoldAnimation: caption?.thinToBoldAnimation,
       // WavyColors options
-      wavyColorsOutlineWidth: caption?.wavyColorsOutlineWidth
+      wavyColorsOutlineWidth: caption?.wavyColorsOutlineWidth,
+      // Word processing mode options
+      wordMode: caption?.wordMode,
+      wordsPerGroup: caption?.wordsPerGroup
     }
   }
 
@@ -155,9 +184,20 @@ export class SubtitleProcessor {
       let fontCleanup: (() => void) | null = null
 
       try {
-        const subtitleSegments = parseSRT(srtContent)
+        let subtitleSegments = parseSRT(srtContent)
         if (subtitleSegments.length === 0) {
           throw new Error('No valid subtitle segments found in SRT content')
+        }
+
+        // Process word mode if specified
+        if (styleOptions.wordMode && styleOptions.wordMode !== 'normal') {
+          console.log(`🔀 Processing subtitles in ${styleOptions.wordMode} word mode with ${styleOptions.wordsPerGroup || 1} words per group`)
+          subtitleSegments = processWordModeSegments(
+            subtitleSegments,
+            styleOptions.wordMode,
+            styleOptions.wordsPerGroup || 1
+          )
+          console.log(`📝 Generated ${subtitleSegments.length} word-level segments`)
         }
 
         console.log(`🔍 Style: ${styleOptions.subtitleStyle}, Font requested: ${styleOptions.fontFamily}`)

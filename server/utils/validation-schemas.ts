@@ -94,7 +94,10 @@ export const ValidationSchemas = {
       thinToBoldShadowStrength: z.number().min(0.5).max(3).optional().default(1),
       thinToBoldAnimation: z.enum(['none', 'shake']).optional().default('none'),
       // WavyColors options
-      wavyColorsOutlineWidth: z.number().min(1).max(5).optional().default(2)
+      wavyColorsOutlineWidth: z.number().min(1).max(5).optional().default(2),
+      // Word processing mode options
+      wordMode: z.enum(['normal', 'single', 'multiple']).optional().default('normal'),
+      wordsPerGroup: z.number().min(1).max(10).optional().default(1)
     }).optional()
   })
 }
