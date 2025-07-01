@@ -91,6 +91,7 @@ export interface SubtitleSegment {
   text: string;
   start: number;
   end: number;
+  wordStartIndex?: number; 
 }
 
 export interface GirlbossStyle {
@@ -444,12 +445,16 @@ export const alternatingColorsAnimation = (
   let events: string[] = [];
   let currentPosition = lastPosition || { x: 670, y: 0 };
 
+  const globalWordStartIndex = subtitle.wordStartIndex || 0;
+  
+
   words.forEach((word, index) => {
     const wordStart = start + index * timePerWord;
     const wordEnd = start + (index + 1) * timePerWord;
     const duration = wordEnd - wordStart;
 
-    const colorIndex = index % hormoziColors.length;
+    const globalWordIndex = globalWordStartIndex + index;
+    const colorIndex = globalWordIndex % hormoziColors.length;
     const color = hormoziColors[colorIndex];
     const glowColor = glowColors[color];
     const borderWidth = 0.1 * shadowStrength;
@@ -466,12 +471,16 @@ export const alternatingColorsAnimation = (
     }
 
     const coloredText = words.map((w, i) => {
+      const wordGlobalIndex = globalWordStartIndex + i;
+      const wordColorIndex = wordGlobalIndex % hormoziColors.length;
+      const wordColor = hormoziColors[wordColorIndex];
+      
       if (i === index) {
-        return `{${moveTag}\\c&H${color}&\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
+        return `{${moveTag}\\c&H${wordColor}&\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
       } else if (i < index) {
-        return `{\\c${whiteASS}\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
+        return `{\\c&H${wordColor}&\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
       } else {
-        return `{\\c${whiteASS}\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
+        return `{\\c&H${wordColor}&\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
       }
     }).join(' ');
 
@@ -674,6 +683,7 @@ export const processWordModeSegments = (
   }
 
   const wordSegments: SubtitleSegment[] = [];
+  let globalWordIndex = 0; // Track global word position for color alternation
 
   for (const segment of segments) {
     const words = segment.text.split(' ').filter(word => word.trim() !== '');
@@ -690,11 +700,13 @@ export const processWordModeSegments = (
         wordSegments.push({
           text: word,
           start: wordStart,
-          end: wordEnd
+          end: wordEnd,
+          wordStartIndex: globalWordIndex 
         });
+        
+        globalWordIndex++; 
       });
     } else if (wordMode === 'multiple') {
-      // Group words based on wordsPerGroup
       const wordGroups: string[] = [];
       
       for (let i = 0; i < words.length; i += wordsPerGroup) {
@@ -704,15 +716,19 @@ export const processWordModeSegments = (
       
       const timePerGroup = duration / wordGroups.length;
       
-      wordGroups.forEach((group, index) => {
-        const groupStart = segment.start + (index * timePerGroup);
-        const groupEnd = segment.start + ((index + 1) * timePerGroup);
+      wordGroups.forEach((group, groupIndex) => {
+        const groupStart = segment.start + (groupIndex * timePerGroup);
+        const groupEnd = segment.start + ((groupIndex + 1) * timePerGroup);
         
         wordSegments.push({
           text: group,
           start: groupStart,
-          end: groupEnd
+          end: groupEnd,
+          wordStartIndex: globalWordIndex
         });
+        
+        const wordsInGroup = group.split(' ').length;
+        globalWordIndex += wordsInGroup;
       });
     }
   }
