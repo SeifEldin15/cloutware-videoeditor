@@ -51,24 +51,22 @@ interface StyleOptions {
   outlineWidth?: number
   outlineColor?: string
   outlineBlur?: number
+  // Universal vertical position option
+  verticalPosition?: number
   // Girlboss options
   girlbossColor?: string
   girlbossShadowStrength?: number
   girlbossAnimation?: string
-  girlbossVerticalPosition?: number
   // Hormozi options
   hormoziColors?: string[]
   hormoziShadowStrength?: number
   hormoziAnimation?: string
-  hormoziVerticalPosition?: number
   // ThinToBold options
   thinToBoldColor?: string
   thinToBoldShadowStrength?: number
   thinToBoldAnimation?: string
-  thinToBoldVerticalPosition?: number
   // WavyColors options
   wavyColorsOutlineWidth?: number
-  wavyColorsVerticalPosition?: number
 }
 
 export class SubtitleProcessor {
@@ -84,7 +82,7 @@ export class SubtitleProcessor {
       fontStyle: caption.fontStyle,
       subtitlePosition: caption.subtitlePosition,
       horizontalAlignment: caption.horizontalAlignment,
-      verticalMargin: caption.verticalMargin,
+      verticalMargin: caption.verticalPosition || caption.verticalMargin,
       showBackground: caption.showBackground,
       backgroundColor: caption.backgroundColor,
       outlineWidth: caption.outlineWidth,
@@ -125,24 +123,22 @@ export class SubtitleProcessor {
       outlineWidth: caption?.outlineWidth,
       outlineColor: caption?.outlineColor,
       outlineBlur: caption?.outlineBlur,
+      // Universal vertical position option
+      verticalPosition: caption?.verticalPosition,
       // Girlboss options
       girlbossColor: caption?.girlbossColor,
       girlbossShadowStrength: caption?.girlbossShadowStrength,
       girlbossAnimation: caption?.girlbossAnimation,
-      girlbossVerticalPosition: caption?.girlbossVerticalPosition,
       // Hormozi options
       hormoziColors: caption?.hormoziColors,
       hormoziShadowStrength: caption?.hormoziShadowStrength,
       hormoziAnimation: caption?.hormoziAnimation,
-      hormoziVerticalPosition: caption?.hormoziVerticalPosition,
       // ThinToBold options
       thinToBoldColor: caption?.thinToBoldColor,
       thinToBoldShadowStrength: caption?.thinToBoldShadowStrength,
       thinToBoldAnimation: caption?.thinToBoldAnimation,
-      thinToBoldVerticalPosition: caption?.thinToBoldVerticalPosition,
       // WavyColors options
-      wavyColorsOutlineWidth: caption?.wavyColorsOutlineWidth,
-      wavyColorsVerticalPosition: caption?.wavyColorsVerticalPosition
+      wavyColorsOutlineWidth: caption?.wavyColorsOutlineWidth
     }
   }
 
@@ -160,20 +156,16 @@ export class SubtitleProcessor {
 
       try {
         const subtitleSegments = parseSRT(srtContent)
-
         if (subtitleSegments.length === 0) {
           throw new Error('No valid subtitle segments found in SRT content')
         }
 
-        // Setup font for the style - Reddit solution approach
         console.log(`🔍 Style: ${styleOptions.subtitleStyle}, Font requested: ${styleOptions.fontFamily}`)
         
-        // Get direct font file path
         const fontFilePath = getFontFilePath(styleOptions.fontFamily || 'Arial')
         let fontFile: string | null = null
         
         if (fontFilePath && existsSync(fontFilePath)) {
-          // Copy font to temp directory alongside ASS file for direct access
           const fontFileName = pathJoin('font_' + Date.now() + '.ttf')
           fontFile = pathJoin(tmpdir(), fontFileName)
           try {
@@ -213,7 +205,7 @@ export class SubtitleProcessor {
             color: styleOptions.girlbossColor || '#F361D8',
             shadowStrength: styleOptions.girlbossShadowStrength || 1,
             animation2: styleOptions.girlbossAnimation === 'shake' ? 'Shake' : 'none',
-            verticalPosition: styleOptions.girlbossVerticalPosition || 15,
+            verticalPosition: styleOptions.verticalPosition || 15,
             fontSize: styleOptions.fontSize || 50,
             fontFamily: styleOptions.fontFamily || 'Arial',
             fontFilePath: fontFile || styleOptions.fontFamily || 'Arial',
@@ -238,7 +230,7 @@ export class SubtitleProcessor {
           } = {
             shadowStrength: styleOptions.hormoziShadowStrength || 3,
             animation2: styleOptions.hormoziAnimation === 'shake' ? 'Shake' : 'none',
-            verticalPosition: styleOptions.hormoziVerticalPosition || 15,
+            verticalPosition: styleOptions.verticalPosition || 15,
             fontSize: styleOptions.fontSize || 50,
             fontFamily: styleOptions.fontFamily || 'Arial',
             fontFilePath: fontFile || styleOptions.fontFamily || 'Arial',
@@ -264,7 +256,7 @@ export class SubtitleProcessor {
             color: styleOptions.thinToBoldColor || '#FFFFFF',
             shadowStrength: styleOptions.thinToBoldShadowStrength || 1,
             animation2: styleOptions.thinToBoldAnimation === 'shake' ? 'Shake' : 'none',
-            verticalPosition: styleOptions.thinToBoldVerticalPosition || 15,
+            verticalPosition: styleOptions.verticalPosition || 15,
             fontSize: styleOptions.fontSize || 50,
             fontFamily: styleOptions.fontFamily || 'Arial',
             fontFilePath: fontFile || styleOptions.fontFamily || 'Arial',
@@ -287,7 +279,7 @@ export class SubtitleProcessor {
             outlineColor?: string
             outlineBlur?: number
           } = {
-            verticalPosition: styleOptions.wavyColorsVerticalPosition || 15,
+            verticalPosition: styleOptions.verticalPosition || 15,
             fontSize: styleOptions.fontSize || 50,
             fontFamily: styleOptions.fontFamily || 'Arial',
             fontFilePath: fontFile || styleOptions.fontFamily || 'Arial',
