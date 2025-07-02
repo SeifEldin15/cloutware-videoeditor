@@ -1,5 +1,11 @@
 // Utility functions for subtitle processing
 import { join } from 'path';
+import { RevealEnlarge } from './animations/revealEnlarge';
+import { shrinkingColorsPairAnimation } from './animations/shrinkingPairs';
+import { Girlboss } from './animations/girlboss';
+import { alternatingColorsAnimation } from './animations/hormozi';
+import { ThinToBold } from './animations/thinToBold';
+import { Wavycolors } from './animations/wavyColors';
 
 export const formatTime = (seconds: number): string => {
   const pad = (num: number) => num.toString().padStart(2, '0');
@@ -97,7 +103,7 @@ export interface SubtitleSegment {
 export interface GirlbossStyle {
   color?: string;
   shadowStrength?: number;
-  animation2?: string;
+  animation?: string;
   verticalPosition?: number;
 }
 
@@ -105,88 +111,6 @@ export interface GirlbossResult {
   events: string;
   lastPosition?: { x: number; y: number };
 }
-
-export const Girlboss = (
-  subtitle: SubtitleSegment,
-  start: number,
-  end: number,
-  style: GirlbossStyle & { outlineWidth?: number; outlineColor?: string; outlineBlur?: number },
-  lastPosition: { x: number; y: number } | null = null
-): GirlbossResult | string => {
-  const words = subtitle.text.split(' ');
-  const totalDuration = end - start;
-  const timePerWord = totalDuration / words.length;
-  const textColor = style.color ? convertColorToASS(style.color) : convertColorToASS('#F361D8');
-  const lightGlowColorASS = convertColorToASS(style.color || '#F361D8');
-  
-  // Calculate shadow/glow intensity based on shadowStrength
-  const shadowStrength = style.shadowStrength && style.shadowStrength > 1 ? style.shadowStrength + 0.2 : 1;
-  const shadowAlpha = Math.round(133 - (shadowStrength * 24)); // 133 -> 85 as strength goes 0->2
-  const blurAlpha = Math.round(96 - (shadowStrength * 28));    // 96 -> 40 as strength goes 0->2
-  
-  const events: string[] = [];
-  
-  let currentPosition = lastPosition || { x: 670, y: 0 };
-
-  // Handle outline settings
-  const outlineWidth = style.outlineWidth || 2;
-  const outlineColorASS = convertColorToASS(style.outlineColor || '#000000');
-  const outlineBlur = style.outlineBlur || 0;
-
-  words.forEach((word, index) => {
-    const wordStart = start + index * timePerWord;
-    const wordEnd = start + (index + 1) * timePerWord;
-    
-    const coloredWords = words.map((w, i) => {
-      if (i === index || i < index) {
-        return `{\\c${textColor}\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
-      } else {
-        return `{\\c&HFFFFFF&\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
-      }
-    }).join(' ');
-    
-    let moveTag = '';
-    if (style?.animation2 === 'Shake') {
-      const duration = wordEnd - wordStart;
-      const endPosition = calculateNextPosition(
-        currentPosition.x,
-        currentPosition.y,
-        duration
-      );
-      const marginV = style?.verticalPosition 
-        ? Math.round((720 * (100 - style.verticalPosition)) / 100)
-        : 0;
-      moveTag = `\\move(${Math.round(currentPosition.x)},${Math.round(currentPosition.y + marginV)},${Math.round(endPosition.x)},${Math.round(endPosition.y + marginV)})`;
-      currentPosition = endPosition;
-    }
-
-    const glowWords = words.map((w, i) => {
-      if (i === index || i < index) {
-        return `{${moveTag}\\c${lightGlowColorASS}\\bord${0.1 * shadowStrength}\\blur${4 * shadowStrength}\\3c${lightGlowColorASS}\\4c${lightGlowColorASS}\\4a&H${blurAlpha.toString(16)}&\\3a&H${shadowAlpha.toString(16)}&}${w}`;
-      } else {
-        return `{\\c&HFFFFFF&\\alpha&HFF&}${w}`; // Hidden for inactive words
-      }
-    }).join(' ');
-
-    const finalColoredWords = moveTag
-      ? words.map((w, i) => {
-          if (i === index || i < index) {
-            return `{${moveTag}\\c${textColor}\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
-          } else {
-            return `{\\c&HFFFFFF&\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
-          }
-        }).join(' ')
-      : coloredWords;
-
-    events.push(`Dialogue: 1,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${glowWords}`);
-    events.push(`Dialogue: 2,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${finalColoredWords}`);
-  });
-  
-  return style?.animation2 === 'Shake' ? {
-    events: events.join('\n'),
-    lastPosition: currentPosition
-  } : events.join('\n');
-};
 
 export const generateASSFile = (
   subtitles: SubtitleSegment[],
@@ -344,7 +268,7 @@ export const generateAdvancedASSFile = (
   if (subtitles.length === 0) return '';
 
   const fontSize = style.fontSize || 50;
-  const fontFamily = style.fontFamily || getStyleFont(styleType, style.fontFamily);
+  const fontFamily = getStyleFont(styleType, style.fontFamily);
   const alignment = style.textAlign === 'left' ? '1' : style.textAlign === 'right' ? '3' : '2';
   const marginV = Math.round((720 * (100 - (style.verticalPosition || 50))) / 100);
 
@@ -390,6 +314,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       case 'wavycolors':
         result = Wavycolors(sub, sub.start, sub.end, style);
         break;
+      case 'shrinkingpairs':
+        result = shrinkingColorsPairAnimation(sub, sub.start, sub.end, style, lastPosition);
+        break;
+      case 'revealenlarge':
+        result = RevealEnlarge(sub, sub.start, sub.end, style, lastPosition);
+        break;
       default:
         result = Girlboss(sub, sub.start, sub.end, style, lastPosition);
     }
@@ -403,258 +333,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   }).join('\n');
 
   return header + events;
-};
-
-export const alternatingColorsAnimation = (
-  subtitle: SubtitleSegment,
-  start: number,
-  end: number,
-  style: GirlbossStyle & { alternateColors?: string[]; shadowColor?: string; outlineWidth?: number; outlineColor?: string; outlineBlur?: number },
-  lastPosition: { x: number; y: number } | null = null
-): GirlbossResult | string => {
-  const words = subtitle.text.split(' ');
-  const timePerWord = (end - start) / words.length;
-  
-  const shadowStrength = style.shadowStrength || 3;
-  const shadowAlpha = Math.round(150 - (shadowStrength * 20));
-  const blurAlpha = Math.round(120 - (shadowStrength * 20));
-  
-  const defaultColors = ['0BF431', '2121FF', '1DE0FE', 'FFFF00'];
-  const hormoziColors = style?.alternateColors 
-    ? style.alternateColors.map(color => convertColorToASS(color).replace('&H', '').replace('&', ''))
-    : defaultColors;
-
-  const glowColors = style?.alternateColors
-    ? Object.fromEntries(
-        style.alternateColors.map((color, index) => [
-          convertColorToASS(color).replace('&H', '').replace('&', ''),
-          convertColorToASS(style.alternateColors![index]).replace('&H', '').replace('&', '')
-        ])
-      )
-    : Object.fromEntries(hormoziColors.map(color => [color, color]));
-
-  const whiteASS = convertColorToASS('#FFFFFF');
-  
-  // Handle outline settings
-  const outlineWidth = style.outlineWidth || 2;
-  const outlineColorASS = convertColorToASS(style.outlineColor || '#000000');
-  const outlineBlur = style.outlineBlur || 0;
-  
-  let events: string[] = [];
-  let currentPosition = lastPosition || { x: 670, y: 0 };
-
-  const globalWordStartIndex = subtitle.wordStartIndex || 0;
-  
-  if (words.length === 1) {
-    const globalWordIndex = globalWordStartIndex;
-    const colorIndex = globalWordIndex % hormoziColors.length;
-    const color = hormoziColors[colorIndex];
-    const glowColor = glowColors[color];
-    const borderWidth = 0.1 * shadowStrength;
-    const blurAmount = 2 * shadowStrength;
-
-    let moveTag = '';
-    if (style?.animation2 === 'Shake') {
-      const duration = end - start;
-      const endPosition = calculateNextPosition(currentPosition.x, currentPosition.y, duration);
-      const marginV = style?.verticalPosition 
-        ? Math.round((720 * (100 - style.verticalPosition)) / 100)
-        : 0;
-      moveTag = `\\move(${Math.round(currentPosition.x)},${Math.round(currentPosition.y + marginV)},${Math.round(endPosition.x)},${Math.round(endPosition.y + marginV)})`;
-      currentPosition = endPosition;
-    }
-
-    const coloredText = `{${moveTag}\\c&H${color}&\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${words[0]}`;
-    const glowText = `{${moveTag}\\c&H${glowColor}&\\bord${borderWidth}\\blur${blurAmount}\\3c&H${glowColor}&\\3a&H${shadowAlpha.toString(16)}&\\4c&H${glowColor}&\\4a&H${blurAlpha.toString(16)}&\\xshad0\\yshad${-1}}${words[0]}`;
-
-    events.push(`Dialogue: 0,${formatTime(start)},${formatTime(end)},Default,,0,0,0,,${glowText}`);
-    events.push(`Dialogue: 1,${formatTime(start)},${formatTime(end)},Default,,0,0,0,,${coloredText}`);
-
-    return style?.animation2 === 'Shake' ? {
-      events: events.join('\n'),
-      lastPosition: currentPosition
-    } : events.join('\n');
-  }
-
-  words.forEach((word, index) => {
-    const wordStart = start + index * timePerWord;
-    const wordEnd = start + (index + 1) * timePerWord;
-    const duration = wordEnd - wordStart;
-
-    const globalWordIndex = globalWordStartIndex + index;
-    const colorIndex = globalWordIndex % hormoziColors.length;
-    const color = hormoziColors[colorIndex];
-    const glowColor = glowColors[color];
-    const borderWidth = 0.1 * shadowStrength;
-    const blurAmount = 2 * shadowStrength;
-
-    let moveTag = '';
-    if (style?.animation2 === 'Shake') {
-      const endPosition = calculateNextPosition(currentPosition.x, currentPosition.y, duration);
-      const marginV = style?.verticalPosition 
-        ? Math.round((720 * (100 - style.verticalPosition)) / 100)
-        : 0;
-      moveTag = `\\move(${Math.round(currentPosition.x)},${Math.round(currentPosition.y + marginV)},${Math.round(endPosition.x)},${Math.round(endPosition.y + marginV)})`;
-      currentPosition = endPosition;
-    }
-
-    const coloredText = words.map((w, i) => {
-      if (i === index) {
-        return `{${moveTag}\\c&H${color}&\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
-      } else {
-        return `{\\c&HFFFFFF&\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
-      }
-    }).join(' ');
-
-    const glowText = words.map((w, i) => {
-      if (i === index) {
-        return `{${moveTag}\\c&H${glowColor}&\\bord${borderWidth}\\blur${blurAmount}\\3c&H${glowColor}&\\3a&H${shadowAlpha.toString(16)}&\\4c&H${glowColor}&\\4a&H${blurAlpha.toString(16)}&\\xshad0\\yshad${-1}}${w}`;
-      }
-      return `{\\alpha&HFF&}${w}`;
-    }).join(' ');
-
-    events.push(`Dialogue: 0,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${glowText}`);
-    events.push(`Dialogue: 1,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${coloredText}`);
-  });
-
-  return style?.animation2 === 'Shake' ? {
-    events: events.join('\n'),
-    lastPosition: currentPosition
-  } : events.join('\n');
-};
-
-// ThinToBold animation
-export const ThinToBold = (
-  subtitle: SubtitleSegment,
-  start: number,
-  end: number,
-  style: GirlbossStyle & { outlineWidth?: number; outlineColor?: string; outlineBlur?: number },
-  lastPosition: { x: number; y: number } | null = null
-): GirlbossResult | string => {
-  const words = subtitle.text.split(' ');
-  const totalDuration = end - start;
-  const wordPairs: string[] = [];
-    
-  for (let i = 0; i < words.length; i += 2) {
-    if (i + 1 < words.length) {
-      wordPairs.push(words[i] + ' ' + words[i + 1]);
-    } else {
-      wordPairs.push(words[i]); 
-    }
-  }
-
-  const timePerPair = totalDuration / wordPairs.length;
-  const textColor = convertColorToASS(style.color || '#FFFFFF');
-  const shadowStrength = style.shadowStrength ? style.shadowStrength + 0.2 : 0;
-  const textShadowColor = convertColorToASS(style.color || '#FFFFFF');
-  
-  // Handle outline settings
-  const outlineWidth = style.outlineWidth || 2;
-  const outlineColorASS = convertColorToASS(style.outlineColor || '#000000');
-  const outlineBlur = style.outlineBlur || 0;
-  
-  let currentPosition = lastPosition || { x: 670, y: 0 };
-  let events: string[] = []; 
-
-  wordPairs.forEach((pair, index) => {
-    const pairStart = start + index * timePerPair; 
-    const pairEnd = start + (index + 1) * timePerPair; 
-
-    let moveTag = '';
-    if (style?.animation2 === 'Shake') {
-      const duration = pairEnd - pairStart;
-      const endPosition = calculateNextPosition(currentPosition.x, currentPosition.y, duration);
-      const marginV = style?.verticalPosition 
-        ? Math.round((720 * (100 - style.verticalPosition)) / 100)
-        : 0;
-      moveTag = `\\move(${Math.round(currentPosition.x)},${Math.round(currentPosition.y + marginV)},${Math.round(endPosition.x)},${Math.round(endPosition.y + marginV)})`;
-      currentPosition = endPosition;
-    }
-
-    const coloredText = wordPairs.map((w, i) => {
-      if (i === index) {
-        return `{${moveTag}\\c${textColor}\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\fn@Montserrat\\fscx120\\fscy120}${w}`;
-      }
-      return `{\\c${textColor}\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\fn@Montserrat Thin}${w}`;
-    }).join('\\N');
-    
-    const glowText = wordPairs.map((w, i) => {
-      if (i === index) {
-        const shadowAlpha = Math.round(133 - (shadowStrength * 24));
-        const blurAlpha = Math.round(96 - (shadowStrength * 28));
-        
-        return `{${moveTag}\\c${textShadowColor}\\bord${0.1 * shadowStrength}\\blur${4 * shadowStrength}\\3c${textShadowColor}\\3a&H${shadowAlpha.toString(16)}&\\4c${textShadowColor}\\4a&H${blurAlpha.toString(16)}&\\xshad0\\yshad${-1}\\fn@Montserrat\\fscx120\\fscy120}${w}`;
-      }
-      return `{\\c${textShadowColor}\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0\\fn@Montserrat Thin}${w}`;
-    }).join('\\N');
-    
-    events.push(`Dialogue: 0,${formatTime(pairStart)},${formatTime(pairEnd)},Default,,0,0,0,,${glowText}`);
-    events.push(`Dialogue: 1,${formatTime(pairStart)},${formatTime(pairEnd)},Default,,0,0,0,,${coloredText}`);
-  });
-  
-  return style?.animation2 === 'Shake' ? {
-    events: events.join('\n'),
-    lastPosition: currentPosition
-  } : events.join('\n');
-};
-
-// WavyColors animation
-export const Wavycolors = (
-  subtitle: SubtitleSegment,
-  start: number,
-  end: number,
-  style: GirlbossStyle & { textOutlineWidth?: number; outlineWidth?: number; outlineColor?: string; outlineBlur?: number }
-): string => {
-  const words = subtitle.text.split(' ');
-  const duration = end - start;
-  const timePerWord = duration / words.length;
-  const events: string[] = [];
-
-  const colors = ['&H00FF00&', '&HFFFF00&', '&H00FFFF&']; // Green, Yellow, Light blue
-  
-  // Handle outline settings
-  const baseOutlineWidth = style.outlineWidth || 2;
-  const outlineColorASS = convertColorToASS(style.outlineColor || '#000000');
-  const outlineBlur = style.outlineBlur || 0;
-
-  words.forEach((word, wordIndex) => {
-    const wordStart = start + (wordIndex * timePerWord);
-    const wordEnd = wordStart + timePerWord;
-    const color = colors[wordIndex % colors.length];
-    
-    const charSets = word.match(/.{1,4}/g) || [word];
-    const timePerSet = timePerWord / charSets.length;
-
-    const stretchEffect = `{\\t(${timePerWord * 0.0},${timePerWord * 0.25},\\fscx100\\fscy150)}{\\t(${timePerWord * 0.25},${timePerWord * 0.5},\\fscx100\\fscy100)}`;
-    
-    charSets.forEach((_, coloredSetIndex) => {
-      const setStart = wordStart + (coloredSetIndex * timePerSet);
-      const setEnd = setStart + timePerSet;
-      
-      let wordDisplay = '';
-      charSets.forEach((chars, setIndex) => {
-        const isColored = setIndex === coloredSetIndex;
-        const effectOutlineWidth = style?.textOutlineWidth || 2;
-        const setStyle = isColored 
-          ? `{\\3c${color}\\bord${effectOutlineWidth}\\c${color}\\blur8\\alpha&H60&\\shad5}` 
-          : `{\\c&HFFFFFF&\\bord${baseOutlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\alpha&H00&\\shad0}`;
-        wordDisplay += setStyle + chars;
-      });
-
-      events.push(
-        `Dialogue: 0,${formatTime(setStart)},${formatTime(setEnd)},Default,,0,0,0,,` +
-        `${stretchEffect}${wordDisplay}`
-      );
-    });
-
-    if (wordIndex < words.length - 1) {
-      events.push(
-        `Dialogue: 0,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,, `
-      );
-    }
-  });
-
-  return events.join('\n');
 };
 
 export const parseSRT = (srtContent: string): SubtitleSegment[] => {
@@ -756,4 +434,12 @@ export const processWordModeSegments = (
   }
 
   return wordSegments;
-}; 
+};
+
+// Re-export all animations from their separate files
+export { Girlboss } from './animations/girlboss';
+export { alternatingColorsAnimation } from './animations/hormozi';
+export { ThinToBold } from './animations/thinToBold';
+export { Wavycolors } from './animations/wavyColors';
+export { shrinkingColorsPairAnimation } from './animations/shrinkingPairs';
+export { RevealEnlarge } from './animations/revealEnlarge'; 

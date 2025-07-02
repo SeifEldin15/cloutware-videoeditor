@@ -79,22 +79,24 @@ export const ValidationSchemas = {
       outlineBlur: z.number().min(0).max(10).optional().default(0),
       // Universal vertical position option
       verticalPosition: z.number().min(0).max(100).optional().default(15),
+      // Universal shadow strength option
+      shadowStrength: z.number().min(0.5).max(5).optional().default(1.5),
+      // Universal animation option
+      animation: z.enum(['none', 'shake']).optional().default('none'),
       // Advanced subtitle styling options
-      subtitleStyle: z.enum(['basic', 'girlboss', 'hormozi', 'thintobold', 'wavycolors']).optional().default('basic'),
+      subtitleStyle: z.enum(['basic', 'girlboss', 'hormozi', 'thintobold', 'wavycolors', 'shrinkingpairs', 'revealenlarge']).optional().default('basic'),
       // Girlboss styling options
       girlbossColor: z.string().optional().default('#F361D8'),
-      girlbossShadowStrength: z.number().min(0.5).max(3).optional().default(1),
-      girlbossAnimation: z.enum(['none', 'shake']).optional().default('none'),
       // HormoziViral options
       hormoziColors: z.array(z.string()).optional().default(['#0BF431', '#2121FF', '#1DE0FE', '#FFFF00']),
-      hormoziShadowStrength: z.number().min(1).max(5).optional().default(3),
-      hormoziAnimation: z.enum(['none', 'shake']).optional().default('none'),
       // ThinToBold options  
       thinToBoldColor: z.string().optional().default('#FFFFFF'),
-      thinToBoldShadowStrength: z.number().min(0.5).max(3).optional().default(1),
-      thinToBoldAnimation: z.enum(['none', 'shake']).optional().default('none'),
       // WavyColors options
       wavyColorsOutlineWidth: z.number().min(1).max(5).optional().default(2),
+      // ShrinkingPairs options
+      shrinkingPairsColor: z.string().optional().default('#0BF431'),
+      // RevealEnlarge options
+      revealEnlargeColors: z.array(z.string()).optional().default(['#0BF431', '#2121FF', '#1DE0FE', '#FFFF00']),
       // Word processing mode options
       wordMode: z.enum(['normal', 'single', 'multiple']).optional().default('normal'),
       wordsPerGroup: z.number().min(1).max(10).optional().default(1)

@@ -53,20 +53,22 @@ interface StyleOptions {
   outlineBlur?: number
   // Universal vertical position option
   verticalPosition?: number
+  // Universal shadow strength option
+  shadowStrength?: number
+  // Universal animation option
+  animation?: string
   // Girlboss options
   girlbossColor?: string
-  girlbossShadowStrength?: number
-  girlbossAnimation?: string
   // Hormozi options
   hormoziColors?: string[]
-  hormoziShadowStrength?: number
-  hormoziAnimation?: string
   // ThinToBold options
   thinToBoldColor?: string
-  thinToBoldShadowStrength?: number
-  thinToBoldAnimation?: string
   // WavyColors options
   wavyColorsOutlineWidth?: number
+  // ShrinkingPairs options
+  shrinkingPairsColor?: string
+  // RevealEnlarge options
+  revealEnlargeColors?: string[]
   // Word processing mode options
   wordMode?: 'normal' | 'single' | 'multiple'
   wordsPerGroup?: number
@@ -151,20 +153,22 @@ export class SubtitleProcessor {
       outlineBlur: caption?.outlineBlur,
       // Universal vertical position option
       verticalPosition: caption?.verticalPosition,
+      // Universal shadow strength option
+      shadowStrength: caption?.shadowStrength,
+      // Universal animation option
+      animation: caption?.animation,
       // Girlboss options
       girlbossColor: caption?.girlbossColor,
-      girlbossShadowStrength: caption?.girlbossShadowStrength,
-      girlbossAnimation: caption?.girlbossAnimation,
       // Hormozi options
       hormoziColors: caption?.hormoziColors,
-      hormoziShadowStrength: caption?.hormoziShadowStrength,
-      hormoziAnimation: caption?.hormoziAnimation,
       // ThinToBold options
       thinToBoldColor: caption?.thinToBoldColor,
-      thinToBoldShadowStrength: caption?.thinToBoldShadowStrength,
-      thinToBoldAnimation: caption?.thinToBoldAnimation,
       // WavyColors options
       wavyColorsOutlineWidth: caption?.wavyColorsOutlineWidth,
+      // ShrinkingPairs options
+      shrinkingPairsColor: caption?.shrinkingPairsColor,
+      // RevealEnlarge options
+      revealEnlargeColors: caption?.revealEnlargeColors,
       // Word processing mode options
       wordMode: caption?.wordMode,
       wordsPerGroup: caption?.wordsPerGroup
@@ -261,8 +265,8 @@ export class SubtitleProcessor {
             outlineBlur?: number
           } = {
             color: styleOptions.girlbossColor || '#F361D8',
-            shadowStrength: styleOptions.girlbossShadowStrength || 1,
-            animation2: styleOptions.girlbossAnimation === 'shake' ? 'Shake' : 'none',
+            shadowStrength: styleOptions.shadowStrength || 1.5,
+            animation: styleOptions.animation === 'shake' ? 'shake' : 'none',
             verticalPosition: styleOptions.verticalPosition || 15,
             fontSize: styleOptions.fontSize || 50,
             fontFamily: styleOptions.fontFamily || 'Arial',
@@ -286,8 +290,8 @@ export class SubtitleProcessor {
             outlineColor?: string
             outlineBlur?: number
           } = {
-            shadowStrength: styleOptions.hormoziShadowStrength || 3,
-            animation2: styleOptions.hormoziAnimation === 'shake' ? 'Shake' : 'none',
+            shadowStrength: styleOptions.shadowStrength || 1.5,
+            animation: styleOptions.animation === 'shake' ? 'shake' : 'none',
             verticalPosition: styleOptions.verticalPosition || 15,
             fontSize: styleOptions.fontSize || 50,
             fontFamily: styleOptions.fontFamily || 'Arial',
@@ -312,8 +316,8 @@ export class SubtitleProcessor {
             outlineBlur?: number
           } = {
             color: styleOptions.thinToBoldColor || '#FFFFFF',
-            shadowStrength: styleOptions.thinToBoldShadowStrength || 1,
-            animation2: styleOptions.thinToBoldAnimation === 'shake' ? 'Shake' : 'none',
+            shadowStrength: styleOptions.shadowStrength || 1.5,
+            animation: styleOptions.animation === 'shake' ? 'shake' : 'none',
             verticalPosition: styleOptions.verticalPosition || 15,
             fontSize: styleOptions.fontSize || 50,
             fontFamily: styleOptions.fontFamily || 'Arial',
@@ -348,6 +352,63 @@ export class SubtitleProcessor {
             outlineBlur: styleOptions.outlineBlur || 0
           }
           assContent = generateAdvancedASSFile(subtitleSegments, wavyStyle, 'wavycolors')
+
+        } else if (styleOptions.subtitleStyle === 'shrinkingpairs') {
+          console.log(`📉 Setting up ShrinkingPairs with font: ${styleOptions.fontFamily} -> ${styleOptions.fontFamily}`)
+          const shrinkingPairsStyle: GirlbossStyle & {
+            fontSize?: number
+            fontFamily?: string
+            fontFilePath?: string
+            textAlign?: string
+            textOutlineWidth?: number
+            shadowStrength?: number
+            outlineWidth?: number
+            outlineColor?: string
+            outlineBlur?: number
+          } = {
+            color: styleOptions.shrinkingPairsColor || '#0BF431',
+            shadowStrength: styleOptions.shadowStrength || 1.5,
+            animation: styleOptions.animation === 'shake' ? 'shake' : 'none',
+            verticalPosition: styleOptions.verticalPosition || 15,
+            fontSize: styleOptions.fontSize || 50,
+            fontFamily: styleOptions.fontFamily || 'Arial',
+            fontFilePath: fontFile || styleOptions.fontFamily || 'Arial',
+            textAlign: styleOptions.textAlign || 'center',
+            textOutlineWidth: styleOptions.outlineWidth || 2,
+            outlineWidth: styleOptions.outlineWidth || 2,
+            outlineColor: styleOptions.outlineColor || '#000000',
+            outlineBlur: styleOptions.outlineBlur || 0
+          }
+          assContent = generateAdvancedASSFile(subtitleSegments, shrinkingPairsStyle, 'shrinkingpairs')
+
+        } else if (styleOptions.subtitleStyle === 'revealenlarge') {
+          console.log(`🔍 Setting up RevealEnlarge with font: ${styleOptions.fontFamily} -> ${styleOptions.fontFamily}`)
+          const revealEnlargeStyle: GirlbossStyle & {
+            fontSize?: number
+            fontFamily?: string
+            fontFilePath?: string
+            textAlign?: string
+            alternateColors?: string[]
+            textOutlineWidth?: number
+            shadowStrength?: number
+            outlineWidth?: number
+            outlineColor?: string
+            outlineBlur?: number
+          } = {
+            shadowStrength: styleOptions.shadowStrength || 1.5,
+            animation: styleOptions.animation === 'shake' ? 'shake' : 'none',
+            verticalPosition: styleOptions.verticalPosition || 15,
+            fontSize: styleOptions.fontSize || 50,
+            fontFamily: styleOptions.fontFamily || 'Arial',
+            fontFilePath: fontFile || styleOptions.fontFamily || 'Arial',
+            textAlign: styleOptions.textAlign || 'center',
+            alternateColors: styleOptions.revealEnlargeColors || ['#0BF431', '#2121FF', '#1DE0FE', '#FFFF00'],
+            textOutlineWidth: styleOptions.outlineWidth || 2,
+            outlineWidth: styleOptions.outlineWidth || 2,
+            outlineColor: styleOptions.outlineColor || '#000000',
+            outlineBlur: styleOptions.outlineBlur || 0
+          }
+          assContent = generateAdvancedASSFile(subtitleSegments, revealEnlargeStyle, 'revealenlarge')
         }
 
         tempAssFile = join(tmpdir(), `subtitle_${Date.now()}.ass`)
