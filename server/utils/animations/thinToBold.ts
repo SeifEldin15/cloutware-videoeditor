@@ -3,9 +3,9 @@ import {
   GirlbossStyle, 
   GirlbossResult, 
   formatTime, 
-  convertColorToASS, 
   calculateNextPosition 
 } from '../subtitleUtils';
+import { convertColorToASS } from '../colorUtils';
 
 /**
  * ThinToBold Animation: Word pairs with thin-to-bold font transformation

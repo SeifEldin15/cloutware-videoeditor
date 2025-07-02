@@ -1,9 +1,9 @@
 import { 
   SubtitleSegment, 
   GirlbossStyle, 
-  formatTime, 
-  convertColorToASS
+  formatTime
 } from '../subtitleUtils';
+import { convertColorToASS } from '../colorUtils';
 
 /**
  * WavyColors Animation: Character-level color cycling with stretch effects

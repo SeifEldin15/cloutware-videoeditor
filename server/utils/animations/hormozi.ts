@@ -3,9 +3,9 @@ import {
   GirlbossStyle, 
   GirlbossResult, 
   formatTime, 
-  convertColorToASS, 
   calculateNextPosition 
 } from '../subtitleUtils';
+import { convertColorToASS } from '../colorUtils';
 
 /**
  * Hormozi Animation: Alternating color highlights with global word tracking

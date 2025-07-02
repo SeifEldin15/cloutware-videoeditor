@@ -1,4 +1,5 @@
-import { formatTime, convertColorToASS, calculateNextPosition, type SubtitleSegment, type GirlbossStyle } from '../subtitleUtils';
+import { formatTime, calculateNextPosition, type SubtitleSegment, type GirlbossStyle } from '../subtitleUtils';
+import { convertColorToASS } from '../colorUtils';
 
 export interface ShrinkingPairsStyle extends GirlbossStyle {
   textOutlineWidth?: number;
@@ -42,12 +43,12 @@ export const shrinkingColorsPairAnimation = (
   lastPosition: Position | null = null
 ): AnimationResult | string => {
   if (!subtitle?.text) {
-    return style?.animation2 === 'Shake' ? { events: '', lastPosition: lastPosition || { x: 670, y: 0 } } : '';
+    return style?.animation === 'shake' ? { events: '', lastPosition: lastPosition || { x: 670, y: 0 } } : '';
   }
 
   const words = subtitle.text.split(' ').filter(word => word.trim() !== '');
   if (words.length === 0) {
-    return style?.animation2 === 'Shake' ? { events: '', lastPosition: lastPosition || { x: 670, y: 0 } } : '';
+    return style?.animation === 'shake' ? { events: '', lastPosition: lastPosition || { x: 670, y: 0 } } : '';
   }
 
   const totalDuration = end - start;
@@ -62,7 +63,7 @@ export const shrinkingColorsPairAnimation = (
   }
 
   if (wordPairs.length === 0) {
-    return style?.animation2 === 'Shake' ? { events: '', lastPosition: lastPosition || { x: 670, y: 0 } } : '';
+    return style?.animation === 'shake' ? { events: '', lastPosition: lastPosition || { x: 670, y: 0 } } : '';
   }
 
   // Animation parameters
@@ -97,7 +98,7 @@ export const shrinkingColorsPairAnimation = (
 
     // Calculate position and movement
     let moveTag = '';
-    if (style?.animation2 === 'Shake') {
+    if (style?.animation === 'shake') {
       const endPosition = calculateNextPosition(
         currentPosition.x,
         currentPosition.y,
@@ -142,7 +143,7 @@ export const shrinkingColorsPairAnimation = (
     }
   });
 
-  return style?.animation2 === 'Shake' ? {
+  return style?.animation === 'shake' ? {
     events: events.join('\n'),
     lastPosition: currentPosition
   } : events.join('\n');

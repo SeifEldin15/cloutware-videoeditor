@@ -3,9 +3,9 @@ import {
   GirlbossStyle, 
   GirlbossResult, 
   formatTime, 
-  convertColorToASS, 
   calculateNextPosition 
 } from '../subtitleUtils';
+import { convertColorToASS } from '../colorUtils';
 
 /**
  * Girlboss Animation: Progressive word coloring with pink highlight and glow effect
