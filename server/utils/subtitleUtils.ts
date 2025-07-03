@@ -7,6 +7,7 @@ import { Girlboss } from './animations/girlboss';
 import { alternatingColorsAnimation } from './animations/hormozi';
 import { ThinToBold } from './animations/thinToBold';
 import { Wavycolors } from './animations/wavyColors';
+import { tiktokStyleAnimation } from './animations/tiktokstyle';
 
 export const formatTime = (seconds: number): string => {
   const pad = (num: number) => num.toString().padStart(2, '0');
@@ -81,7 +82,6 @@ export const generateASSFile = (
   const marginV = Math.round((720 * (100 - (style.verticalPosition || 50))) / 100);
 
   const fontColorASS = convertColorToASS(style.color || '#FFFFFF');
-  // Use the actual font family name for better font loading
   const systemFontFamily = fontFamily;
   const boldValue = fontFamily === 'Luckiest Guy' ? 1 : 0; // Bold for Luckiest Guy font
   
@@ -115,7 +115,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   return header + events;
 };
 
-// Font mapping for different animation styles
 export const getStyleFont = (styleType: string, defaultFont?: string): string => {
   const fontMappings: Record<string, string> = {
     'alternatingBoldThinAnimation': 'Montserrat-Thin',
@@ -136,6 +135,7 @@ export const getStyleFont = (styleType: string, defaultFont?: string): string =>
     'GreenToRedPair': 'Luckiest Guy',
     'hormoziViral': 'Luckiest Guy',
     'hormozi': 'Luckiest Guy',
+    'tiktokstyle': 'Luckiest Guy',
     'quickfox5': 'Luckiest Guy',
     'RevealEnlarge': 'Luckiest Guy',
     'TrendingAli': 'Luckiest Guy',
@@ -156,7 +156,7 @@ export const getFontFilePath = (fontFamily: string): string => {
   const fontFileMap: Record<string, string> = {
     'Montserrat Thin': 'Montserrat Thin.ttf',
     'Montserrat': 'Montserrat.ttf',
-    'Luckiest Guy': 'luckiestguy.ttf',  // Using lowercase filename to match actual file
+    'Luckiest Guy': 'luckiestguy.ttf',  
     'Arial': 'arial.ttf',
     'Arial Black': 'Arial Black.ttf',
     'Impact': 'impact.ttf',
@@ -258,6 +258,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         break;
       case 'hormozi':
         result = alternatingColorsAnimation(sub, sub.start, sub.end, style, lastPosition);
+        break;
+      case 'tiktokstyle':
+        result = tiktokStyleAnimation(sub, sub.start, sub.end, style, lastPosition);
         break;
       case 'thintobold':
         result = ThinToBold(sub, sub.start, sub.end, style, lastPosition);
@@ -387,9 +390,9 @@ export const processWordModeSegments = (
   return wordSegments;
 };
 
-// Re-export all animations from their separate files
 export { Girlboss } from './animations/girlboss';
 export { alternatingColorsAnimation } from './animations/hormozi';
+export { tiktokStyleAnimation } from './animations/tiktokstyle';
 export { ThinToBold } from './animations/thinToBold';
 export { Wavycolors } from './animations/wavyColors';
 export { shrinkingColorsPairAnimation } from './animations/shrinkingPairs';

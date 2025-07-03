@@ -61,6 +61,8 @@ interface StyleOptions {
   girlbossColor?: string
   // Hormozi options
   hormoziColors?: string[]
+  // TikTokStyle options
+  tiktokstyleColor?: string
   // ThinToBold options
   thinToBoldColor?: string
   // WavyColors options
@@ -161,6 +163,8 @@ export class SubtitleProcessor {
       girlbossColor: caption?.girlbossColor,
       // Hormozi options
       hormoziColors: caption?.hormoziColors,
+      // TikTokStyle options
+      tiktokstyleColor: caption?.tiktokstyleColor,
       // ThinToBold options
       thinToBoldColor: caption?.thinToBoldColor,
       // WavyColors options
@@ -303,6 +307,31 @@ export class SubtitleProcessor {
             outlineBlur: styleOptions.outlineBlur || 0
           }
           assContent = generateAdvancedASSFile(subtitleSegments, hormoziStyle, 'hormozi')
+
+        } else if (styleOptions.subtitleStyle === 'tiktokstyle') {
+          console.log(`🎵 Setting up TikTokStyle with font: ${styleOptions.fontFamily} -> ${styleOptions.fontFamily}`)
+          const tiktokStyleStyle: GirlbossStyle & {
+            fontSize?: number
+            fontFamily?: string
+            fontFilePath?: string
+            textAlign?: string
+            outlineWidth?: number
+            outlineColor?: string
+            outlineBlur?: number
+          } = {
+            color: styleOptions.tiktokstyleColor || '#FFFF00',
+            shadowStrength: styleOptions.shadowStrength || 1.5,
+            animation: styleOptions.animation === 'shake' ? 'shake' : 'none',
+            verticalPosition: styleOptions.verticalPosition || 15,
+            fontSize: styleOptions.fontSize || 50,
+            fontFamily: styleOptions.fontFamily || 'Arial',
+            fontFilePath: fontFile || styleOptions.fontFamily || 'Arial',
+            textAlign: styleOptions.textAlign || 'center',
+            outlineWidth: styleOptions.outlineWidth || 2,
+            outlineColor: styleOptions.outlineColor || '#000000',
+            outlineBlur: styleOptions.outlineBlur || 0
+          }
+          assContent = generateAdvancedASSFile(subtitleSegments, tiktokStyleStyle, 'tiktokstyle')
 
         } else if (styleOptions.subtitleStyle === 'thintobold') {
           console.log(`✨ Setting up ThinToBold with font: ${styleOptions.fontFamily} -> ${styleOptions.fontFamily}`)
