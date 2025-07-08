@@ -67,10 +67,15 @@ async function processVideoWithSubtitles(
   caption: any, 
   options: any
 ): Promise<PassThrough> {
-        if (caption.subtitleStyle && caption.subtitleStyle !== 'basic') {
+  // Log word mode if specified
+  if (caption.wordMode && caption.wordMode !== 'normal') {
+    console.log(`Word mode: ${caption.wordMode} with ${caption.wordsPerGroup || 1} words per group`)
+  }
+  
+  if (caption.subtitleStyle && caption.subtitleStyle !== 'basic') {
     console.log(`Using ${caption.subtitleStyle} style subtitles with advanced processing`)
     return SubtitleProcessor.processAdvanced(url, caption, options)
-        } else {
+  } else {
     console.log('Using basic subtitle processing')
     return SubtitleProcessor.processBasic(url, caption)
   }
