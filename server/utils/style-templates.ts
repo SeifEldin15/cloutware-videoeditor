@@ -4,14 +4,18 @@ export interface StyleTemplate {
   name: string
   description: string
   fontFamily: string
+  wordMode: string
+  wordsPerGroup: number
   configuration: Partial<CaptionOptions>
 }
 
 export const styleTemplates: Record<string, StyleTemplate> = {
   girlboss: {
     name: 'Girlboss',
-    description: 'Bold, energetic style with shake animation and pink colors',
+    description: 'Bold, energetic style with shake animation and pink colors (single word emphasis)',
     fontFamily: 'Luckiest Guy',
+    wordMode: 'multiple',
+    wordsPerGroup: 2,
     configuration: {
       subtitleStyle: 'girlboss',
       fontFamily: 'Luckiest Guy',
@@ -22,14 +26,18 @@ export const styleTemplates: Record<string, StyleTemplate> = {
       verticalPosition: 18,
       outlineWidth: 3,
       outlineColor: '#000000',
-      outlineBlur: 1
+      outlineBlur: 1,
+      wordMode: 'multiple',
+      wordsPerGroup: 2
     }
   },
   
   hormozi: {
     name: 'Hormozi',
-    description: 'High-energy multi-color style for attention-grabbing content',
+    description: 'High-energy multi-color style for attention-grabbing content (single word impact)',
     fontFamily: 'Luckiest Guy',
+    wordMode: 'multiple',
+    wordsPerGroup: 4,
     configuration: {
       subtitleStyle: 'hormozi',
       fontFamily: 'Luckiest Guy',
@@ -40,7 +48,9 @@ export const styleTemplates: Record<string, StyleTemplate> = {
       verticalPosition: 15,
       outlineWidth: 2,
       outlineColor: '#000000',
-      outlineBlur: 0
+      outlineBlur: 0,
+      wordMode: 'multiple',
+      wordsPerGroup: 4
     }
   },
   
@@ -58,7 +68,9 @@ export const styleTemplates: Record<string, StyleTemplate> = {
       verticalPosition: 15,
       outlineWidth: 2,
       outlineColor: '#000000',
-      outlineBlur: 0
+      outlineBlur: 0,
+      wordMode: 'multiple',
+      wordsPerGroup: 2
     }
   },
   
@@ -76,7 +88,9 @@ export const styleTemplates: Record<string, StyleTemplate> = {
       verticalPosition: 22,
       outlineWidth: 0.5,
       outlineColor: '#000000',
-      outlineBlur: 1
+      outlineBlur: 1,
+      wordMode: 'normal',
+      wordsPerGroup: 4
     }
   },
   
@@ -92,7 +106,9 @@ export const styleTemplates: Record<string, StyleTemplate> = {
       verticalPosition: 12,
       outlineWidth: 2,
       outlineColor: '#000000',
-      outlineBlur: 1
+      outlineBlur: 1,
+      wordMode: 'multiple',
+      wordsPerGroup: 1
     }
   },
   
@@ -130,7 +146,9 @@ export const styleTemplates: Record<string, StyleTemplate> = {
       verticalPosition: 16,
       outlineWidth: 2,
       outlineColor: '#000000',
-      outlineBlur: 1
+      outlineBlur: 1,
+      wordMode: 'multiple',
+      wordsPerGroup: 4
     }
   },
   
@@ -150,7 +168,9 @@ export const styleTemplates: Record<string, StyleTemplate> = {
       backgroundColor: 'black@0.8',
       outlineWidth: 3,
       outlineColor: '#000000',
-      outlineBlur: 0
+      outlineBlur: 0,
+      wordMode: 'normal',
+      wordsPerGroup: 1
     }
   }
 }
