@@ -3,6 +3,7 @@ import { PassThrough } from 'stream'
 import { readValidatedBody, getValidatedQuery, setResponseHeader } from 'h3'
 import { VideoProcessor } from '../utils/video-processor'
 import { SubtitleProcessor } from '../utils/subtitle-processor'
+import { TextReplacementProcessor } from '../utils/text-replacement-processor'
 import { ValidationSchemas } from '../utils/validation-schemas'
 
 export default eventHandler(async (event) => {
@@ -20,20 +21,24 @@ export default eventHandler(async (event) => {
       throw new Error('Captions can only be applied to MP4 format videos')
     }
     
+    if (format !== 'mp4' && caption?.textReplacements?.length) {
+      throw new Error('Text replacements can only be applied to MP4 format videos')
+    }
+    
     // Validate URL accessibility
     await validateVideoUrl(url)
     
     let videoStream: PassThrough
     
-    if (format === 'mp4' && caption?.srtContent) {
-      // Process video with subtitles
+    if (format === 'mp4' && caption?.textReplacements?.length) {
+      console.log(`Processing with ${caption.textReplacements.length} text replacement(s)`)
+      videoStream = await TextReplacementProcessor.process(url, caption.textReplacements, options, outputName)
+    } else if (format === 'mp4' && caption?.srtContent) {
       videoStream = await processVideoWithSubtitles(url, caption, options)
-  } else {
-      // Process video without subtitles
+    } else {
       videoStream = await VideoProcessor.process(url, format, options, outputName)
     }
     
-    // Set response headers
     const contentType = getContentTypeForFormat(format)
     const fileExtension = getFileExtensionForFormat(format)
     
@@ -67,7 +72,6 @@ async function processVideoWithSubtitles(
   caption: any, 
   options: any
 ): Promise<PassThrough> {
-  // Log word mode if specified
   if (caption.wordMode && caption.wordMode !== 'normal') {
     console.log(`Word mode: ${caption.wordMode} with ${caption.wordsPerGroup || 1} words per group`)
   }

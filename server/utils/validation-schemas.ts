@@ -106,5 +106,48 @@ export const ValidationSchemas = {
   })
 }
 
+export const TextReplacementSchemas = {
+  textReplacementSchema: z.object({
+    url: z.string().url('Invalid video URL'),
+    outputName: z.string().regex(/^[a-zA-Z0-9_-]+$/, 'Output name can only contain letters, numbers, underscores and hyphens').optional().default('text_replaced_video'),
+    textReplacements: z.array(z.object({
+      region: z.object({
+        x: z.number().min(0).max(10000).optional(),
+        y: z.number().min(0).max(10000),
+        width: z.number().min(1).max(10000),
+        height: z.number().min(1).max(10000),
+        centerHorizontally: z.boolean().optional().default(false)
+      }),
+      background: z.object({
+        color: z.enum(['black', 'white', 'transparent']).default('black'),
+        opacity: z.number().min(0).max(1).default(1)
+      }).optional().default({}),
+      text: z.string().min(1, 'Replacement text cannot be empty'),
+      textStyle: z.object({
+        fontSize: z.number().min(8).max(200).default(24),
+        fontColor: z.string().default('#FFFFFF'),
+        fontFamily: z.string().default('Arial'),
+        fontWeight: z.enum(['normal', 'bold']).default('normal'),
+        fontStyle: z.enum(['normal', 'italic']).default('normal'),
+        alignment: z.enum(['left', 'center', 'right']).default('center'),
+        verticalAlignment: z.enum(['top', 'center', 'bottom']).default('center'),
+        outlineWidth: z.number().min(0).max(10).default(0),
+        outlineColor: z.string().default('#000000'),
+        shadowOffsetX: z.number().min(-50).max(50).default(0),
+        shadowOffsetY: z.number().min(-50).max(50).default(0),
+        shadowColor: z.string().default('#000000'),
+        shadowOpacity: z.number().min(0).max(1).default(0)
+      }).optional().default({})
+    })).min(1, 'At least one text replacement is required'),
+    options: z.object({
+      speedFactor: z.number().min(0.5).max(2).optional(),
+      zoomFactor: z.number().min(1).max(2).optional(),
+      saturationFactor: z.number().min(0.5).max(2).optional(),
+      lightness: z.number().min(-0.5).max(0.5).optional()
+    }).optional().default({})
+  })
+}
+
 export type VideoProcessingOptions = z.infer<typeof ValidationSchemas.bodySchema>['options']
-export type CaptionOptions = z.infer<typeof ValidationSchemas.bodySchema>['caption'] 
+export type CaptionOptions = z.infer<typeof ValidationSchemas.bodySchema>['caption']
+export type TextReplacementOptions = z.infer<typeof TextReplacementSchemas.textReplacementSchema>
