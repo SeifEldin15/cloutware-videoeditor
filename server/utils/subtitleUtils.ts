@@ -8,6 +8,8 @@ import { alternatingColorsAnimation } from './animations/hormozi';
 import { ThinToBold } from './animations/thinToBold';
 import { Wavycolors } from './animations/wavyColors';
 import { tiktokStyleAnimation } from './animations/tiktokstyle';
+import { whiteImpactAnimation } from './animations/whiteimpact';
+import { impactFullAnimation } from './animations/impactfull';
 
 export const formatTime = (seconds: number): string => {
   const pad = (num: number) => num.toString().padStart(2, '0');
@@ -144,6 +146,8 @@ export const getStyleFont = (styleType: string, defaultFont?: string): string =>
     'HormoziViralWord': 'Luckiest Guy',
     'SimpleDisplay': 'Luckiest Guy',
     'none': 'Luckiest Guy',
+    'whiteimpact': 'Impact',
+    'impactfull': 'Impact',
     
     // Basic uses Arial
     'basic': 'Arial'
@@ -273,6 +277,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         break;
       case 'revealenlarge':
         result = RevealEnlarge(sub, sub.start, sub.end, style, lastPosition);
+        break;
+      case 'whiteimpact':
+        result = whiteImpactAnimation(sub, sub.start, sub.end, style, lastPosition);
+        break;
+      case 'impactfull':
+        result = impactFullAnimation(sub, sub.start, sub.end, style, lastPosition);
         break;
       default:
         result = Girlboss(sub, sub.start, sub.end, style, lastPosition);

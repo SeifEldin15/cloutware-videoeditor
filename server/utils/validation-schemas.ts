@@ -84,7 +84,7 @@ export const ValidationSchemas = {
       // Universal animation option
       animation: z.enum(['none', 'shake']).optional().default('none'),
       // Advanced subtitle styling options
-      subtitleStyle: z.enum(['basic', 'girlboss', 'hormozi', 'tiktokstyle', 'thintobold', 'wavycolors', 'shrinkingpairs', 'revealenlarge']).optional().default('basic'),
+      subtitleStyle: z.enum(['basic', 'girlboss', 'hormozi', 'tiktokstyle', 'thintobold', 'wavycolors', 'shrinkingpairs', 'revealenlarge', 'whiteimpact', 'impactfull']).optional().default('basic'),
       // Girlboss styling options
       girlbossColor: z.string().optional().default('#F361D8'),
       // HormoziViral options
