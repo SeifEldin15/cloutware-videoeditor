@@ -4,8 +4,6 @@ export interface StyleTemplate {
   name: string
   description: string
   fontFamily: string
-  wordMode: string
-  wordsPerGroup: number
   configuration: Partial<CaptionOptions>
 }
 
@@ -14,8 +12,6 @@ export const styleTemplates: Record<string, StyleTemplate> = {
     name: 'Girlboss',
     description: 'Bold, energetic style with shake animation and pink colors (single word emphasis)',
     fontFamily: 'Luckiest Guy',
-    wordMode: 'multiple',
-    wordsPerGroup: 2,
     configuration: {
       subtitleStyle: 'girlboss',
       fontFamily: 'Luckiest Guy',
@@ -36,8 +32,6 @@ export const styleTemplates: Record<string, StyleTemplate> = {
     name: 'Hormozi',
     description: 'High-energy multi-color style for attention-grabbing content (single word impact)',
     fontFamily: 'Luckiest Guy',
-    wordMode: 'multiple',
-    wordsPerGroup: 4,
     configuration: {
       subtitleStyle: 'hormozi',
       fontFamily: 'Luckiest Guy',
@@ -152,6 +146,46 @@ export const styleTemplates: Record<string, StyleTemplate> = {
     }
   },
   
+  whiteimpact: {
+    name: 'White Impact',
+    description: 'Clean white text with Impact font in single word mode for maximum readability',
+    fontFamily: 'Impact',
+    configuration: {
+      subtitleStyle: 'whiteimpact',
+      fontFamily: 'Impact',
+      fontSize: 48,
+      fontColor: '#FFFFFF',
+      shadowStrength: 2.0,
+      animation: 'none',
+      verticalPosition: 20,
+      outlineWidth: 1,
+      outlineColor: '#000000',
+      outlineBlur: 0,
+      wordMode: 'single',
+      wordsPerGroup: 1
+    }
+  },
+  
+  impactfull: {
+    name: 'Impact Full',
+    description: 'Impact font displaying complete subtitle text exactly as provided in SRT',
+    fontFamily: 'Impact',
+    configuration: {
+      subtitleStyle: 'impactfull',
+      fontFamily: 'Impact',
+      fontSize: 42,
+      fontColor: '#FFFFFF',
+      shadowStrength: 2.0,
+      animation: 'none',
+      verticalPosition: 25,
+      outlineWidth: 1,
+      outlineColor: '#000000',
+      outlineBlur: 0,
+      wordMode: 'normal',
+      wordsPerGroup: 1
+    }
+  },
+  
   basic: {
     name: 'Basic',
     description: 'Clean and professional style for business content',
@@ -189,7 +223,6 @@ export function applyTemplate(templateName: string, userOptions: Partial<Caption
     throw new Error(`Template '${templateName}' not found. Available templates: ${Object.keys(styleTemplates).join(', ')}`)
   }
   
-  // Merge template configuration with user options (user options take precedence)
   return {
     ...template.configuration,
     ...userOptions
