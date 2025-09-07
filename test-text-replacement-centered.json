@@ -1,0 +1,54 @@
+{
+  "url": "https://dkkaakuajsyehonlipbu.supabase.co/storage/v1/object/public/videos/tiktok/6736250773027767302/7362188339048353066",
+  "outputName": "test_text_replacement_centered",
+  "textReplacements": [
+    {
+      "region": {
+        "y": 100,
+        "width": 300,
+        "height": 60,
+        "centerHorizontally": true
+      },
+      "background": {
+        "color": "black",
+        "opacity": 0.8
+      },
+      "text": "CUSTOM BRANDING",
+      "textStyle": {
+        "fontSize": 28,
+        "fontColor": "#00FF00",
+        "fontFamily": "Arial",
+        "fontWeight": "bold",
+        "alignment": "center",
+        "verticalAlignment": "center",
+        "outlineWidth": 2,
+        "outlineColor": "#000000"
+      }
+    },
+    {
+      "region": {
+        "y": 400,
+        "width": 200,
+        "height": 40,
+        "centerHorizontally": true
+      },
+      "background": {
+        "color": "white",
+        "opacity": 0.9
+      },
+      "text": "@YourChannel",
+      "textStyle": {
+        "fontSize": 16,
+        "fontColor": "#333333",
+        "fontFamily": "Arial",
+        "fontWeight": "normal",
+        "alignment": "center",
+        "verticalAlignment": "center"
+      }
+    }
+  ],
+  "options": {
+    "speedFactor": 1.0,
+    "saturationFactor": 1.0
+  }
+} 

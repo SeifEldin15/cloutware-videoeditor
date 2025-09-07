@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Processing API - Complete UI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#0070f3',
+                        secondary: '#7c3aed',
+                        accent: '#f59e0b'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .api-card {
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+        .api-card:hover {
+            border-color: #0070f3;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .api-card.active {
+            border-color: #0070f3;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        }
+        .template-card {
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .template-card:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .template-card.selected {
+            border-color: #0070f3;
+            background: #dbeafe;
+        }
+        .progress-bar {
+            height: 4px;
+            background: linear-gradient(90deg, #0070f3, #7c3aed);
+            transition: width 0.3s ease;
+        }
+        .loading-spinner {
+            border: 2px solid #f3f4f6;
+            border-top: 2px solid #0070f3;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <header class="text-center mb-12">
+            <h1 class="text-4xl font-bold text-gray-800 mb-4">Video Processing API</h1>
+            <p class="text-gray-600 text-lg">Complete interface for video processing, subtitle styling, and text replacement</p>
+        </header>
+
+        <!-- API Selection -->
+        <div class="grid md:grid-cols-3 gap-6 mb-8">
+            <!-- General Video Processing -->
+            <div id="api-encode" class="api-card bg-white rounded-xl p-6 shadow-lg cursor-pointer" onclick="selectAPI('encode')">
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2M7 4h10M7 4l-2 14h14l-2-14M9 9v6m6-6v6"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-800 mb-2">General Processing</h3>
+                    <p class="text-gray-600 text-sm">Video encoding, effects, and basic subtitles</p>
+                </div>
+            </div>
+
+            <!-- Template-based Styling -->
+            <div id="api-template" class="api-card bg-white rounded-xl p-6 shadow-lg cursor-pointer" onclick="selectAPI('template')">
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-800 mb-2">Template Styling</h3>
+                    <p class="text-gray-600 text-sm">Premium subtitle templates with animations</p>
+                </div>
+            </div>
+
+            <!-- Text Replacement -->
+            <div id="api-textreplace" class="api-card bg-white rounded-xl p-6 shadow-lg cursor-pointer" onclick="selectAPI('textreplace')">
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-8 h-8 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-800 mb-2">Text Replacement</h3>
+                    <p class="text-gray-600 text-sm">Replace static text elements in videos</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Form Container -->
+        <div class="bg-white rounded-xl shadow-xl p-8">
+            <!-- Common Fields -->
+            <div class="mb-8">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6">Video Processing</h2>
+                
+                <!-- Video URL -->
+                <div class="mb-6">
+                    <label for="videoUrl" class="block text-sm font-medium text-gray-700 mb-2">Video URL *</label>
+                    <input type="url" id="videoUrl" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="https://example.com/video.mp4" required>
+                    <p class="text-xs text-gray-500 mt-1">Enter a publicly accessible video URL</p>
+                </div>
+
+                <!-- Output Name -->
+                <div class="mb-6">
+                    <label for="outputName" class="block text-sm font-medium text-gray-700 mb-2">Output Name</label>
+                    <input type="text" id="outputName" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="my_processed_video">
+                    <p class="text-xs text-gray-500 mt-1">Optional filename (letters, numbers, underscores, hyphens only)</p>
+                </div>
+            </div>
+
+            <!-- API-Specific Sections -->
+
+            <!-- General Processing Section -->
+            <div id="encode-section" class="hidden">
+                <h3 class="text-xl font-semibold text-gray-800 mb-4">Video Processing Options</h3>
+                
+                <!-- Output Format -->
+                <div class="mb-6">
+                    <label for="format" class="block text-sm font-medium text-gray-700 mb-2">Output Format</label>
+                    <select id="format" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <option value="mp4">MP4 (Video)</option>
+                        <option value="gif">GIF (Animation)</option>
+                        <option value="png">PNG (Image)</option>
+                    </select>
+                </div>
+
+                <!-- Video Effects -->
+                <div class="grid md:grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <label for="speedFactor" class="block text-sm font-medium text-gray-700 mb-2">Speed Factor</label>
+                        <input type="range" id="speedFactor" min="0.5" max="2" step="0.1" value="1" class="w-full">
+                        <span class="text-sm text-gray-500" id="speedValue">1.0x</span>
+                    </div>
+                    <div>
+                        <label for="zoomFactor" class="block text-sm font-medium text-gray-700 mb-2">Zoom Factor</label>
+                        <input type="range" id="zoomFactor" min="1" max="2" step="0.1" value="1" class="w-full">
+                        <span class="text-sm text-gray-500" id="zoomValue">1.0x</span>
+                    </div>
+                    <div>
+                        <label for="saturation" class="block text-sm font-medium text-gray-700 mb-2">Saturation</label>
+                        <input type="range" id="saturation" min="0.5" max="2" step="0.1" value="1" class="w-full">
+                        <span class="text-sm text-gray-500" id="saturationValue">1.0x</span>
+                    </div>
+                    <div>
+                        <label for="brightness" class="block text-sm font-medium text-gray-700 mb-2">Brightness</label>
+                        <input type="range" id="brightness" min="-0.5" max="0.5" step="0.1" value="0" class="w-full">
+                        <span class="text-sm text-gray-500" id="brightnessValue">0.0</span>
+                    </div>
+                </div>
+
+                <!-- Background Audio -->
+                <div class="mb-6">
+                    <label class="flex items-center">
+                        <input type="checkbox" id="backgroundAudio" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                        <span class="ml-2 text-sm text-gray-700">Add Background Audio</span>
+                    </label>
+                </div>
+
+                <!-- Basic Subtitles for General Processing -->
+                <div class="mb-6">
+                    <label for="srtContent" class="block text-sm font-medium text-gray-700 mb-2">Subtitle Content (SRT Format)</label>
+                    <textarea id="srtContent" rows="6" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="1
+00:00:00,000 --> 00:00:02,500
+Hello World!
+
+2
+00:00:02,500 --> 00:00:05,000
+This is a subtitle."></textarea>
+                    <p class="text-xs text-gray-500 mt-1">Optional: Add subtitles in standard SRT format</p>
+                </div>
+            </div>
+
+            <!-- Template Styling Section -->
+            <div id="template-section" class="hidden">
+                <h3 class="text-xl font-semibold text-gray-800 mb-4">Template-Based Subtitle Styling</h3>
+                
+                <!-- SRT Content -->
+                <div class="mb-6">
+                    <label for="templateSrtContent" class="block text-sm font-medium text-gray-700 mb-2">Subtitle Content (SRT Format) *</label>
+                    <textarea id="templateSrtContent" rows="6" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="1
+00:00:00,000 --> 00:00:02,500
+This is AMAZING content!
+
+2
+00:00:02,500 --> 00:00:05,000
+You NEED to see this! 🔥" required></textarea>
+                    <p class="text-xs text-gray-500 mt-1">Required: Subtitles in standard SRT format for template styling</p>
+                </div>
+
+                <!-- Template Selection -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-4">Choose Subtitle Style Template *</label>
+                    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4" id="template-grid">
+                        <!-- Templates will be populated by JavaScript -->
+                    </div>
+                </div>
+
+                <!-- Video Effects for Template -->
+                <div class="grid md:grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <label for="templateSpeed" class="block text-sm font-medium text-gray-700 mb-2">Speed Factor</label>
+                        <input type="range" id="templateSpeed" min="0.5" max="2" step="0.1" value="1" class="w-full">
+                        <span class="text-sm text-gray-500" id="templateSpeedValue">1.0x</span>
+                    </div>
+                    <div>
+                        <label for="templateSaturation" class="block text-sm font-medium text-gray-700 mb-2">Saturation</label>
+                        <input type="range" id="templateSaturation" min="0.5" max="2" step="0.1" value="1" class="w-full">
+                        <span class="text-sm text-gray-500" id="templateSaturationValue">1.0x</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Text Replacement Section -->
+            <div id="textreplace-section" class="hidden">
+                <h3 class="text-xl font-semibold text-gray-800 mb-4">Text Replacement</h3>
+                
+                <!-- Text Replacements -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-4">Text Replacements *</label>
+                    <div id="textReplacements">
+                        <div class="border border-gray-300 rounded-lg p-4 mb-4">
+                            <div class="grid md:grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Position X</label>
+                                    <input type="number" class="replacement-x w-full px-3 py-2 border border-gray-300 rounded-md" value="100">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Position Y</label>
+                                    <input type="number" class="replacement-y w-full px-3 py-2 border border-gray-300 rounded-md" value="100">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Width</label>
+                                    <input type="number" class="replacement-width w-full px-3 py-2 border border-gray-300 rounded-md" value="200">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Height</label>
+                                    <input type="number" class="replacement-height w-full px-3 py-2 border border-gray-300 rounded-md" value="50">
+                                </div>
+                            </div>
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Replacement Text</label>
+                                <input type="text" class="replacement-text w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="New text content">
+                            </div>
+                            <div class="grid md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Font Size</label>
+                                    <input type="number" class="replacement-fontsize w-full px-3 py-2 border border-gray-300 rounded-md" value="24" min="8" max="200">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Font Color</label>
+                                    <input type="color" class="replacement-color w-full px-3 py-2 border border-gray-300 rounded-md" value="#FFFFFF">
+                                </div>
+                            </div>
+                            <button type="button" onclick="removeReplacement(this)" class="mt-3 text-red-600 hover:text-red-800 text-sm">Remove</button>
+                        </div>
+                    </div>
+                    <button type="button" onclick="addReplacement()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">Add Another Replacement</button>
+                </div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div id="progress-container" class="hidden mb-6">
+                <div class="bg-gray-200 rounded-full h-2 mb-2">
+                    <div id="progress-bar" class="progress-bar h-2 rounded-full" style="width: 0%"></div>
+                </div>
+                <p id="progress-text" class="text-sm text-gray-600">Processing...</p>
+            </div>
+
+            <!-- Submit Button -->
+            <div class="text-center">
+                <button type="button" id="submitBtn" onclick="processVideo()" class="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span id="btnText">Process Video</span>
+                    <div id="btnSpinner" class="loading-spinner inline-block ml-2 hidden"></div>
+                </button>
+            </div>
+
+            <!-- Result Section -->
+            <div id="result-section" class="hidden mt-8 p-6 bg-green-50 border border-green-200 rounded-lg">
+                <h4 class="text-lg font-semibold text-green-800 mb-2">✅ Processing Complete!</h4>
+                <p class="text-green-700 mb-4">Your video has been processed successfully.</p>
+                <a id="download-link" href="#" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 inline-block" download>
+                    Download Processed Video
+                </a>
+            </div>
+
+            <!-- Error Section -->
+            <div id="error-section" class="hidden mt-8 p-6 bg-red-50 border border-red-200 rounded-lg">
+                <h4 class="text-lg font-semibold text-red-800 mb-2">❌ Processing Error</h4>
+                <p id="error-message" class="text-red-700"></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Style templates data
+        const styleTemplates = {
+            girlboss: {
+                name: 'Girlboss',
+                description: 'Bold, energetic style with shake animation and pink colors',
+                fontFamily: 'Luckiest Guy',
+                color: '#FF1493'
+            },
+            hormozi: {
+                name: 'Hormozi',
+                description: 'High-energy multi-color style for attention-grabbing content',
+                fontFamily: 'Luckiest Guy',
+                color: '#00FF00'
+            },
+            tiktokstyle: {
+                name: 'TikTok Style',
+                description: 'Single vibrant color style perfect for social media',
+                fontFamily: 'Luckiest Guy',
+                color: '#FFFF00'
+            },
+            thintobold: {
+                name: 'Thin to Bold',
+                description: 'Elegant style with smooth transitions from thin to bold font',
+                fontFamily: 'Montserrat Thin',
+                color: '#FFFFFF'
+            },
+            wavycolors: {
+                name: 'Wavy Colors',
+                description: 'Rainbow-colored text with wavy animations',
+                fontFamily: 'Luckiest Guy',
+                color: '#FF69B4'
+            },
+            shrinkingpairs: {
+                name: 'Shrinking Pairs',
+                description: 'Dynamic shrinking effect for multiple word groups',
+                fontFamily: 'Luckiest Guy',
+                color: '#FFFFFF'
+            },
+            revealenlarge: {
+                name: 'Reveal & Enlarge',
+                description: 'Color-cycling text with reveal and enlarge effects',
+                fontFamily: 'Luckiest Guy',
+                color: '#FF0000'
+            },
+            whiteimpact: {
+                name: 'White Impact',
+                description: 'Clean white text with Impact font for maximum readability',
+                fontFamily: 'Impact',
+                color: '#FFFFFF'
+            },
+            impactfull: {
+                name: 'Impact Full',
+                description: 'Impact font displaying complete subtitle text',
+                fontFamily: 'Impact',
+                color: '#FFFFFF'
+            },
+            basic: {
+                name: 'Basic',
+                description: 'Clean and professional style for business content',
+                fontFamily: 'Arial',
+                color: '#FFFFFF'
+            }
+        };
+
+        let currentAPI = 'encode';
+        let selectedTemplate = '';
+
+        // Initialize the page
+        document.addEventListener('DOMContentLoaded', function() {
+            selectAPI('encode');
+            populateTemplates();
+            setupRangeListeners();
+        });
+
+        // API Selection
+        function selectAPI(api) {
+            currentAPI = api;
+            
+            // Update UI
+            document.querySelectorAll('.api-card').forEach(card => card.classList.remove('active'));
+            document.getElementById(`api-${api}`).classList.add('active');
+            
+            // Show/hide sections
+            document.getElementById('encode-section').classList.toggle('hidden', api !== 'encode');
+            document.getElementById('template-section').classList.toggle('hidden', api !== 'template');
+            document.getElementById('textreplace-section').classList.toggle('hidden', api !== 'textreplace');
+        }
+
+        // Populate template grid
+        function populateTemplates() {
+            const grid = document.getElementById('template-grid');
+            grid.innerHTML = '';
+
+            Object.entries(styleTemplates).forEach(([key, template]) => {
+                const card = document.createElement('div');
+                card.className = 'template-card bg-white border-2 border-gray-200 rounded-lg p-4 hover:shadow-md transition-all';
+                card.onclick = () => selectTemplate(key);
+                card.innerHTML = `
+                    <div class="text-center">
+                        <div class="w-8 h-8 rounded-full mx-auto mb-2" style="background-color: ${template.color}"></div>
+                        <h4 class="font-semibold text-sm text-gray-800">${template.name}</h4>
+                        <p class="text-xs text-gray-600 mt-1">${template.description}</p>
+                        <p class="text-xs text-gray-500 mt-1">${template.fontFamily}</p>
+                    </div>
+                `;
+                card.id = `template-${key}`;
+                grid.appendChild(card);
+            });
+        }
+
+        // Select template
+        function selectTemplate(templateKey) {
+            selectedTemplate = templateKey;
+            
+            // Update UI
+            document.querySelectorAll('.template-card').forEach(card => card.classList.remove('selected'));
+            document.getElementById(`template-${templateKey}`).classList.add('selected');
+        }
+
+        // Setup range input listeners
+        function setupRangeListeners() {
+            const ranges = [
+                {id: 'speedFactor', valueId: 'speedValue', suffix: 'x'},
+                {id: 'zoomFactor', valueId: 'zoomValue', suffix: 'x'},
+                {id: 'saturation', valueId: 'saturationValue', suffix: 'x'},
+                {id: 'brightness', valueId: 'brightnessValue', suffix: ''},
+                {id: 'templateSpeed', valueId: 'templateSpeedValue', suffix: 'x'},
+                {id: 'templateSaturation', valueId: 'templateSaturationValue', suffix: 'x'}
+            ];
+
+            ranges.forEach(range => {
+                const input = document.getElementById(range.id);
+                const display = document.getElementById(range.valueId);
+                if (input && display) {
+                    input.addEventListener('input', () => {
+                        display.textContent = input.value + range.suffix;
+                    });
+                }
+            });
+        }
+
+        // Add text replacement
+        function addReplacement() {
+            const container = document.getElementById('textReplacements');
+            const div = document.createElement('div');
+            div.className = 'border border-gray-300 rounded-lg p-4 mb-4';
+            div.innerHTML = `
+                <div class="grid md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Position X</label>
+                        <input type="number" class="replacement-x w-full px-3 py-2 border border-gray-300 rounded-md" value="100">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Position Y</label>
+                        <input type="number" class="replacement-y w-full px-3 py-2 border border-gray-300 rounded-md" value="100">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Width</label>
+                        <input type="number" class="replacement-width w-full px-3 py-2 border border-gray-300 rounded-md" value="200">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Height</label>
+                        <input type="number" class="replacement-height w-full px-3 py-2 border border-gray-300 rounded-md" value="50">
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Replacement Text</label>
+                    <input type="text" class="replacement-text w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="New text content">
+                </div>
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Font Size</label>
+                        <input type="number" class="replacement-fontsize w-full px-3 py-2 border border-gray-300 rounded-md" value="24" min="8" max="200">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Font Color</label>
+                        <input type="color" class="replacement-color w-full px-3 py-2 border border-gray-300 rounded-md" value="#FFFFFF">
+                    </div>
+                </div>
+                <button type="button" onclick="removeReplacement(this)" class="mt-3 text-red-600 hover:text-red-800 text-sm">Remove</button>
+            `;
+            container.appendChild(div);
+        }
+
+        // Remove text replacement
+        function removeReplacement(button) {
+            button.parentElement.remove();
+        }
+
+        // Main processing function
+        async function processVideo() {
+            const videoUrl = document.getElementById('videoUrl').value;
+            if (!videoUrl) {
+                showError('Please enter a video URL');
+                return;
+            }
+
+            // Show loading state
+            showLoading();
+
+            try {
+                let result;
+                
+                switch (currentAPI) {
+                    case 'encode':
+                        result = await processGeneralVideo();
+                        break;
+                    case 'template':
+                        result = await processTemplateVideo();
+                        break;
+                    case 'textreplace':
+                        result = await processTextReplace();
+                        break;
+                }
+
+                showSuccess(result);
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // Process general video
+        async function processGeneralVideo() {
+            const payload = {
+                url: document.getElementById('videoUrl').value,
+                outputName: document.getElementById('outputName').value || 'processed_video',
+                format: document.getElementById('format').value,
+                options: {
+                    speedFactor: parseFloat(document.getElementById('speedFactor').value),
+                    zoomFactor: parseFloat(document.getElementById('zoomFactor').value),
+                    saturationFactor: parseFloat(document.getElementById('saturation').value),
+                    lightness: parseFloat(document.getElementById('brightness').value),
+                    backgroundAudio: document.getElementById('backgroundAudio').checked
+                }
+            };
+
+            const srtContent = document.getElementById('srtContent').value;
+            if (srtContent.trim()) {
+                payload.caption = { srtContent: srtContent };
+            }
+
+            const response = await fetch('/api/encode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Processing failed');
+            }
+
+            return response.blob();
+        }
+
+        // Process template video
+        async function processTemplateVideo() {
+            if (!selectedTemplate) {
+                throw new Error('Please select a template');
+            }
+
+            const srtContent = document.getElementById('templateSrtContent').value;
+            if (!srtContent.trim()) {
+                throw new Error('Please enter subtitle content');
+            }
+
+            const payload = {
+                url: document.getElementById('videoUrl').value,
+                srtContent: srtContent,
+                templateName: selectedTemplate,
+                outputName: document.getElementById('outputName').value || 'template_video',
+                options: {
+                    speedFactor: parseFloat(document.getElementById('templateSpeed').value),
+                    saturationFactor: parseFloat(document.getElementById('templateSaturation').value)
+                }
+            };
+
+            const response = await fetch('/api/encode-template', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Template processing failed');
+            }
+
+            return response.blob();
+        }
+
+        // Process text replacement
+        async function processTextReplace() {
+            const replacements = [];
+            const replacementElements = document.querySelectorAll('#textReplacements > div');
+
+            replacementElements.forEach(element => {
+                const text = element.querySelector('.replacement-text').value;
+                if (text.trim()) {
+                    replacements.push({
+                        position: {
+                            x: parseInt(element.querySelector('.replacement-x').value),
+                            y: parseInt(element.querySelector('.replacement-y').value),
+                            width: parseInt(element.querySelector('.replacement-width').value),
+                            height: parseInt(element.querySelector('.replacement-height').value)
+                        },
+                        text: text,
+                        textStyle: {
+                            fontSize: parseInt(element.querySelector('.replacement-fontsize').value),
+                            fontColor: element.querySelector('.replacement-color').value
+                        }
+                    });
+                }
+            });
+
+            if (replacements.length === 0) {
+                throw new Error('Please add at least one text replacement');
+            }
+
+            const payload = {
+                url: document.getElementById('videoUrl').value,
+                outputName: document.getElementById('outputName').value || 'text_replaced_video',
+                textReplacements: replacements
+            };
+
+            const response = await fetch('/api/text-replace', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Text replacement failed');
+            }
+
+            return response.blob();
+        }
+
+        // UI State Management
+        function showLoading() {
+            document.getElementById('submitBtn').disabled = true;
+            document.getElementById('btnText').textContent = 'Processing...';
+            document.getElementById('btnSpinner').classList.remove('hidden');
+            document.getElementById('progress-container').classList.remove('hidden');
+            
+            // Animate progress
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.random() * 10;
+                if (progress > 90) progress = 90;
+                document.getElementById('progress-bar').style.width = progress + '%';
+            }, 500);
+            
+            window.progressInterval = interval;
+        }
+
+        function hideLoading() {
+            document.getElementById('submitBtn').disabled = false;
+            document.getElementById('btnText').textContent = 'Process Video';
+            document.getElementById('btnSpinner').classList.add('hidden');
+            document.getElementById('progress-container').classList.add('hidden');
+            
+            if (window.progressInterval) {
+                clearInterval(window.progressInterval);
+            }
+        }
+
+        function showSuccess(blob) {
+            const url = URL.createObjectURL(blob);
+            document.getElementById('download-link').href = url;
+            document.getElementById('result-section').classList.remove('hidden');
+            document.getElementById('error-section').classList.add('hidden');
+        }
+
+        function showError(message) {
+            document.getElementById('error-message').textContent = message;
+            document.getElementById('error-section').classList.remove('hidden');
+            document.getElementById('result-section').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>

@@ -58,12 +58,14 @@ export class TextReplacementProcessor {
           .outputOptions([
             '-vf', videoFilters,
             '-c:v', 'libx264',
-            '-preset', 'veryfast',
-            '-crf', '23',
+            '-preset', 'medium',       // Better quality for text replacement
+            '-crf', '20',              // Higher quality for text clarity
             '-threads', optimalThreads,
             '-pix_fmt', 'yuv420p',
+            '-profile:v', 'high',      // Better compression profile
             '-c:a', 'aac',
-            '-b:a', '128k',
+            '-b:a', '192k',            // Higher audio bitrate
+            '-ar', '48000',            // Professional sample rate
             '-max_muxing_queue_size', '4096',
             '-f', 'mpegts'
           ])

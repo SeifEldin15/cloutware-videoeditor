@@ -98,7 +98,7 @@ export const tiktokStyleAnimation = (
           const duration = end - start;
           const endPosition = calculateNextPosition(currentPosition.x, currentPosition.y, duration);
           const marginV = style?.verticalPosition 
-            ? Math.max(0, Math.min(720, Math.round((720 * (100 - style.verticalPosition)) / 100)))
+            ? Math.max(0, Math.min(720, Math.round((720 * style.verticalPosition) / 100)))
             : 0;
           moveTag = `\\move(${Math.round(currentPosition.x)},${Math.round(currentPosition.y + marginV)},${Math.round(endPosition.x)},${Math.round(endPosition.y + marginV)})`;
           currentPosition = endPosition;
@@ -134,7 +134,7 @@ export const tiktokStyleAnimation = (
         try {
           const endPosition = calculateNextPosition(currentPosition.x, currentPosition.y, duration);
           const marginV = style?.verticalPosition 
-            ? Math.max(0, Math.min(720, Math.round((720 * (100 - style.verticalPosition)) / 100)))
+            ? Math.max(0, Math.min(720, Math.round((720 * style.verticalPosition) / 100)))
             : 0;
           moveTag = `\\move(${Math.round(currentPosition.x)},${Math.round(currentPosition.y + marginV)},${Math.round(endPosition.x)},${Math.round(endPosition.y + marginV)})`;
           currentPosition = endPosition;

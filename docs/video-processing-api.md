@@ -1,7 +1,7 @@
 # Video Processing API Documentation
 
 ## Overview
-This API provides comprehensive video processing capabilities including subtitle generation, template-based styling, text-to-speech integration, video transcription, and various video effects.
+This API provides comprehensive video processing capabilities including subtitle generation, template-based styling, text-to-speech integration, video transcription, static text replacement, and various video effects.
 
 **Base URL:** `http://localhost:3000/api`
 
@@ -35,7 +35,7 @@ Process videos with various effects, formats, and optional subtitles.
 - **outputName** (optional): Output filename (default: "encoded_video")
 - **format** (optional): Output format - `mp4`, `gif`, `png` (default: "mp4")
 - **options** (optional): Video processing options
-- **caption** (optional): Subtitle configuration
+- **caption** (optional): Subtitle configuration or text replacement options
 
 #### Video Processing Options
 ```json
@@ -140,7 +140,26 @@ Process videos with various effects, formats, and optional subtitles.
   "thinToBoldColor": "#FFFFFF",
   "wavyColorsOutlineWidth": 2,
   "shrinkingPairsColor": "#0BF431",
-  "revealEnlargeColors": ["#0BF431", "#2121FF", "#1DE0FE", "#FFFF00"]
+  "revealEnlargeColors": ["#0BF431", "#2121FF", "#1DE0FE", "#FFFF00"],
+  
+  // Text replacement options (alternative to subtitles)
+  "textReplacements": [
+    {
+      "region": {
+        "y": 100,
+        "width": 300,
+        "height": 60,
+        "centerHorizontally": true
+      },
+      "background": {"color": "black", "opacity": 0.9},
+      "text": "REPLACEMENT TEXT",
+      "textStyle": {
+        "fontSize": 28,
+        "fontColor": "#FFFFFF",
+        "fontWeight": "bold"
+      }
+    }
+  ]
 }
 ```
 
@@ -405,6 +424,162 @@ curl -X POST "http://localhost:3000/api/transcribe-video" \
 
 ---
 
+### 6. `/api/text-replace` - Static Text Replacement
+Replace static text that appears in videos with new text and background overlays. Perfect for rebranding content or replacing watermarks.
+
+**Method:** `POST`  
+**Content-Type:** `application/json`
+
+```json
+{
+  "url": "https://example.com/video.mp4",
+  "outputName": "rebranded_video",
+  "textReplacements": [
+    {
+      "region": {
+        "y": 100,
+        "width": 300,
+        "height": 60,
+        "centerHorizontally": true
+      },
+      "background": {
+        "color": "black",
+        "opacity": 0.9
+      },
+      "text": "YOUR NEW TEXT",
+      "textStyle": {
+        "fontSize": 28,
+        "fontColor": "#FFFFFF",
+        "fontFamily": "Arial",
+        "fontWeight": "bold",
+        "alignment": "center",
+        "verticalAlignment": "center",
+        "outlineWidth": 2,
+        "outlineColor": "#000000"
+      }
+    }
+  ],
+  "options": {
+    "speedFactor": 1.0,
+    "saturationFactor": 1.0
+  }
+}
+```
+
+#### Parameters
+
+**Main Parameters:**
+- **url** (required): Video URL to process
+- **outputName** (optional): Output filename (default: "text_replaced_video")
+- **textReplacements** (required): Array of text replacement configurations
+- **options** (optional): General video processing options
+
+**Text Replacement Configuration:**
+
+**Region:**
+- **x** (number, optional): X coordinate for manual positioning - not needed with `centerHorizontally`
+- **y** (number): Y coordinate for text positioning (pixels)
+- **width** (number): Width reference for manual positioning - not used with `centerHorizontally`
+- **height** (number): Height reference for manual positioning - not used with `centerHorizontally`
+- **centerHorizontally** (boolean, optional): Automatically center text horizontally (default: `false`)
+
+**Background:**
+- **color** (enum): Background color - `"black"`, `"white"`, `"transparent"` (default: `"black"`)
+- **opacity** (number): Background opacity - 0 to 1 (default: 1)
+
+**Text Style:**
+- **fontSize** (number): Font size in pixels, 8-200 (default: 24)
+- **fontColor** (string): Text color hex code (default: `"#FFFFFF"`)
+- **fontFamily** (string): Font family name (default: `"Arial"`)
+- **fontWeight** (enum): `"normal"` or `"bold"` (default: `"normal"`)
+- **fontStyle** (enum): `"normal"` or `"italic"` (default: `"normal"`)
+- **alignment** (enum): Horizontal alignment - `"left"`, `"center"`, `"right"` (default: `"center"`)
+- **verticalAlignment** (enum): Vertical alignment - `"top"`, `"center"`, `"bottom"` (default: `"center"`)
+- **outlineWidth** (number): Text outline width, 0-10 (default: 0)
+- **outlineColor** (string): Outline color hex code (default: `"#000000"`)
+
+#### Key Features
+
+- ✅ **Perfect alignment**: Background is automatically positioned behind text
+- ✅ **Resolution independent**: Works with any video resolution (720p, 1080p, 4K, etc.)
+- ✅ **Auto-centering**: Set `centerHorizontally: true` for automatic horizontal centering
+- ✅ **Multiple replacements**: Replace multiple text areas in one request
+- ✅ **Built-in backgrounds**: Automatic background sizing with configurable colors and opacity
+
+#### Use Cases
+
+1. **Rebranding**: Replace logos, watermarks, or channel names
+2. **Localization**: Replace text for different languages or regions
+3. **Content adaptation**: Customize videos for different audiences
+4. **Watermark removal**: Cover unwanted text with branded alternatives
+
+#### Example Requests
+
+**Auto-Centered Text Replacement:**
+```bash
+curl -X POST "http://localhost:3000/api/text-replace" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com/branded-video.mp4",
+    "outputName": "rebranded_video",
+    "textReplacements": [
+      {
+        "region": {
+          "y": 100,
+          "width": 300,
+          "height": 60,
+          "centerHorizontally": true
+        },
+        "background": {"color": "black", "opacity": 0.9},
+        "text": "YOUR BRAND",
+        "textStyle": {
+          "fontSize": 28,
+          "fontColor": "#00FF00",
+          "fontWeight": "bold"
+        }
+      }
+    ]
+  }' \
+  --output rebranded_video.mp4
+```
+
+**Multiple Text Replacements:**
+```bash
+curl -X POST "http://localhost:3000/api/text-replace" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com/video.mp4",
+    "outputName": "multi_replace_video",
+    "textReplacements": [
+      {
+        "region": {
+          "y": 100,
+          "width": 350,
+          "height": 70,
+          "centerHorizontally": true
+        },
+        "background": {"color": "black", "opacity": 0.8},
+        "text": "MAIN TITLE",
+        "textStyle": {"fontSize": 32, "fontWeight": "bold"}
+      },
+      {
+        "region": {
+          "y": 1600,
+          "width": 200,
+          "height": 40,
+          "centerHorizontally": true
+        },
+        "background": {"color": "white", "opacity": 0.9},
+        "text": "@YourChannel",
+        "textStyle": {"fontSize": 18, "fontColor": "#333333"}
+      }
+    ]
+  }' \
+  --output multi_replace_video.mp4
+```
+
+---
+
 ## Complete Workflow Examples
 
 ### 1. Full Video Processing Pipeline
@@ -468,6 +643,49 @@ curl -X POST "http://localhost:3000/api/encode-template" \
     }
   }' \
   --output viral_content.mp4
+```
+
+### 4. Content Rebranding
+```bash
+# Replace watermarks and rebrand video content  
+curl -X POST "http://localhost:3000/api/text-replace" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com/branded-content.mp4",
+    "outputName": "rebranded_content",
+    "textReplacements": [
+      {
+        "region": {
+          "y": 50,
+          "width": 250,
+          "height": 50,
+          "centerHorizontally": true
+        },
+        "background": {"color": "black", "opacity": 0.9},
+        "text": "YOUR BRAND",
+        "textStyle": {
+          "fontSize": 24,
+          "fontColor": "#FF6B35",
+          "fontWeight": "bold"
+        }
+      },
+      {
+        "region": {
+          "y": 1650,
+          "width": 180,
+          "height": 35,
+          "centerHorizontally": true
+        },
+        "background": {"color": "white", "opacity": 0.8},
+        "text": "@YourHandle",
+        "textStyle": {
+          "fontSize": 16,
+          "fontColor": "#333333"
+        }
+      }
+    ]
+  }' \
+  --output rebranded_content.mp4
 ```
 
 ---

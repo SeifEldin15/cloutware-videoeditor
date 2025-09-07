@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animation Styles Documentation</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
+        h1 { color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; border-bottom: 1px solid #bdc3c7; padding-bottom: 5px; }
+        h3 { color: #2980b9; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #3498db; color: white; }
+        code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; }
+        pre { background: #2c3e50; color: white; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .style-box { background: #ecf0f1; padding: 20px; margin: 20px 0; border-radius: 8px; border-left: 4px solid #3498db; }
+        .perfect-for { background: #e8f5e8; padding: 8px 12px; border-radius: 4px; color: #27ae60; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Video Processing Animation Styles Documentation</h1>
+    
+    <p><strong>Version:</strong> 1.0 | <strong>Updated:</strong> January 2025</p>
+
+    <h2>Available Animation Styles</h2>
+
+    <div class="style-box">
+        <h3>1. GIRLBOSS ANIMATION</h3>
+        <div class="perfect-for">Perfect for: Beauty, lifestyle, empowerment content</div>
+        
+        <h4>Description</h4>
+        <p>Feminine, empowering style with customizable colors and smooth word-by-word reveals with glow effects.</p>
+        
+        <h4>Font</h4>
+        <p><strong>Luckiest Guy</strong> (Bold, Impact style)</p>
+        
+        <h4>Parameters</h4>
+        <table>
+            <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+            <tr><td><code>subtitleStyle</code></td><td>string</td><td>-</td><td>"girlboss"</td></tr>
+            <tr><td><code>fontFamily</code></td><td>string</td><td>-</td><td>"Luckiest Guy"</td></tr>
+            <tr><td><code>fontSize</code></td><td>number</td><td>48</td><td>Font size (10-72)</td></tr>
+            <tr><td><code>girlbossColor</code></td><td>string</td><td>"#FF1493"</td><td>Text color (HEX)</td></tr>
+            <tr><td><code>girlbossShadowStrength</code></td><td>number</td><td>1.0</td><td>Shadow intensity (0.5-3.0)</td></tr>
+            <tr><td><code>girlbossAnimation</code></td><td>string</td><td>"none"</td><td>"none" or "shake"</td></tr>
+            <tr><td><code>verticalPosition</code></td><td>number</td><td>18</td><td>Position from bottom % (0-100) - UNIVERSAL</td></tr>
+            <tr><td><code>outlineWidth</code></td><td>number</td><td>2</td><td>Text outline width (0-8)</td></tr>
+            <tr><td><code>outlineColor</code></td><td>string</td><td>"#000000"</td><td>Outline color (HEX)</td></tr>
+            <tr><td><code>outlineBlur</code></td><td>number</td><td>0</td><td>Outline blur effect (0-10)</td></tr>
+        </table>
+        
+        <h4>Example Usage</h4>
+        <pre><code>{
+  "subtitleStyle": "girlboss",
+  "fontFamily": "Luckiest Guy",
+  "fontSize": 48,
+  "girlbossColor": "#FF1493",
+  "girlbossShadowStrength": 2.0,
+  "girlbossAnimation": "shake",
+  "verticalPosition": 18
+}</code></pre>
+    </div>
+
+    <div class="style-box">
+        <h3>2. HORMOZI VIRAL ANIMATION</h3>
+        <div class="perfect-for">Perfect for: Business, entrepreneurship, viral content</div>
+        
+        <h4>Description</h4>
+        <p>High-energy viral style with alternating bright colors per word. Designed for maximum attention and engagement inspired by Alex Hormozi's viral content style.</p>
+        
+        <h4>Font</h4>
+        <p><strong>Luckiest Guy</strong> (Bold, Impact style)</p>
+        
+        <h4>Default Colors</h4>
+        <ul>
+            <li><strong>#0BF431</strong> - Bright Green (signature Hormozi color)</li>
+            <li><strong>#2121FF</strong> - Blue</li>
+            <li><strong>#1DE0FE</strong> - Cyan</li>
+            <li><strong>#FFFF00</strong> - Yellow</li>
+        </ul>
+        
+        <h4>Parameters</h4>
+        <table>
+            <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+            <tr><td><code>subtitleStyle</code></td><td>string</td><td>-</td><td>"hormozi"</td></tr>
+            <tr><td><code>fontFamily</code></td><td>string</td><td>-</td><td>"Luckiest Guy"</td></tr>
+            <tr><td><code>fontSize</code></td><td>number</td><td>50</td><td>Font size (10-72)</td></tr>
+            <tr><td><code>hormoziColors</code></td><td>array</td><td>See above</td><td>Array of HEX colors</td></tr>
+            <tr><td><code>hormoziShadowStrength</code></td><td>number</td><td>3</td><td>Shadow intensity (1-5)</td></tr>
+            <tr><td><code>hormoziAnimation</code></td><td>string</td><td>"none"</td><td>"none" or "shake"</td></tr>
+            <tr><td><code>verticalPosition</code></td><td>number</td><td>15</td><td>Position from bottom % (0-100) - UNIVERSAL</td></tr>
+            <tr><td><code>outlineWidth</code></td><td>number</td><td>2</td><td>Text outline width (0-8)</td></tr>
+            <tr><td><code>outlineColor</code></td><td>string</td><td>"#000000"</td><td>Outline color (HEX)</td></tr>
+            <tr><td><code>outlineBlur</code></td><td>number</td><td>0</td><td>Outline blur effect (0-10)</td></tr>
+        </table>
+        
+        <h4>Example Usage</h4>
+        <pre><code>{
+  "subtitleStyle": "hormozi",
+  "fontFamily": "Luckiest Guy",
+  "fontSize": 50,
+  "hormoziColors": ["#0BF431", "#FF0000", "#0080FF", "#FFFF00"],
+  "hormoziShadowStrength": 3.5,
+  "hormoziAnimation": "shake",
+  "verticalPosition": 15
+}</code></pre>
+    </div>
+
+    <div class="style-box">
+        <h3>3. THINTOBOLD ANIMATION</h3>
+        <div class="perfect-for">Perfect for: Professional, corporate, educational content</div>
+        
+        <h4>Description</h4>
+        <p>Elegant, sophisticated animation that groups words in pairs with smooth reveals. Features dynamic transformation from Montserrat Thin to Montserrat with 120% scaling. Perfect for professional and refined content.</p>
+        
+        <h4>Font</h4>
+        <p><strong>Montserrat Thin → Montserrat</strong> (with 120% scaling for bold effect)</p>
+        
+        <h4>Parameters</h4>
+        <table>
+            <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+            <tr><td><code>subtitleStyle</code></td><td>string</td><td>-</td><td>"thintobold"</td></tr>
+            <tr><td><code>fontFamily</code></td><td>string</td><td>-</td><td>"Montserrat Thin"</td></tr>
+            <tr><td><code>fontSize</code></td><td>number</td><td>50</td><td>Font size (10-72)</td></tr>
+            <tr><td><code>thinToBoldColor</code></td><td>string</td><td>"#FFFFFF"</td><td>Text color (HEX)</td></tr>
+            <tr><td><code>thinToBoldShadowStrength</code></td><td>number</td><td>1.8</td><td>Shadow intensity (0.5-3.0)</td></tr>
+            <tr><td><code>thinToBoldAnimation</code></td><td>string</td><td>"none"</td><td>"none" or "shake"</td></tr>
+            <tr><td><code>verticalPosition</code></td><td>number</td><td>22</td><td>Position from bottom % (0-100) - UNIVERSAL</td></tr>
+            <tr><td><code>outlineWidth</code></td><td>number</td><td>2</td><td>Text outline width (0-8)</td></tr>
+            <tr><td><code>outlineColor</code></td><td>string</td><td>"#000000"</td><td>Outline color (HEX)</td></tr>
+            <tr><td><code>outlineBlur</code></td><td>number</td><td>0</td><td>Outline blur effect (0-10)</td></tr>
+        </table>
+    </div>
+
+    <div class="style-box">
+        <h3>4. WAVYCOLORS ANIMATION</h3>
+        <div class="perfect-for">Perfect for: Entertainment, music videos, gaming content</div>
+        
+        <h4>Description</h4>
+        <p>Dynamic rainbow color effects with wavy, flowing transitions. Creates eye-catching visual movement with character-level color cycling.</p>
+        
+        <h4>Font</h4>
+        <p><strong>Luckiest Guy</strong> (Bold, Impact style)</p>
+        
+        <h4>Built-in Colors</h4>
+        <ul>
+            <li><strong>Green</strong> (#00FF00)</li>
+            <li><strong>Yellow</strong> (#FFFF00)</li>
+            <li><strong>Light Blue</strong> (#00FFFF)</li>
+        </ul>
+        
+        <h4>Parameters</h4>
+        <table>
+            <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+            <tr><td><code>subtitleStyle</code></td><td>string</td><td>-</td><td>"wavycolors"</td></tr>
+            <tr><td><code>fontFamily</code></td><td>string</td><td>-</td><td>"Luckiest Guy"</td></tr>
+            <tr><td><code>fontSize</code></td><td>number</td><td>50</td><td>Font size (10-72)</td></tr>
+            <tr><td><code>wavyColorsOutlineWidth</code></td><td>number</td><td>3</td><td>Outline thickness (1-5)</td></tr>
+            <tr><td><code>verticalPosition</code></td><td>number</td><td>12</td><td>Position from bottom % (0-100) - UNIVERSAL</td></tr>
+            <tr><td><code>outlineWidth</code></td><td>number</td><td>2</td><td>Base text outline width (0-8)</td></tr>
+            <tr><td><code>outlineColor</code></td><td>string</td><td>"#000000"</td><td>Base outline color (HEX)</td></tr>
+            <tr><td><code>outlineBlur</code></td><td>number</td><td>0</td><td>Outline blur effect (0-10)</td></tr>
+        </table>
+    </div>
+
+    <div class="style-box">
+        <h3>5. BASIC ANIMATION</h3>
+        <div class="perfect-for">Perfect for: Standard subtitles, accessibility, professional content</div>
+        
+        <h4>Description</h4>
+        <p>Clean, professional subtitle style without special effects. Standard subtitle appearance with full customization options.</p>
+        
+        <h4>Font</h4>
+        <p><strong>Arial</strong> (Professional, Clean)</p>
+        
+        <h4>Key Parameters</h4>
+        <table>
+            <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+            <tr><td><code>subtitleStyle</code></td><td>string</td><td>-</td><td>"basic"</td></tr>
+            <tr><td><code>fontSize</code></td><td>number</td><td>48</td><td>Font size (10-72)</td></tr>
+            <tr><td><code>fontColor</code></td><td>string</td><td>"white"</td><td>Text color</td></tr>
+            <tr><td><code>fontStyle</code></td><td>string</td><td>"regular"</td><td>"regular", "bold", "italic"</td></tr>
+            <tr><td><code>subtitlePosition</code></td><td>string</td><td>"bottom"</td><td>"top", "middle", "bottom"</td></tr>
+            <tr><td><code>showBackground</code></td><td>boolean</td><td>true</td><td>Show background box</td></tr>
+            <tr><td><code>outlineWidth</code></td><td>number</td><td>2</td><td>Text outline width (0-8)</td></tr>
+            <tr><td><code>outlineColor</code></td><td>string</td><td>"#000000"</td><td>Outline color (HEX)</td></tr>
+            <tr><td><code>outlineBlur</code></td><td>number</td><td>0</td><td>Outline blur effect (0-10)</td></tr>
+        </table>
+    </div>
+
+    <h2>Font Recommendations</h2>
+    
+    <table>
+        <tr><th>Animation Style</th><th>Recommended Font</th><th>Character</th></tr>
+        <tr><td>Girlboss</td><td>Luckiest Guy</td><td>Bold, impactful</td></tr>
+        <tr><td>Hormozi</td><td>Luckiest Guy</td><td>Viral, attention-grabbing</td></tr>
+        <tr><td>WavyColors</td><td>Luckiest Guy</td><td>Fun, energetic</td></tr>
+        <tr><td>ThinToBold</td><td>Montserrat Thin → Montserrat</td><td>Dynamic scaling, elegant</td></tr>
+        <tr><td>Basic</td><td>Arial</td><td>Clean, readable</td></tr>
+    </table>
+
+    <h2>API Usage</h2>
+    
+    <h3>Endpoint</h3>
+    <pre><code>POST /api/encode</code></pre>
+    
+    <h3>Complete Request Example</h3>
+    <pre><code>{
+  "url": "https://example.com/video.mp4",
+  "outputName": "viral_video",
+  "format": "mp4",
+  "caption": {
+    "srtContent": "1\n00:00:00,000 --> 00:00:03,000\nATTENTION ENTREPRENEURS!\n\n2\n00:00:03,000 --> 00:00:06,000\nThis will CHANGE your business!",
+    "subtitleStyle": "hormozi",
+    "fontFamily": "Luckiest Guy",
+    "fontSize": 50,
+    "hormoziColors": ["#0BF431", "#FF0000", "#0080FF", "#FFFF00"],
+    "hormoziShadowStrength": 3.5,
+    "hormoziAnimation": "shake",
+    "verticalPosition": 15,
+    "outlineWidth": 3,
+    "outlineColor": "#FFFFFF",
+    "outlineBlur": 1
+  }
+}</code></pre>
+
+    <h2>Best Practices</h2>
+    
+    <h3>Content Matching</h3>
+    <ul>
+        <li><strong>Business/Sales</strong> → Hormozi style</li>
+        <li><strong>Lifestyle/Beauty</strong> → Girlboss style</li>
+        <li><strong>Professional</strong> → ThinToBold or Basic</li>
+        <li><strong>Entertainment</strong> → WavyColors style</li>
+    </ul>
+    
+    <h3>Font Selection Guidelines</h3>
+    <ul>
+        <li><strong>Impact content</strong> → Luckiest Guy</li>
+        <li><strong>Professional content</strong> → Montserrat Thin</li>
+        <li><strong>Standard content</strong> → Arial</li>
+    </ul>
+
+    <h2>Available Fonts</h2>
+    <p>Arial, Arial Black, Montserrat (Thin, Regular, ExtraBold, Black), Luckiest Guy, Impact, Helvetica, Georgia, Times New Roman, Verdana, Trebuchet, Comic Sans MS, Courier New, Garamond, Palatino Linotype, Bookman Old Style, Erica One, Bungee, Sigmar, Sora, Tahoma, Gotham Ultra, Bodoni Moda</p>
+
+    <h2>Troubleshooting</h2>
+    
+    <h3>Common Issues</h3>
+    <ul>
+        <li><strong>Font Not Loading:</strong> Verify spelling, fallback fonts used automatically</li>
+        <li><strong>Colors Not Displaying:</strong> Use HEX format (#RRGGBB), verify valid codes</li>
+        <li><strong>Performance Issues:</strong> Reduce shadow strength, use simpler animations for long content</li>
+    </ul>
+
+    <p style="margin-top: 40px; text-align: center; color: #7f8c8d; font-style: italic;">
+        Complete documentation for Video Processing Animation Styles - Version 1.0
+    </p>
+
+</body>
+</html> 

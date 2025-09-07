@@ -1,0 +1,54 @@
+{
+  "url": "https://example.com/video-with-text.mp4",
+  "outputName": "text_replaced_video",
+  "textReplacements": [
+    {
+      "region": {
+        "x": 100,
+        "y": 50,
+        "width": 300,
+        "height": 80
+      },
+      "background": {
+        "color": "black",
+        "opacity": 0.8
+      },
+      "text": "NEW BRANDED TEXT",
+      "textStyle": {
+        "fontSize": 32,
+        "fontColor": "#FFFFFF",
+        "fontFamily": "Arial",
+        "fontWeight": "bold",
+        "alignment": "center",
+        "verticalAlignment": "center",
+        "outlineWidth": 2,
+        "outlineColor": "#000000"
+      }
+    },
+    {
+      "region": {
+        "x": 50,
+        "y": 400,
+        "width": 200,
+        "height": 40
+      },
+      "background": {
+        "color": "white",
+        "opacity": 1
+      },
+      "text": "Your Channel",
+      "textStyle": {
+        "fontSize": 18,
+        "fontColor": "#000000",
+        "fontFamily": "Arial",
+        "fontWeight": "normal",
+        "alignment": "left",
+        "verticalAlignment": "center"
+      }
+    }
+  ],
+  "options": {
+    "speedFactor": 1.0,
+    "saturationFactor": 1.1
+  }
+} 

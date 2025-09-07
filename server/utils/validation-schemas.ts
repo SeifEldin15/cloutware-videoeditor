@@ -10,6 +10,9 @@ export const ValidationSchemas = {
     outputName: z.string().regex(/^[a-zA-Z0-9_-]+$/, 'Output name can only contain letters, numbers, underscores and hyphens').optional().default('encoded_video'),
     format: z.enum(['mp4', 'gif', 'png']).optional().default('mp4'),
     options: z.object({
+      // Quality settings
+      quality: z.enum(['low', 'medium', 'high']).optional().default('medium'),
+      audioBitrate: z.string().regex(/^\d+k$/).optional().default('192k'),
       speedFactor: z.number().min(0.5).max(2).optional(),
       zoomFactor: z.number().min(1).max(2).optional(),
       saturationFactor: z.number().min(0.5).max(2).optional(),

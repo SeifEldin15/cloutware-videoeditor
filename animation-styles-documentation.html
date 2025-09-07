@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Processing Animation Styles Documentation</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px;
+            max-width: 1000px;
+            margin: 0 auto;
+            color: #333;
+            background: #fff;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+            font-size: 2.5em;
+            margin-top: 0;
+        }
+        
+        h2 {
+            color: #34495e;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 5px;
+            margin-top: 40px;
+            font-size: 1.8em;
+        }
+        
+        h3 {
+            color: #2980b9;
+            margin-top: 30px;
+            font-size: 1.4em;
+        }
+        
+        h4 {
+            color: #7f8c8d;
+            margin-top: 25px;
+            font-size: 1.2em;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        th {
+            background-color: #3498db;
+            color: white;
+            font-weight: 600;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        
+        code {
+            background-color: #f1f2f6;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+            color: #e74c3c;
+            font-size: 0.9em;
+        }
+        
+        pre {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 20px 0;
+            border-left: 4px solid #3498db;
+        }
+        
+        pre code {
+            background: none;
+            color: inherit;
+            padding: 0;
+        }
+        
+        .animation-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        .perfect-for {
+            background: #e8f5e8;
+            padding: 10px 15px;
+            border-radius: 5px;
+            border-left: 4px solid #27ae60;
+            margin: 10px 0;
+            font-weight: 600;
+            color: #27ae60;
+        }
+        
+        ul, ol {
+            padding-left: 25px;
+        }
+        
+        li {
+            margin: 8px 0;
+        }
+        
+        .color-sample {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 3px;
+            margin-right: 8px;
+            vertical-align: middle;
+            border: 1px solid #ddd;
+        }
+        
+        .features-list {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+        }
+        
+        .features-list h3 {
+            margin-top: 0;
+            color: #28a745;
+        }
+        
+        .toc {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 30px 0;
+        }
+        
+        .toc ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        
+        .toc > ul > li {
+            margin: 10px 0;
+        }
+        
+        .toc a {
+            text-decoration: none;
+            color: #3498db;
+        }
+        
+        .toc a:hover {
+            text-decoration: underline;
+        }
+        
+        @media print {
+            body {
+                padding: 20px;
+                font-size: 12px;
+            }
+            
+            h1 {
+                font-size: 24px;
+            }
+            
+            h2 {
+                font-size: 18px;
+                page-break-before: always;
+            }
+            
+            .animation-box {
+                background: #f0f0f0 !important;
+                color: #333 !important;
+                box-shadow: none;
+                border: 1px solid #ddd;
+            }
+            
+            table {
+                font-size: 10px;
+            }
+            
+            pre {
+                background: #f8f9fa !important;
+                color: #333 !important;
+                border: 1px solid #ddd;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Video Processing Animation Styles Documentation</h1>
+    
+    <div style="margin-bottom: 30px;">
+        <strong>Version:</strong> 1.0<br>
+        <strong>Last Updated:</strong> January 2025<br>
+        <strong>System:</strong> Video Processing with Advanced Subtitle Animations
+    </div>
+
+    <div class="toc">
+        <h2>Table of Contents</h2>
+        <ul>
+            <li><a href="#overview">Overview</a></li>
+            <li><a href="#animation-styles">Animation Styles</a>
+                <ul>
+                    <li><a href="#girlboss">Girlboss Animation</a></li>
+                    <li><a href="#hormozi">Hormozi Viral Animation</a></li>
+                    <li><a href="#thintobold">ThinToBold Animation</a></li>
+                    <li><a href="#wavycolors">WavyColors Animation</a></li>
+                    <li><a href="#basic">Basic Animation</a></li>
+                </ul>
+            </li>
+            <li><a href="#fonts">Font Recommendations</a></li>
+            <li><a href="#parameters">Common Parameters</a></li>
+            <li><a href="#api">API Usage</a></li>
+            <li><a href="#best-practices">Best Practices</a></li>
+            <li><a href="#troubleshooting">Troubleshooting</a></li>
+        </ul>
+    </div>
+
+    <h2 id="overview">Overview</h2>
+    
+    <p>This system provides <strong>5 main animation styles</strong> for subtitle rendering, each with unique visual effects, parameters, and use cases.</p>
+    
+    <div class="features-list">
+        <h3>Core Features</h3>
+        <ul>
+            <li>✅ Dynamic font selection</li>
+            <li>✅ Color customization</li>
+            <li>✅ Shadow/glow effects</li>
+            <li>✅ Positioning controls</li>
+            <li>✅ Shake animations (optional)</li>
+            <li>✅ ASS subtitle format output</li>
+        </ul>
+    </div>
+
+    <h2 id="animation-styles">Animation Styles</h2>
+
+    <!-- Girlboss Animation -->
+    <div class="animation-box" id="girlboss">
+        <h3>1. Girlboss Animation</h3>
+        <div class="perfect-for">Perfect for: Beauty, lifestyle, empowerment content</div>
+    </div>
+
+    <h4>Description</h4>
+    <p>Feminine, empowering style with pink/customizable colors, smooth word-by-word reveals with glow effects.</p>
+
+    <h4>Font</h4>
+    <p><strong>Luckiest Guy</strong> (Bold, Impact style)</p>
+
+    <h4>Parameters</h4>
+    <table>
+        <thead>
+            <tr>
+                <th>Parameter</th>
+                <th>Type</th>
+                <th>Range</th>
+                <th>Default</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td><code>subtitleStyle</code></td><td>string</td><td>-</td><td>-</td><td>"girlboss"</td></tr>
+            <tr><td><code>fontFamily</code></td><td>string</td><td>-</td><td>-</td><td>"Luckiest Guy" (recommended)</td></tr>
+            <tr><td><code>fontSize</code></td><td>number</td><td>10-72</td><td>48</td><td>Font size in pixels</td></tr>
+            <tr><td><code>girlbossColor</code></td><td>string</td><td>HEX</td><td>"#FF1493"</td><td>Hot pink color</td></tr>
+            <tr><td><code>girlbossShadowStrength</code></td><td>number</td><td>0.5-3.0</td><td>1.0</td><td>Shadow intensity</td></tr>
+            <tr><td><code>girlbossAnimation</code></td><td>string</td><td>none/shake</td><td>"none"</td><td>Animation type</td></tr>
+            <tr><td><code>verticalPosition</code></td><td>number</td><td>0-100</td><td>18</td><td>Position from bottom (%) - UNIVERSAL</td></tr>
+        </tbody>
+    </table>
+
+    <h4>Visual Effects</h4>
+    <ul>
+        <li>Word-by-word color reveal</li>
+        <li>Soft glow/shadow effects</li>
+        <li>Smooth transitions</li>
+        <li>Optional shake animation for emphasis</li>
+    </ul>
+
+    <h4>Example Usage</h4>
+    <pre><code>{
+  "subtitleStyle": "girlboss",
+  "fontFamily": "Luckiest Guy",
+  "fontSize": 48,
+  "girlbossColor": "#FF1493",
+  "girlbossShadowStrength": 2.0,
+  "girlbossAnimation": "shake",
+  "verticalPosition": 18
+}</code></pre>
+
+    <!-- Hormozi Animation -->
+    <div class="animation-box" id="hormozi">
+        <h3>2. Hormozi Viral Animation</h3>
+        <div class="perfect-for">Perfect for: Business, entrepreneurship, viral content</div>
+    </div>
+
+    <h4>Description</h4>
+    <p>High-energy viral style with alternating bright colors per word. Designed for maximum attention and engagement. Inspired by Alex Hormozi's viral content style.</p>
+
+    <h4>Font</h4>
+    <p><strong>Luckiest Guy</strong> (Bold, Impact style)</p>
+
+    <h4>Parameters</h4>
+    <table>
+        <thead>
+            <tr>
+                <th>Parameter</th>
+                <th>Type</th>
+                <th>Range</th>
+                <th>Default</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td><code>subtitleStyle</code></td><td>string</td><td>-</td><td>-</td><td>"hormozi"</td></tr>
+            <tr><td><code>fontFamily</code></td><td>string</td><td>-</td><td>-</td><td>"Luckiest Guy" (recommended)</td></tr>
+            <tr><td><code>fontSize</code></td><td>number</td><td>10-72</td><td>50</td><td>Font size in pixels</td></tr>
+            <tr><td><code>hormoziColors</code></td><td>array</td><td>HEX colors</td><td>See below</td><td>Array of colors</td></tr>
+            <tr><td><code>hormoziShadowStrength</code></td><td>number</td><td>1-5</td><td>3</td><td>Shadow intensity</td></tr>
+            <tr><td><code>hormoziAnimation</code></td><td>string</td><td>none/shake</td><td>"none"</td><td>Animation type</td></tr>
+            <tr><td><code>verticalPosition</code></td><td>number</td><td>0-100</td><td>15</td><td>Position from bottom (%) - UNIVERSAL</td></tr>
+        </tbody>
+    </table>
+
+    <h4>Default Color Sequence</h4>
+    <ol>
+        <li><span class="color-sample" style="background: #0BF431;"></span><strong>#0BF431</strong> - Bright Green (signature Hormozi color)</li>
+        <li><span class="color-sample" style="background: #2121FF;"></span><strong>#2121FF</strong> - Blue</li>
+        <li><span class="color-sample" style="background: #1DE0FE;"></span><strong>#1DE0FE</strong> - Cyan</li>
+        <li><span class="color-sample" style="background: #FFFF00;"></span><strong>#FFFF00</strong> - Yellow</li>
+    </ol>
+
+    <h4>Example Usage</h4>
+    <pre><code>{
+  "subtitleStyle": "hormozi",
+  "fontFamily": "Luckiest Guy",
+  "fontSize": 50,
+  "hormoziColors": ["#0BF431", "#FF0000", "#0080FF", "#FFFF00"],
+  "hormoziShadowStrength": 3.5,
+  "hormoziAnimation": "shake",
+  "verticalPosition": 15
+}</code></pre>
+
+    <!-- ThinToBold Animation -->
+    <div class="animation-box" id="thintobold">
+        <h3>3. ThinToBold Animation</h3>
+        <div class="perfect-for">Perfect for: Professional, corporate, educational content</div>
+    </div>
+
+    <h4>Description</h4>
+    <p>Elegant, sophisticated animation that groups words in pairs with smooth reveals. Perfect for professional and refined content.</p>
+
+    <h4>Font</h4>
+    <p><strong>Montserrat Thin</strong> (Elegant, Refined)</p>
+
+    <h4>Parameters</h4>
+    <table>
+        <thead>
+            <tr>
+                <th>Parameter</th>
+                <th>Type</th>
+                <th>Range</th>
+                <th>Default</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td><code>subtitleStyle</code></td><td>string</td><td>-</td><td>-</td><td>"thintobold"</td></tr>
+            <tr><td><code>fontFamily</code></td><td>string</td><td>-</td><td>-</td><td>"Montserrat Thin" (recommended)</td></tr>
+            <tr><td><code>fontSize</code></td><td>number</td><td>10-72</td><td>50</td><td>Font size in pixels</td></tr>
+            <tr><td><code>thinToBoldColor</code></td><td>string</td><td>HEX</td><td>"#FFFFFF"</td><td>Text color</td></tr>
+            <tr><td><code>thinToBoldShadowStrength</code></td><td>number</td><td>0.5-3.0</td><td>1.8</td><td>Shadow intensity</td></tr>
+            <tr><td><code>thinToBoldAnimation</code></td><td>string</td><td>none/shake</td><td>"none"</td><td>Animation type</td></tr>
+            <tr><td><code>verticalPosition</code></td><td>number</td><td>0-100</td><td>22</td><td>Position from bottom (%) - UNIVERSAL</td></tr>
+        </tbody>
+    </table>
+
+    <!-- WavyColors Animation -->
+    <div class="animation-box" id="wavycolors">
+        <h3>4. WavyColors Animation</h3>
+        <div class="perfect-for">Perfect for: Entertainment, music videos, gaming content</div>
+    </div>
+
+    <h4>Description</h4>
+    <p>Dynamic rainbow color effects with wavy, flowing transitions. Creates eye-catching visual movement with character-level color cycling.</p>
+
+    <h4>Built-in Color Sequence</h4>
+    <ul>
+        <li><span class="color-sample" style="background: #00FF00;"></span><strong>Green</strong> (#00FF00)</li>
+        <li><span class="color-sample" style="background: #FFFF00;"></span><strong>Yellow</strong> (#FFFF00)</li>
+        <li><span class="color-sample" style="background: #00FFFF;"></span><strong>Light Blue</strong> (#00FFFF)</li>
+    </ul>
+
+    <!-- Basic Animation -->
+    <div class="animation-box" id="basic">
+        <h3>5. Basic Animation</h3>
+        <div class="perfect-for">Perfect for: Standard subtitles, accessibility, professional content</div>
+    </div>
+
+    <h4>Description</h4>
+    <p>Clean, professional subtitle style without special effects. Standard subtitle appearance with full customization options.</p>
+
+    <h2 id="fonts">Font Recommendations</h2>
+
+    <h3>Primary Fonts</h3>
+    <ul>
+        <li><strong>Luckiest Guy</strong> - Bold, impactful, perfect for viral content</li>
+        <li><strong>Montserrat Thin</strong> - Elegant, refined, professional</li>
+        <li><strong>Arial</strong> - Clean, readable, universal</li>
+    </ul>
+
+    <h3>Font Mapping by Style</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Animation Style</th>
+                <th>Recommended Font</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>Girlboss</td><td>Luckiest Guy</td></tr>
+            <tr><td>Hormozi</td><td>Luckiest Guy</td></tr>
+            <tr><td>WavyColors</td><td>Luckiest Guy</td></tr>
+            <tr><td>ThinToBold</td><td>Montserrat Thin</td></tr>
+            <tr><td>Basic</td><td>Arial</td></tr>
+        </tbody>
+    </table>
+
+    <h2 id="api">API Usage</h2>
+
+    <h3>Endpoint</h3>
+    <pre><code>POST /api/encode</code></pre>
+
+    <h3>Complete Example</h3>
+    <pre><code>{
+  "url": "https://example.com/video.mp4",
+  "outputName": "viral_video",
+  "format": "mp4",
+  "caption": {
+    "srtContent": "1\n00:00:00,000 --> 00:00:03,000\nATTENTION ENTREPRENEURS!\n\n2\n00:00:03,000 --> 00:00:06,000\nThis will CHANGE your business!",
+    "subtitleStyle": "hormozi",
+    "fontFamily": "Luckiest Guy",
+    "fontSize": 50,
+    "hormoziColors": ["#0BF431", "#FF0000", "#0080FF", "#FFFF00"],
+    "hormoziShadowStrength": 3.5,
+    "hormoziAnimation": "shake",
+    "verticalPosition": 15
+  }
+}</code></pre>
+
+    <h2 id="best-practices">Best Practices</h2>
+
+    <h3>1. Content Matching</h3>
+    <ul>
+        <li><strong>Business/Sales</strong> → Hormozi style</li>
+        <li><strong>Lifestyle/Beauty</strong> → Girlboss style</li>
+        <li><strong>Professional</strong> → ThinToBold or Basic</li>
+        <li><strong>Entertainment</strong> → WavyColors style</li>
+    </ul>
+
+    <h3>2. Font Selection</h3>
+    <ul>
+        <li><strong>Impact content</strong> → Luckiest Guy</li>
+        <li><strong>Professional content</strong> → Montserrat Thin</li>
+        <li><strong>Standard content</strong> → Arial</li>
+    </ul>
+
+    <h2 id="troubleshooting">Troubleshooting</h2>
+
+    <h3>Common Issues</h3>
+
+    <h4>1. Font Not Loading</h4>
+    <ul>
+        <li>Verify font name spelling</li>
+        <li>Check font availability in system</li>
+        <li>Fallback fonts will be used automatically</li>
+    </ul>
+
+    <h4>2. Colors Not Displaying</h4>
+    <ul>
+        <li>Use HEX format (#RRGGBB)</li>
+        <li>Verify valid color codes</li>
+        <li>Check for proper array format for multi-colors</li>
+    </ul>
+
+    <h4>3. Performance Issues</h4>
+    <ul>
+        <li>Reduce shadow strength for faster processing</li>
+        <li>Use simpler animations for long content</li>
+        <li>Consider basic style for large subtitle files</li>
+    </ul>
+
+    <div style="margin-top: 50px; padding: 20px; background: #f8f9fa; border-radius: 8px; text-align: center; color: #7f8c8d;">
+        <p><em>This documentation covers all available animation styles in the Video Processing system. For updates and additional features, refer to the latest system documentation.</em></p>
+    </div>
+
+</body>
+</html> 

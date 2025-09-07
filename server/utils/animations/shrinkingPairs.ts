@@ -105,13 +105,13 @@ export const shrinkingColorsPairAnimation = (
         timePerPair
       );
       const marginV = style?.verticalPosition 
-        ? Math.round((720 * (100 - style.verticalPosition)) / 100) + (index * lineSpacing)
+        ? Math.round((720 * style.verticalPosition) / 100) + (index * lineSpacing)
         : index * lineSpacing;
       moveTag = `\\move(${Math.round(currentPosition.x)},${Math.round(currentPosition.y + marginV)},${Math.round(endPosition.x)},${Math.round(endPosition.y + marginV)})`;
       currentPosition = endPosition;
     } else {
       const marginV = style?.verticalPosition 
-        ? Math.round((720 * (100 - style.verticalPosition)) / 100) + (index * lineSpacing)
+        ? Math.round((720 * style.verticalPosition) / 100) + (index * lineSpacing)
         : index * lineSpacing;
       moveTag = `\\pos(${Math.round(currentPosition.x)},${marginV})`;
     }

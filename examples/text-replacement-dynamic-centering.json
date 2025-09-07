@@ -1,0 +1,77 @@
+{
+  "url": "https://dkkaakuajsyehonlipbu.supabase.co/storage/v1/object/public/videos/tiktok/6736250773027767302/7362188339048353066",
+  "outputName": "dynamic_centered_video",
+  "textReplacements": [
+    {
+      "region": {
+        "y": 100,
+        "width": 400,
+        "height": 80,
+        "centerHorizontally": true
+      },
+      "background": {
+        "color": "black",
+        "opacity": 0.9
+      },
+      "text": "AUTO-CENTERED TITLE",
+      "textStyle": {
+        "fontSize": 32,
+        "fontColor": "#FFFFFF",
+        "fontFamily": "Arial",
+        "fontWeight": "bold",
+        "alignment": "center",
+        "verticalAlignment": "center",
+        "outlineWidth": 2,
+        "outlineColor": "#000000"
+      }
+    },
+    {
+      "region": {
+        "y": 200,
+        "width": 300,
+        "height": 50,
+        "centerHorizontally": true
+      },
+      "background": {
+        "color": "white",
+        "opacity": 0.8
+      },
+      "text": "Works on ANY resolution",
+      "textStyle": {
+        "fontSize": 20,
+        "fontColor": "#333333",
+        "fontFamily": "Arial",
+        "fontWeight": "normal",
+        "alignment": "center",
+        "verticalAlignment": "center"
+      }
+    },
+    {
+      "region": {
+        "y": 1700,
+        "width": 250,
+        "height": 40,
+        "centerHorizontally": true
+      },
+      "background": {
+        "color": "black",
+        "opacity": 0.7
+      },
+      "text": "@YourBrand",
+      "textStyle": {
+        "fontSize": 18,
+        "fontColor": "#00FF00",
+        "fontFamily": "Arial",
+        "fontWeight": "bold",
+        "alignment": "center",
+        "verticalAlignment": "center",
+        "outlineWidth": 1,
+        "outlineColor": "#000000"
+      }
+    }
+  ],
+  "options": {
+    "speedFactor": 1.0,
+    "saturationFactor": 1.0
+  }
+} 

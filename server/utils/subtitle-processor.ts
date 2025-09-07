@@ -47,6 +47,8 @@ interface StyleOptions {
   fontFamily?: string
   textAlign?: string
   subtitleStyle?: string
+  // Universal color option
+  fontColor?: string
   // Universal outline options
   outlineWidth?: number
   outlineColor?: string
@@ -149,6 +151,8 @@ export class SubtitleProcessor {
       fontFamily: styleFont,
       textAlign: caption?.horizontalAlignment,
       subtitleStyle: caption?.subtitleStyle,
+      // Universal color option
+      fontColor: caption?.fontColor,
       // Universal outline options
       outlineWidth: caption?.outlineWidth,
       outlineColor: caption?.outlineColor,
@@ -438,6 +442,110 @@ export class SubtitleProcessor {
             outlineBlur: styleOptions.outlineBlur || 0
           }
           assContent = generateAdvancedASSFile(subtitleSegments, revealEnlargeStyle, 'revealenlarge')
+
+        } else if (styleOptions.subtitleStyle === 'whiteimpact') {
+          console.log(`📝 Setting up WhiteImpact with font: ${styleOptions.fontFamily} -> ${styleOptions.fontFamily}`)
+          const whiteImpactStyle: GirlbossStyle & {
+            fontSize?: number
+            fontFamily?: string
+            fontFilePath?: string
+            textAlign?: string
+            color?: string
+            outlineWidth?: number
+            outlineColor?: string
+            outlineBlur?: number
+          } = {
+            color: styleOptions.fontColor || '#FFFFFF',
+            shadowStrength: styleOptions.shadowStrength || 2.0,
+            animation: 'none',
+            verticalPosition: styleOptions.verticalPosition || 20,
+            fontSize: styleOptions.fontSize || 48,
+            fontFamily: styleOptions.fontFamily || 'Impact',
+            fontFilePath: fontFile || styleOptions.fontFamily || 'Impact',
+            textAlign: styleOptions.textAlign || 'center',
+            outlineWidth: styleOptions.outlineWidth || 1,
+            outlineColor: styleOptions.outlineColor || '#000000',
+            outlineBlur: styleOptions.outlineBlur || 0
+          }
+          assContent = generateAdvancedASSFile(subtitleSegments, whiteImpactStyle, 'whiteimpact')
+
+        } else if (styleOptions.subtitleStyle === 'impactfull') {
+          console.log(`📰 Setting up ImpactFull with font: ${styleOptions.fontFamily} -> ${styleOptions.fontFamily}`)
+          const impactFullStyle: GirlbossStyle & {
+            fontSize?: number
+            fontFamily?: string
+            fontFilePath?: string
+            textAlign?: string
+            color?: string
+            outlineWidth?: number
+            outlineColor?: string
+            outlineBlur?: number
+          } = {
+            color: styleOptions.fontColor || '#FFFFFF',
+            shadowStrength: styleOptions.shadowStrength || 2.0,
+            animation: 'none',
+            verticalPosition: styleOptions.verticalPosition || 25,
+            fontSize: styleOptions.fontSize || 42,
+            fontFamily: styleOptions.fontFamily || 'Impact',
+            fontFilePath: fontFile || styleOptions.fontFamily || 'Impact',
+            textAlign: styleOptions.textAlign || 'center',
+            outlineWidth: styleOptions.outlineWidth || 1,
+            outlineColor: styleOptions.outlineColor || '#000000',
+            outlineBlur: styleOptions.outlineBlur || 0
+          }
+          assContent = generateAdvancedASSFile(subtitleSegments, impactFullStyle, 'impactfull')
+
+        } else if (styleOptions.subtitleStyle === 'basic') {
+          console.log(`⚡ Setting up Basic style with font: ${styleOptions.fontFamily} -> ${styleOptions.fontFamily}`)
+          const basicStyle: GirlbossStyle & {
+            fontSize?: number
+            fontFamily?: string
+            fontFilePath?: string
+            textAlign?: string
+            color?: string
+            outlineWidth?: number
+            outlineColor?: string
+            outlineBlur?: number
+          } = {
+            color: styleOptions.fontColor || '#FFFFFF',
+            shadowStrength: 1.0,
+            animation: 'none',
+            verticalPosition: styleOptions.verticalPosition || 35,
+            fontSize: styleOptions.fontSize || 32,
+            fontFamily: styleOptions.fontFamily || 'Arial',
+            fontFilePath: fontFile || styleOptions.fontFamily || 'Arial',
+            textAlign: styleOptions.textAlign || 'center',
+            outlineWidth: styleOptions.outlineWidth || 3,
+            outlineColor: styleOptions.outlineColor || '#000000',
+            outlineBlur: styleOptions.outlineBlur || 0
+          }
+          assContent = generateAdvancedASSFile(subtitleSegments, basicStyle, 'basic')
+
+        } else {
+          console.warn(`⚠️  Unknown subtitle style: ${styleOptions.subtitleStyle}, falling back to basic style`)
+          const fallbackStyle: GirlbossStyle & {
+            fontSize?: number
+            fontFamily?: string
+            fontFilePath?: string
+            textAlign?: string
+            color?: string
+            outlineWidth?: number
+            outlineColor?: string
+            outlineBlur?: number
+          } = {
+            color: '#FFFFFF',
+            shadowStrength: 1.0,
+            animation: 'none',
+            verticalPosition: 35,
+            fontSize: 32,
+            fontFamily: 'Arial',
+            fontFilePath: 'Arial',
+            textAlign: 'center',
+            outlineWidth: 3,
+            outlineColor: '#000000',
+            outlineBlur: 0
+          }
+          assContent = generateAdvancedASSFile(subtitleSegments, fallbackStyle, 'basic')
         }
 
         tempAssFile = join(tmpdir(), `subtitle_${Date.now()}.ass`)
@@ -594,9 +702,10 @@ export class SubtitleProcessor {
       videoFilters.push('crop=in_w-2:in_h-2:1:1')
     }
     
-    if (options?.antiDetection?.noiseAddition) {
-      videoFilters.push('noise=alls=1:allf=t')
-    }
+    // Noise filter disabled - not compatible with current FFmpeg version
+    // if (options?.antiDetection?.noiseAddition) {
+    //   videoFilters.push('noise=alls=1:allf=t')
+    // }
     
     if (options?.antiDetection?.subtleRotation) {
       videoFilters.push('rotate=0.1*PI/180')
@@ -623,14 +732,16 @@ export class SubtitleProcessor {
       outputOptions.push('-af', audioFilters.join(','))
     }
 
-    // Standard encoding options
+    // High-quality encoding options for subtitles
     outputOptions.push('-c:v', 'libx264')
-    outputOptions.push('-preset', 'veryfast')
-    outputOptions.push('-crf', '23')
+    outputOptions.push('-preset', 'medium')  // Better quality for subtitle processing
+    outputOptions.push('-crf', '20')        // Higher quality for subtitle text clarity
     outputOptions.push('-threads', optimalThreads)
     outputOptions.push('-pix_fmt', 'yuv420p')
+    outputOptions.push('-profile:v', 'high')
     outputOptions.push('-c:a', 'aac')
-    outputOptions.push('-b:a', '128k')
+    outputOptions.push('-b:a', '192k')      // Higher audio bitrate
+    outputOptions.push('-ar', '48000')      // Professional audio sample rate
     outputOptions.push('-max_muxing_queue_size', '4096')
     outputOptions.push('-movflags', '+faststart')
 

@@ -1,0 +1,6 @@
+{
+  "url": "https://example.com/video.mp4",
+  "srtContent": "1\n00:00:00,000 --> 00:00:03,000\nThis is working now\n\n2\n00:00:03,000 --> 00:00:06,000\nWith clean white text",
+  "templateName": "whiteimpact",
+  "outputName": "white_impact_fixed"
+} 

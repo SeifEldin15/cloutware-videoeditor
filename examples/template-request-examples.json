@@ -1,0 +1,121 @@
+{
+  "examples": {
+    "girlboss_style": {
+      "description": "Bold, energetic style with shake animation and pink colors",
+      "request": {
+        "url": "https://dkkaakuajsyehonlipbu.supabase.co/storage/v1/object/public/videos/tiktok/6736250773027767302/7362188339048353066",
+        "srtContent": "1\n00:00:00,000 --> 00:00:03,000\nGIRLBOSS ENERGY! 💅✨\n\n2\n00:00:03,000 --> 00:00:06,000\nOWN YOUR POWER! 👑\n\n3\n00:00:06,000 --> 00:00:09,000\nMANIFEST YOUR DREAMS! ⭐",
+        "templateName": "girlboss",
+        "outputName": "my_girlboss_video"
+      }
+    },
+    
+    "hormozi_style": {
+      "description": "High-energy multi-color style for attention-grabbing content",
+      "request": {
+        "url": "https://example.com/your-video.mp4",
+        "srtContent": "1\n00:00:00,000 --> 00:00:02,500\nATTENTION! 🚨💰\n\n2\n00:00:02,500 --> 00:00:05,000\nThis will CHANGE your LIFE! 🔥\n\n3\n00:00:05,000 --> 00:00:07,500\nDon't miss this OPPORTUNITY! 💎",
+        "templateName": "hormozi",
+        "outputName": "hormozi_style_video"
+      }
+    },
+    
+    "business_professional": {
+      "description": "Clean and professional style for business content",
+      "request": {
+        "url": "https://example.com/business-video.mp4",
+        "srtContent": "1\n00:00:00,000 --> 00:00:03,000\nProfessional Content\n\n2\n00:00:03,000 --> 00:00:06,000\nClean and Simple\n\n3\n00:00:06,000 --> 00:00:09,000\nPerfect for Business",
+        "templateName": "basic",
+        "outputName": "professional_video"
+      }
+    },
+    
+    "tiktok_viral": {
+      "description": "Single vibrant color style perfect for social media content",
+      "request": {
+        "url": "https://example.com/tiktok-video.mp4",
+        "srtContent": "1\n00:00:00,000 --> 00:00:02,500\nTIKTOK STYLE! 🎵💫\n\n2\n00:00:02,500 --> 00:00:05,000\nSingle color VIBES! 🔥✨\n\n3\n00:00:05,000 --> 00:00:07,500\nSocial media READY! 📱",
+        "templateName": "tiktokstyle",
+        "outputName": "tiktok_viral_video"
+      }
+    },
+    
+    "elegant_transformation": {
+      "description": "Elegant style with smooth transitions from thin to bold font",
+      "request": {
+        "url": "https://example.com/elegant-video.mp4",
+        "srtContent": "1\n00:00:00,000 --> 00:00:03,000\nTHIN TO BOLD\n\n2\n00:00:03,000 --> 00:00:06,000\nELEGANT TRANSITIONS\n\n3\n00:00:06,000 --> 00:00:09,000\nSOPHISTICATED STYLE",
+        "templateName": "thintobold",
+        "outputName": "elegant_video"
+      }
+    },
+    
+    "rainbow_style": {
+      "description": "Rainbow-colored text with wavy animations",
+      "request": {
+        "url": "https://example.com/colorful-video.mp4",
+        "srtContent": "1\n00:00:00,000 --> 00:00:04,000\nRAINBOW COLORS 🌈✨\n\n2\n00:00:04,000 --> 00:00:08,000\nWAVY MAGIC 🔮\n\n3\n00:00:08,000 --> 00:00:12,000\nCOLORFUL VIBES! 🎨",
+        "templateName": "wavycolors",
+        "outputName": "rainbow_video"
+      }
+    },
+    
+    "dynamic_shrinking": {
+      "description": "Dynamic shrinking effect perfect for multiple word groups",
+      "request": {
+        "url": "https://example.com/dynamic-video.mp4",
+        "srtContent": "1\n00:00:00,000 --> 00:00:03,000\nSHRINKING PAIRS SHRINKING PAIRS\n\n2\n00:00:03,000 --> 00:00:06,000\nWATCH IT SHRINK! ⚡\n\n3\n00:00:06,000 --> 00:00:09,000\nDYNAMIC EFFECTS! 💥",
+        "templateName": "shrinkingpairs",
+        "outputName": "dynamic_video"
+      }
+    },
+    
+    "reveal_enlarge": {
+      "description": "Color-cycling text with reveal and enlarge effects",
+      "request": {
+        "url": "https://example.com/reveal-video.mp4",
+        "srtContent": "1\n00:00:00,000 --> 00:00:03,000\nREVEAL AND ENLARGE! 🌟\n\n2\n00:00:03,000 --> 00:00:06,000\nCOLOR CYCLING MAGIC! 🎨\n\n3\n00:00:06,000 --> 00:00:09,000\nAMAZING EFFECTS! ✨",
+        "templateName": "revealenlarge",
+        "outputName": "reveal_video"
+      }
+    }
+  },
+  
+  "api_endpoints": {
+    "base_url": "http://localhost:3000/api/encode-template",
+    "methods": {
+      "GET": {
+        "description": "List all available templates",
+        "response_example": {
+          "success": true,
+          "message": "Available style templates",
+          "templates": [
+            {
+              "name": "Girlboss",
+              "key": "girlboss",
+              "description": "Bold, energetic style with shake animation and pink colors",
+              "fontFamily": "Luckiest Guy"
+            }
+          ]
+        }
+      },
+      "POST": {
+        "description": "Process video with template",
+        "required_fields": ["url", "srtContent", "templateName"],
+        "optional_fields": ["outputName", "options"],
+        "response": "Video file stream (MP4)"
+      }
+    }
+  },
+  
+  "curl_examples": {
+    "list_templates": "curl -X GET http://localhost:3000/api/encode-template",
+    "process_girlboss": "curl -X POST http://localhost:3000/api/encode-template -H \"Content-Type: application/json\" -d '{\"url\":\"YOUR_VIDEO_URL\",\"srtContent\":\"YOUR_SRT_CONTENT\",\"templateName\":\"girlboss\"}' --output girlboss_video.mp4",
+    "process_hormozi": "curl -X POST http://localhost:3000/api/encode-template -H \"Content-Type: application/json\" -d '{\"url\":\"YOUR_VIDEO_URL\",\"srtContent\":\"YOUR_SRT_CONTENT\",\"templateName\":\"hormozi\"}' --output hormozi_video.mp4"
+  },
+  
+  "javascript_example": {
+    "description": "Example using fetch API in JavaScript",
+    "code": "const response = await fetch('http://localhost:3000/api/encode-template', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({\n    url: 'https://example.com/video.mp4',\n    srtContent: '1\\n00:00:00,000 --> 00:00:03,000\\nHello World!',\n    templateName: 'girlboss',\n    outputName: 'my_video'\n  })\n});\n\nif (response.ok) {\n  const blob = await response.blob();\n  // Handle the video blob\n} else {\n  const error = await response.json();\n  console.error('Error:', error);\n}"
+  }
+} 

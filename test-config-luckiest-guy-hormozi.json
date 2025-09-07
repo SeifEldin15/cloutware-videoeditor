@@ -1,0 +1,25 @@
+{
+  "description": "Luckiest Guy font with Hormozi viral animation test",
+  "fontUsed": "Luckiest Guy",
+  "fontPath": "public/fonts/luckiestguy.ttf",
+  "animationStyle": "hormozi",
+  "hormoziColors": [
+    "#0BF431",
+    "#2121FF",
+    "#1DE0FE",
+    "#FFFF00"
+  ],
+  "features": [
+    "Bold, impact font (Luckiest Guy)",
+    "Alternating bright colors per word/subtitle",
+    "Strong shadows for depth and readability",
+    "Viral-ready engagement optimization",
+    "ASS subtitle format compatibility",
+    "Direct FFmpeg integration proven"
+  ],
+  "tests": [
+    "Direct FFmpeg font loading with Hormozi colors",
+    "ASS subtitle format with Luckiest Guy font",
+    "Multi-layer text effects with timing"
+  ]
+}

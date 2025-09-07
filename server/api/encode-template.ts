@@ -13,6 +13,8 @@ const templateRequestSchema = z.object({
   outputName: z.string().regex(/^[a-zA-Z0-9_-]+$/, 'Output name can only contain letters, numbers, underscores and hyphens').optional().default('template_video'),
   format: z.enum(['mp4']).optional().default('mp4'), // Only MP4 supported for captions
   options: z.object({
+    quality: z.enum(['low', 'medium', 'high']).optional().default('medium'),
+    audioBitrate: z.string().regex(/^\d+k$/).optional().default('192k'),
     speedFactor: z.number().min(0.5).max(2).optional(),
     zoomFactor: z.number().min(1).max(2).optional(),
     saturationFactor: z.number().min(0.5).max(2).optional(),
@@ -62,7 +64,8 @@ const templateRequestSchema = z.object({
       noiseAddition: z.boolean().optional().default(true),
       metadataPoisoning: z.boolean().optional().default(true),
       frameInterpolation: z.boolean().optional().default(true)
-    }).optional().default({})
+    }).optional().default({}),
+    verticalPosition: z.number().min(0).max(100).optional()
   }).optional().default({})
 })
 
@@ -104,11 +107,22 @@ export default eventHandler(async (event) => {
       throw new Error(`Template '${templateName}' not found. Available templates: ${availableTemplates.join(', ')}`)
     }
     
-    // Apply template configuration
-    const captionConfig = applyTemplate(templateName, { srtContent })
+    // Apply template configuration with user options
+    const userOptions: any = { srtContent }
+    
+    // Only override verticalPosition if user provided one
+    if (options.verticalPosition !== undefined) {
+      userOptions.verticalPosition = options.verticalPosition
+      console.log(`🎯 User specified vertical position: ${options.verticalPosition}`)
+    } else {
+      console.log(`📍 Using template default vertical position`)
+    }
+    
+    const captionConfig = applyTemplate(templateName, userOptions)
     
     console.log(`Applied template: ${template.name} (${template.description})`)
     console.log(`Font: ${template.fontFamily}`)
+    console.log(`Vertical Position: ${options.verticalPosition !== undefined ? options.verticalPosition + ' (user)' : 'template default'}`)
     
     // Validate URL accessibility
     await validateVideoUrl(url)

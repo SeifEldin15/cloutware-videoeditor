@@ -162,7 +162,7 @@ export class VideoProcessor {
   }
 
   private static buildAdvancedProcessingOptions(options?: VideoProcessingOptions): string[] {
-    const outputOptions = []
+    const outputOptions: string[] = []
     const timestamp = new Date().getTime().toString()
 
     outputOptions.push('-map_metadata', '-1')
@@ -178,14 +178,40 @@ export class VideoProcessor {
       outputOptions.push('-i', 'audio.mp3')
     }
 
-    const videoFilter = [
-      'crop=in_w-10:in_h-10:5:5,scale=708:1260:flags=fast_bilinear',
-      'hue=s=1.05,eq=gamma=1.05:contrast=1.05:brightness=0.05:saturation=1.05',
-      'setpts=0.92*PTS',
-      'rotate=0.25*PI/180:bilinear=0',
-      'pad=iw+2:ih+2:1:1:black@0.8',
-      'noise=alls=1:allf=t'
-    ].join(',')
+    // High-quality video processing filters
+    const qualityLevel = options?.quality || 'medium'
+    
+    let videoFilter: string
+    if (qualityLevel === 'high') {
+      // Premium quality with minimal quality loss
+      videoFilter = [
+        'crop=in_w-6:in_h-6:3:3',  // Minimal crop to avoid detection
+        'scale=720:1280:flags=lanczos',  // High-quality scaling
+        'hue=s=1.02,eq=gamma=1.02:contrast=1.02:brightness=0.02:saturation=1.02',  // Subtle adjustments
+        'setpts=0.98*PTS',  // Minimal speed change
+        'unsharp=5:5:0.8:3:3:0.4'  // Sharpening filter
+      ].join(',')
+    } else if (qualityLevel === 'medium') {
+      // Balanced quality and processing speed
+      videoFilter = [
+        'crop=in_w-8:in_h-8:4:4',
+        'scale=720:1280:flags=bicubic',
+        'hue=s=1.03,eq=gamma=1.03:contrast=1.03:brightness=0.03:saturation=1.03',
+        'setpts=0.95*PTS',
+        'rotate=0.15*PI/180:bilinear=0',
+        'pad=iw+1:ih+1:1:1:black@0.9'
+      ].join(',')
+    } else {
+      // Fast processing with acceptable quality loss
+      videoFilter = [
+        'crop=in_w-10:in_h-10:5:5,scale=708:1260:flags=fast_bilinear',
+        'hue=s=1.05,eq=gamma=1.05:contrast=1.05:brightness=0.05:saturation=1.05',
+        'setpts=0.92*PTS',
+        'rotate=0.25*PI/180:bilinear=0',
+        'pad=iw+2:ih+2:1:1:black@0.8',
+        'noise=all=1:allf=t'
+      ].join(',')
+    }
 
     outputOptions.push('-vf', videoFilter)
 
@@ -202,22 +228,28 @@ export class VideoProcessor {
 
       const bgVolume = options.backgroundAudioVolume || 0.2
 
+      // FFmpeg filter complex: mix original audio with background audio
+      const audioStreamOut = 'audio_out'  // FFmpeg audio output stream label
       outputOptions.push('-filter_complex',
-        `[0:a]${audioFilter}[a0]; [1:a]volume=${bgVolume}[a1]; [a0][a1]amix=inputs=2:duration=first[aout]`)
+        `[0:a]${audioFilter}[a0]; [1:a]volume=${bgVolume}[a1]; [a0][a1]amix=inputs=2:duration=first[${audioStreamOut}]`)
 
-      outputOptions.push('-map', '0:v', '-map', '[aout]')
+      outputOptions.push('-map', '0:v', '-map', `[${audioStreamOut}]`)
     } else {
       outputOptions.push('-af', audioFilter)
     }
 
+    // High-quality encoding settings
     outputOptions.push('-c:v', 'libx264')
-    outputOptions.push('-preset', 'veryfast')
-    outputOptions.push('-crf', '28')
+    outputOptions.push('-preset', options?.quality === 'high' ? 'slow' : options?.quality === 'medium' ? 'medium' : 'veryfast')
+    outputOptions.push('-crf', options?.quality === 'high' ? '18' : options?.quality === 'medium' ? '23' : '28')
     outputOptions.push('-threads', optimalThreads)
     outputOptions.push('-pix_fmt', 'yuv420p')
-    outputOptions.push('-r', '29.97')
+    outputOptions.push('-profile:v', 'high')
+    outputOptions.push('-level', '4.1')
+    outputOptions.push('-r', (options?.framerate || 30).toString())
     outputOptions.push('-c:a', 'aac')
-    outputOptions.push('-b:a', '128k')
+    outputOptions.push('-b:a', options?.audioBitrate || '192k')
+    outputOptions.push('-ar', '48000')
     outputOptions.push('-max_muxing_queue_size', '4096')
     outputOptions.push('-movflags', '+faststart')
     outputOptions.push('-tune', 'zerolatency')

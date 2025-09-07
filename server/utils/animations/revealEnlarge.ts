@@ -112,7 +112,7 @@ export const RevealEnlarge = (
         duration
       );
       const marginV = style?.verticalPosition 
-        ? Math.round((720 * (100 - style.verticalPosition)) / 100)
+        ? Math.round((720 * style.verticalPosition) / 100)
         : 0;
       moveTag = `\\move(${Math.round(currentPosition.x)},${Math.round(currentPosition.y + marginV)},${Math.round(endPosition.x)},${Math.round(endPosition.y + marginV)})`;
       currentPosition = endPosition;

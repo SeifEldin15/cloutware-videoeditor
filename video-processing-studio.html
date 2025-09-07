@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Processing Studio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        .template-preview {
+            position: relative;
+            overflow: hidden;
+            border-radius: 8px;
+        }
+        .template-preview::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+        .template-preview:hover::before {
+            left: 100%;
+        }
+        .processing-animation {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .success-bounce {
+            animation: bounce 0.6s ease-in-out;
+        }
+        @keyframes bounce {
+            0%, 20%, 53%, 80%, 100% { transform: translateY(0); }
+            40%, 43% { transform: translateY(-10px); }
+            70% { transform: translateY(-5px); }
+            90% { transform: translateY(-2px); }
+        }
+        .subtitle-mode-btn {
+            background: #e5e7eb;
+            color: #6b7280;
+        }
+        .subtitle-mode-btn.active {
+            background: #3b82f6;
+            color: white;
+        }
+        .subtitle-mode-btn:hover:not(.active) {
+            background: #d1d5db;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="gradient-bg text-white py-8">
+        <div class="container mx-auto px-4 text-center">
+            <h1 class="text-4xl font-bold mb-2">
+                <i class="fas fa-video mr-3"></i>Video Processing Studio
+            </h1>
+            <p class="text-xl opacity-90">Professional video processing with AI-powered subtitle templates</p>
+        </div>
+    </header>
+
+    <div class="container mx-auto px-4 py-8">
+        <!-- API Selection Tabs -->
+        <div class="bg-white rounded-2xl shadow-xl mb-8 overflow-hidden">
+            <div class="flex border-b">
+                <button class="api-tab flex-1 py-4 px-6 text-center font-semibold transition-all active" data-api="template" onclick="selectAPI('template')">
+                    <i class="fas fa-magic mr-2"></i>Template Styling
+                </button>
+                <button class="api-tab flex-1 py-4 px-6 text-center font-semibold transition-all" data-api="encode" onclick="selectAPI('encode')">
+                    <i class="fas fa-cogs mr-2"></i>General Processing
+                </button>
+                <button class="api-tab flex-1 py-4 px-6 text-center font-semibold transition-all" data-api="textreplace" onclick="selectAPI('textreplace')">
+                    <i class="fas fa-edit mr-2"></i>Text Replacement
+                </button>
+            </div>
+
+            <!-- Form Container -->
+            <div class="p-8">
+                <!-- Common Fields -->
+                <div class="mb-8">
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div>
+                            <label for="videoUrl" class="block text-sm font-bold text-gray-700 mb-2">
+                                <i class="fas fa-link mr-1"></i>Video URL *
+                            </label>
+                            <input type="url" id="videoUrl" 
+                                   class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors" 
+                                   placeholder="https://example.com/video.mp4" required>
+                        </div>
+                        <div>
+                            <label for="outputName" class="block text-sm font-bold text-gray-700 mb-2">
+                                <i class="fas fa-file-video mr-1"></i>Output Name
+                            </label>
+                            <input type="text" id="outputName" 
+                                   class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors" 
+                                   placeholder="my_awesome_video">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Template Styling Section -->
+                <div id="template-section">
+                    <!-- Subtitle Options -->
+                    <div class="mb-8">
+                        <div class="flex items-center justify-between mb-4">
+                            <label class="block text-sm font-bold text-gray-700">
+                                <i class="fas fa-closed-captioning mr-1"></i>Subtitle Content *
+                            </label>
+                            <div class="flex space-x-2">
+                                <button type="button" id="manualSubtitleBtn" onclick="switchSubtitleMode('manual')" 
+                                        class="subtitle-mode-btn active px-4 py-2 text-sm font-semibold rounded-lg transition-colors">
+                                    <i class="fas fa-keyboard mr-1"></i>Manual Entry
+                                </button>
+                                <button type="button" id="autoSubtitleBtn" onclick="switchSubtitleMode('auto')" 
+                                        class="subtitle-mode-btn px-4 py-2 text-sm font-semibold rounded-lg transition-colors">
+                                    <i class="fas fa-magic mr-1"></i>Auto-Generate
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Manual Subtitle Entry -->
+                        <div id="manual-subtitle-section">
+                            <textarea id="templateSrtContent" rows="6" 
+                                      class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors font-mono text-sm" 
+                                      placeholder="1
+00:00:00,000 --> 00:00:02,500
+This is AMAZING content! 🔥
+
+2
+00:00:02,500 --> 00:00:05,000
+You NEED to see this! 💯" required></textarea>
+                            <p class="text-sm text-gray-500 mt-2">
+                                <i class="fas fa-info-circle mr-1"></i>
+                                Enter subtitles in standard SRT format. Use emojis and ALL CAPS for maximum impact!
+                            </p>
+                        </div>
+
+                        <!-- Auto Subtitle Generation -->
+                        <div id="auto-subtitle-section" class="hidden">
+                            <div class="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-200 rounded-xl p-6">
+                                <div class="text-center mb-6">
+                                    <div class="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                        <i class="fas fa-robot text-2xl text-purple-600"></i>
+                                    </div>
+                                    <h4 class="text-lg font-bold text-gray-800 mb-2">AI-Powered Subtitle Generation</h4>
+                                    <p class="text-gray-600 text-sm">Automatically transcribe your video's audio into subtitles using advanced AI</p>
+                                </div>
+
+                                <!-- Transcription Options -->
+                                <div class="grid md:grid-cols-2 gap-6 mb-6">
+                                    <div>
+                                        <label for="transcribeLanguage" class="block text-sm font-semibold text-gray-700 mb-2">
+                                            <i class="fas fa-globe mr-1"></i>Language
+                                        </label>
+                                        <select id="transcribeLanguage" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none">
+                                            <option value="en">English</option>
+                                            <option value="es">Spanish</option>
+                                            <option value="fr">French</option>
+                                            <option value="de">German</option>
+                                            <option value="it">Italian</option>
+                                            <option value="pt">Portuguese</option>
+                                            <option value="zh">Chinese</option>
+                                            <option value="ja">Japanese</option>
+                                            <option value="ko">Korean</option>
+                                        </select>
+                                    </div>
+                                    <div class="space-y-3">
+                                        <label class="flex items-center">
+                                            <input type="checkbox" id="speakerLabels" class="mr-2 w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500">
+                                            <span class="text-sm font-semibold text-gray-700">
+                                                <i class="fas fa-users mr-1"></i>Speaker Labels
+                                            </span>
+                                        </label>
+                                        <label class="flex items-center">
+                                            <input type="checkbox" id="punctuate" class="mr-2 w-4 h-4 text-purple-600" checked>
+                                            <span class="text-sm font-semibold text-gray-700">
+                                                <i class="fas fa-quote-right mr-1"></i>Auto Punctuation
+                                            </span>
+                                        </label>
+                                        <label class="flex items-center">
+                                            <input type="checkbox" id="formatText" class="mr-2 w-4 h-4 text-purple-600" checked>
+                                            <span class="text-sm font-semibold text-gray-700">
+                                                <i class="fas fa-text-width mr-1"></i>Format Text
+                                            </span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- Generate Button -->
+                                <div class="text-center">
+                                    <button type="button" id="generateSubtitlesBtn" onclick="generateSubtitles()" 
+                                            class="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:from-purple-700 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                                        <i class="fas fa-magic mr-2"></i>
+                                        <span id="generateBtnText">Generate Subtitles</span>
+                                        <div id="generateSpinner" class="loading-spinner inline-block ml-2 hidden"></div>
+                                    </button>
+                                </div>
+
+                                <!-- Generated Subtitles Preview -->
+                                <div id="generated-subtitles-preview" class="hidden mt-6">
+                                    <h5 class="text-sm font-bold text-gray-700 mb-2">
+                                        <i class="fas fa-eye mr-1"></i>Generated Subtitles Preview
+                                    </h5>
+                                    <textarea id="generatedSrtContent" rows="6" 
+                                              class="w-full px-4 py-3 border border-gray-300 rounded-lg font-mono text-sm bg-gray-50" 
+                                              readonly></textarea>
+                                    <div class="flex justify-between items-center mt-3">
+                                        <p class="text-sm text-gray-600">
+                                            <i class="fas fa-check-circle text-green-600 mr-1"></i>
+                                            Subtitles generated successfully! Review and edit if needed.
+                                        </p>
+                                        <div class="space-x-2">
+                                            <button type="button" onclick="editGeneratedSubtitles()" 
+                                                    class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm">
+                                                <i class="fas fa-edit mr-1"></i>Edit
+                                            </button>
+                                            <button type="button" onclick="useGeneratedSubtitles()" 
+                                                    class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm">
+                                                <i class="fas fa-check mr-1"></i>Use These
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Template Gallery -->
+                    <div class="mb-8">
+                        <label class="block text-sm font-bold text-gray-700 mb-4">
+                            <i class="fas fa-palette mr-1"></i>Choose Your Style Template *
+                        </label>
+                        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4" id="template-gallery">
+                            <!-- Templates populated by JavaScript -->
+                        </div>
+                    </div>
+
+                    <!-- Video Effects -->
+                    <div class="mb-8">
+                        <h4 class="text-lg font-bold text-gray-800 mb-4">
+                            <i class="fas fa-sliders-h mr-2"></i>Video Effects
+                        </h4>
+                        <div class="grid md:grid-cols-3 gap-6">
+                            <div class="bg-gray-50 p-4 rounded-xl">
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Speed</label>
+                                <input type="range" id="templateSpeed" min="0.5" max="2" step="0.1" value="1.1" 
+                                       class="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer">
+                                <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                    <span>0.5x</span>
+                                    <span id="templateSpeedValue" class="font-bold">1.1x</span>
+                                    <span>2.0x</span>
+                                </div>
+                            </div>
+                            <div class="bg-gray-50 p-4 rounded-xl">
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Saturation</label>
+                                <input type="range" id="templateSaturation" min="0.8" max="2" step="0.1" value="1.3" 
+                                       class="w-full h-2 bg-purple-200 rounded-lg appearance-none cursor-pointer">
+                                <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                    <span>0.8x</span>
+                                    <span id="templateSaturationValue" class="font-bold">1.3x</span>
+                                    <span>2.0x</span>
+                                </div>
+                            </div>
+                            <div class="bg-gray-50 p-4 rounded-xl">
+                                <label class="flex items-center">
+                                    <input type="checkbox" id="templateAntiDetection" class="mr-2 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500">
+                                    <span class="text-sm font-semibold text-gray-700">Anti-Detection</span>
+                                </label>
+                                <p class="text-xs text-gray-500 mt-1">Subtle modifications to avoid automated detection</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- General Processing Section -->
+                <div id="encode-section" class="hidden">
+                    <div class="grid md:grid-cols-2 gap-6 mb-6">
+                        <div>
+                            <label for="format" class="block text-sm font-bold text-gray-700 mb-2">
+                                <i class="fas fa-file-export mr-1"></i>Output Format
+                            </label>
+                            <select id="format" class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none">
+                                <option value="mp4">MP4 (Video)</option>
+                                <option value="gif">GIF (Animation)</option>
+                                <option value="png">PNG (Image)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="flex items-center h-full">
+                                <input type="checkbox" id="backgroundAudio" class="mr-3 w-5 h-5 text-blue-600">
+                                <span class="text-sm font-semibold text-gray-700">
+                                    <i class="fas fa-music mr-1"></i>Add Background Audio
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Basic Subtitles -->
+                    <div class="mb-6">
+                        <label for="srtContent" class="block text-sm font-bold text-gray-700 mb-2">
+                            <i class="fas fa-closed-captioning mr-1"></i>Subtitle Content (Optional)
+                        </label>
+                        <textarea id="srtContent" rows="6" 
+                                  class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none font-mono text-sm" 
+                                  placeholder="1
+00:00:00,000 --> 00:00:02,500
+Hello World!
+
+2
+00:00:02,500 --> 00:00:05,000
+Basic subtitle example."></textarea>
+                    </div>
+                </div>
+
+                <!-- Text Replacement Section -->
+                <div id="textreplace-section" class="hidden">
+                    <div class="mb-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <label class="text-sm font-bold text-gray-700">
+                                <i class="fas fa-edit mr-1"></i>Text Replacements *
+                            </label>
+                            <button type="button" onclick="addReplacement()" 
+                                    class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors">
+                                <i class="fas fa-plus mr-1"></i>Add Replacement
+                            </button>
+                        </div>
+                        <div id="textReplacements">
+                            <!-- Initial replacement will be added by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Processing Status -->
+                <div id="processing-status" class="hidden mb-6">
+                    <div class="bg-blue-50 border border-blue-200 rounded-xl p-6 text-center">
+                        <div class="processing-animation inline-block">
+                            <i class="fas fa-cog fa-spin text-3xl text-blue-600 mb-3"></i>
+                        </div>
+                        <h4 class="text-lg font-bold text-blue-800 mb-2">Processing Your Video</h4>
+                        <p class="text-blue-700">This may take a few minutes depending on video length...</p>
+                        <div class="mt-4 bg-blue-200 rounded-full h-2">
+                            <div id="progress-bar" class="bg-blue-600 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                        <p id="progress-text" class="text-sm text-blue-600 mt-2">Initializing...</p>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="text-center mb-6">
+                    <button type="button" id="submitBtn" onclick="processVideo()" 
+                            class="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-12 py-4 rounded-2xl text-lg font-bold hover:from-blue-700 hover:to-purple-700 transform hover:scale-105 transition-all duration-200 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none">
+                        <i class="fas fa-rocket mr-2"></i>
+                        <span id="btnText">Process Video</span>
+                    </button>
+                </div>
+
+                <!-- Results -->
+                <div id="result-section" class="hidden">
+                    <div class="bg-green-50 border-2 border-green-200 rounded-2xl p-8 text-center success-bounce">
+                        <i class="fas fa-check-circle text-5xl text-green-600 mb-4"></i>
+                        <h4 class="text-2xl font-bold text-green-800 mb-2">Success!</h4>
+                        <p class="text-green-700 mb-6">Your video has been processed successfully.</p>
+                        <a id="download-link" href="#" 
+                           class="bg-green-600 text-white px-8 py-3 rounded-xl hover:bg-green-700 transition-colors inline-block font-bold" 
+                           download>
+                            <i class="fas fa-download mr-2"></i>Download Video
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Error Display -->
+                <div id="error-section" class="hidden">
+                    <div class="bg-red-50 border-2 border-red-200 rounded-2xl p-8 text-center">
+                        <i class="fas fa-exclamation-triangle text-5xl text-red-600 mb-4"></i>
+                        <h4 class="text-2xl font-bold text-red-800 mb-2">Processing Error</h4>
+                        <p id="error-message" class="text-red-700 mb-4"></p>
+                        <button onclick="hideError()" 
+                                class="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 transition-colors">
+                            <i class="fas fa-times mr-1"></i>Dismiss
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Enhanced template data with previews and categories
+        const styleTemplates = {
+            hormozi: {
+                name: 'Hormozi',
+                description: 'High-energy multi-color highlights',
+                category: 'Viral',
+                icon: '🔥',
+                gradient: 'from-red-400 to-yellow-400'
+            },
+            girlboss: {
+                name: 'Girlboss',
+                description: 'Bold pink energy with shake',
+                category: 'Viral',
+                icon: '💅',
+                gradient: 'from-pink-400 to-rose-400'
+            },
+            tiktokstyle: {
+                name: 'TikTok',
+                description: 'Single vibrant color pop',
+                category: 'Social',
+                icon: '🎵',
+                gradient: 'from-yellow-400 to-orange-400'
+            },
+            whiteimpact: {
+                name: 'White Impact',
+                description: 'Clean professional style',
+                category: 'Business',
+                icon: '📝',
+                gradient: 'from-gray-300 to-gray-400'
+            },
+            thintobold: {
+                name: 'Thin to Bold',
+                description: 'Elegant font transitions',
+                category: 'Elegant',
+                icon: '✨',
+                gradient: 'from-indigo-400 to-purple-400'
+            },
+            wavycolors: {
+                name: 'Wavy Colors',
+                description: 'Rainbow animated text',
+                category: 'Fun',
+                icon: '🌈',
+                gradient: 'from-green-400 via-blue-400 to-purple-400'
+            },
+            shrinkingpairs: {
+                name: 'Shrinking Pairs',
+                description: 'Dynamic shrinking effect',
+                category: 'Dynamic',
+                icon: '🎯',
+                gradient: 'from-blue-400 to-cyan-400'
+            },
+            revealenlarge: {
+                name: 'Reveal & Enlarge',
+                description: 'Color cycling with scale',
+                category: 'Dynamic',
+                icon: '🎭',
+                gradient: 'from-purple-400 to-pink-400'
+            },
+            impactfull: {
+                name: 'Impact Full',
+                description: 'Complete text display',
+                category: 'Business',
+                icon: '📰',
+                gradient: 'from-slate-400 to-gray-500'
+            },
+            basic: {
+                name: 'Basic',
+                description: 'Clean and simple',
+                category: 'Business',
+                icon: '📄',
+                gradient: 'from-gray-400 to-slate-400'
+            }
+        };
+
+        let currentAPI = 'template';
+        let selectedTemplate = '';
+        let subtitleMode = 'manual'; // 'manual' or 'auto'
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            selectAPI('template');
+            populateTemplates();
+            setupRangeListeners();
+            addReplacement(); // Add initial replacement for text replace
+        });
+
+        // Subtitle Mode Functions
+        function switchSubtitleMode(mode) {
+            subtitleMode = mode;
+            
+            // Update button states
+            document.querySelectorAll('.subtitle-mode-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            if (mode === 'manual') {
+                document.getElementById('manualSubtitleBtn').classList.add('active');
+                document.getElementById('manual-subtitle-section').classList.remove('hidden');
+                document.getElementById('auto-subtitle-section').classList.add('hidden');
+                document.getElementById('templateSrtContent').required = true;
+            } else {
+                document.getElementById('autoSubtitleBtn').classList.add('active');
+                document.getElementById('manual-subtitle-section').classList.add('hidden');
+                document.getElementById('auto-subtitle-section').classList.remove('hidden');
+                document.getElementById('templateSrtContent').required = false;
+            }
+        }
+
+        // Generate Subtitles using AI Transcription
+        async function generateSubtitles() {
+            const videoUrl = document.getElementById('videoUrl').value.trim();
+            if (!videoUrl) {
+                showError('Please enter a video URL first');
+                return;
+            }
+
+            const generateBtn = document.getElementById('generateSubtitlesBtn');
+            const btnText = document.getElementById('generateBtnText');
+            const spinner = document.getElementById('generateSpinner');
+
+            try {
+                // Show loading state
+                generateBtn.disabled = true;
+                btnText.textContent = 'Generating...';
+                spinner.classList.remove('hidden');
+
+                const payload = {
+                    url: videoUrl,
+                    outputFormat: 'srt',
+                    language: document.getElementById('transcribeLanguage').value,
+                    speakerLabels: document.getElementById('speakerLabels').checked,
+                    punctuate: document.getElementById('punctuate').checked,
+                    formatText: document.getElementById('formatText').checked
+                };
+
+                const response = await fetch('/api/transcribe-video', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    let errorMessage = `Transcription failed: ${response.status}`;
+                    try {
+                        const errorData = await response.json();
+                        errorMessage = errorData.error || errorMessage;
+                    } catch (e) {
+                        // If we can't parse JSON, use the status text
+                        errorMessage = `Transcription failed: ${response.status} ${response.statusText}`;
+                    }
+                    throw new Error(errorMessage);
+                }
+
+                let result;
+                try {
+                    result = await response.json();
+                } catch (jsonError) {
+                    // If JSON parsing fails, the response might be plain text
+                    const textResponse = await response.text();
+                    throw new Error(`Invalid response format. Expected JSON but got: ${textResponse.substring(0, 100)}...`);
+                }
+                
+                // Display generated subtitles
+                document.getElementById('generatedSrtContent').value = result.subtitles || result.srt || 'No subtitles generated';
+                document.getElementById('generated-subtitles-preview').classList.remove('hidden');
+
+                // Auto-scroll to preview
+                document.getElementById('generated-subtitles-preview').scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'nearest' 
+                });
+
+            } catch (error) {
+                console.error('Subtitle generation error:', error);
+                showError(`Failed to generate subtitles: ${error.message}`);
+            } finally {
+                // Reset button state
+                generateBtn.disabled = false;
+                btnText.textContent = 'Generate Subtitles';
+                spinner.classList.add('hidden');
+            }
+        }
+
+        // Edit Generated Subtitles
+        function editGeneratedSubtitles() {
+            const generatedContent = document.getElementById('generatedSrtContent').value;
+            document.getElementById('templateSrtContent').value = generatedContent;
+            switchSubtitleMode('manual');
+        }
+
+        // Use Generated Subtitles
+        function useGeneratedSubtitles() {
+            const generatedContent = document.getElementById('generatedSrtContent').value;
+            document.getElementById('templateSrtContent').value = generatedContent;
+            document.getElementById('generated-subtitles-preview').classList.add('hidden');
+            
+            // Show success message
+            const preview = document.getElementById('generated-subtitles-preview');
+            const successMsg = document.createElement('div');
+            successMsg.className = 'bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4';
+            successMsg.innerHTML = '<i class="fas fa-check mr-2"></i>Subtitles loaded successfully! You can now select a template and process your video.';
+            preview.parentNode.insertBefore(successMsg, preview);
+            
+            setTimeout(() => {
+                successMsg.remove();
+            }, 3000);
+        }
+
+        // API Selection
+        function selectAPI(api) {
+            currentAPI = api;
+            
+            // Update tabs
+            document.querySelectorAll('.api-tab').forEach(tab => {
+                tab.classList.remove('active', 'bg-blue-600', 'text-white');
+                tab.classList.add('text-gray-600', 'hover:text-blue-600');
+            });
+            
+            const activeTab = document.querySelector(`[data-api="${api}"]`);
+            activeTab.classList.remove('text-gray-600', 'hover:text-blue-600');
+            activeTab.classList.add('active', 'bg-blue-600', 'text-white');
+            
+            // Show/hide sections
+            document.getElementById('template-section').classList.toggle('hidden', api !== 'template');
+            document.getElementById('encode-section').classList.toggle('hidden', api !== 'encode');
+            document.getElementById('textreplace-section').classList.toggle('hidden', api !== 'textreplace');
+        }
+
+        // Populate templates
+        function populateTemplates() {
+            const gallery = document.getElementById('template-gallery');
+            gallery.innerHTML = '';
+
+            Object.entries(styleTemplates).forEach(([key, template]) => {
+                const card = document.createElement('div');
+                card.className = `template-card cursor-pointer bg-white border-2 border-gray-200 rounded-xl p-4 text-center card-hover relative overflow-hidden`;
+                card.onclick = () => selectTemplate(key);
+                card.innerHTML = `
+                    <div class="template-preview bg-gradient-to-br ${template.gradient} text-white rounded-lg p-3 mb-3">
+                        <div class="text-2xl mb-1">${template.icon}</div>
+                        <div class="text-xs font-bold">${template.category}</div>
+                    </div>
+                    <h4 class="font-bold text-sm text-gray-800 mb-1">${template.name}</h4>
+                    <p class="text-xs text-gray-600">${template.description}</p>
+                `;
+                card.id = `template-${key}`;
+                gallery.appendChild(card);
+            });
+        }
+
+        // Select template
+        function selectTemplate(templateKey) {
+            selectedTemplate = templateKey;
+            
+            // Update visual selection
+            document.querySelectorAll('.template-card').forEach(card => {
+                card.classList.remove('border-blue-500', 'bg-blue-50');
+                card.classList.add('border-gray-200');
+            });
+            
+            const selectedCard = document.getElementById(`template-${templateKey}`);
+            selectedCard.classList.remove('border-gray-200');
+            selectedCard.classList.add('border-blue-500', 'bg-blue-50');
+        }
+
+        // Range listeners
+        function setupRangeListeners() {
+            const ranges = [
+                {id: 'templateSpeed', valueId: 'templateSpeedValue', suffix: 'x'},
+                {id: 'templateSaturation', valueId: 'templateSaturationValue', suffix: 'x'}
+            ];
+
+            ranges.forEach(range => {
+                const input = document.getElementById(range.id);
+                const display = document.getElementById(range.valueId);
+                if (input && display) {
+                    input.addEventListener('input', () => {
+                        display.textContent = input.value + range.suffix;
+                    });
+                    // Set initial value
+                    display.textContent = input.value + range.suffix;
+                }
+            });
+        }
+
+        // Text replacement management
+        function addReplacement() {
+            const container = document.getElementById('textReplacements');
+            const div = document.createElement('div');
+            div.className = 'bg-gray-50 border-2 border-gray-200 rounded-xl p-6 mb-4';
+            div.innerHTML = `
+                <div class="flex justify-between items-center mb-4">
+                    <h4 class="font-bold text-gray-800">
+                        <i class="fas fa-text-width mr-1"></i>Text Replacement
+                    </h4>
+                    <button type="button" onclick="removeReplacement(this)" 
+                            class="text-red-600 hover:text-red-800 text-sm">
+                        <i class="fas fa-trash mr-1"></i>Remove
+                    </button>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Position X</label>
+                        <input type="number" class="replacement-x w-full px-3 py-2 border border-gray-300 rounded-lg" value="100">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Position Y</label>
+                        <input type="number" class="replacement-y w-full px-3 py-2 border border-gray-300 rounded-lg" value="100">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Width</label>
+                        <input type="number" class="replacement-width w-full px-3 py-2 border border-gray-300 rounded-lg" value="300">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Height</label>
+                        <input type="number" class="replacement-height w-full px-3 py-2 border border-gray-300 rounded-lg" value="60">
+                    </div>
+                </div>
+                <div class="grid md:grid-cols-3 gap-4">
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Replacement Text</label>
+                        <input type="text" class="replacement-text w-full px-3 py-2 border border-gray-300 rounded-lg" 
+                               placeholder="Enter your new text here">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Font Size</label>
+                        <input type="number" class="replacement-fontsize w-full px-3 py-2 border border-gray-300 rounded-lg" 
+                               value="24" min="8" max="200">
+                    </div>
+                </div>
+            `;
+            container.appendChild(div);
+        }
+
+        function removeReplacement(button) {
+            button.closest('.bg-gray-50').remove();
+        }
+
+        // Main processing function
+        async function processVideo() {
+            const videoUrl = document.getElementById('videoUrl').value.trim();
+            if (!videoUrl) {
+                showError('Please enter a valid video URL');
+                return;
+            }
+
+            try {
+                showProcessing();
+                let result;
+                
+                switch (currentAPI) {
+                    case 'template':
+                        result = await processTemplateVideo();
+                        break;
+                    case 'encode':
+                        result = await processGeneralVideo();
+                        break;
+                    case 'textreplace':
+                        result = await processTextReplace();
+                        break;
+                }
+
+                showSuccess(result);
+            } catch (error) {
+                console.error('Processing error:', error);
+                showError(error.message || 'An unexpected error occurred');
+            } finally {
+                hideProcessing();
+            }
+        }
+
+        // Process template video
+        async function processTemplateVideo() {
+            if (!selectedTemplate) {
+                throw new Error('Please select a subtitle template');
+            }
+
+            let srtContent;
+            
+            // Get subtitle content based on mode
+            if (subtitleMode === 'manual') {
+                srtContent = document.getElementById('templateSrtContent').value.trim();
+                if (!srtContent) {
+                    throw new Error('Please enter subtitle content in SRT format');
+                }
+            } else {
+                // Auto mode - check if subtitles were generated
+                const generatedContent = document.getElementById('generatedSrtContent').value.trim();
+                const manualContent = document.getElementById('templateSrtContent').value.trim();
+                
+                srtContent = manualContent || generatedContent;
+                
+                if (!srtContent) {
+                    throw new Error('Please generate subtitles first or switch to manual entry mode');
+                }
+            }
+
+            const payload = {
+                url: document.getElementById('videoUrl').value,
+                srtContent: srtContent,
+                templateName: selectedTemplate,
+                outputName: document.getElementById('outputName').value || 'template_video',
+                options: {
+                    speedFactor: parseFloat(document.getElementById('templateSpeed').value),
+                    saturationFactor: parseFloat(document.getElementById('templateSaturation').value)
+                }
+            };
+
+            if (document.getElementById('templateAntiDetection').checked) {
+                payload.options.antiDetection = {
+                    pixelShift: true,
+                    noiseAddition: true,
+                    metadataPoisoning: true
+                };
+            }
+
+            const response = await fetch('/api/encode-template', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `Server error: ${response.status}`);
+            }
+
+            return response.blob();
+        }
+
+        // Process general video
+        async function processGeneralVideo() {
+            const payload = {
+                url: document.getElementById('videoUrl').value,
+                outputName: document.getElementById('outputName').value || 'processed_video',
+                format: document.getElementById('format').value,
+                options: {
+                    backgroundAudio: document.getElementById('backgroundAudio').checked
+                }
+            };
+
+            const srtContent = document.getElementById('srtContent').value.trim();
+            if (srtContent) {
+                payload.caption = { srtContent: srtContent };
+            }
+
+            const response = await fetch('/api/encode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `Server error: ${response.status}`);
+            }
+
+            return response.blob();
+        }
+
+        // Process text replacement
+        async function processTextReplace() {
+            const replacements = [];
+            const replacementElements = document.querySelectorAll('#textReplacements .bg-gray-50');
+
+            replacementElements.forEach(element => {
+                const text = element.querySelector('.replacement-text').value.trim();
+                if (text) {
+                    replacements.push({
+                        position: {
+                            x: parseInt(element.querySelector('.replacement-x').value) || 0,
+                            y: parseInt(element.querySelector('.replacement-y').value) || 0,
+                            width: parseInt(element.querySelector('.replacement-width').value) || 200,
+                            height: parseInt(element.querySelector('.replacement-height').value) || 50
+                        },
+                        text: text,
+                        textStyle: {
+                            fontSize: parseInt(element.querySelector('.replacement-fontsize').value) || 24,
+                            fontColor: '#FFFFFF'
+                        }
+                    });
+                }
+            });
+
+            if (replacements.length === 0) {
+                throw new Error('Please add at least one text replacement');
+            }
+
+            const payload = {
+                url: document.getElementById('videoUrl').value,
+                outputName: document.getElementById('outputName').value || 'text_replaced_video',
+                textReplacements: replacements
+            };
+
+            const response = await fetch('/api/text-replace', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `Server error: ${response.status}`);
+            }
+
+            return response.blob();
+        }
+
+        // UI State Management
+        function showProcessing() {
+            document.getElementById('submitBtn').disabled = true;
+            document.getElementById('btnText').textContent = 'Processing...';
+            document.getElementById('processing-status').classList.remove('hidden');
+            document.getElementById('result-section').classList.add('hidden');
+            document.getElementById('error-section').classList.add('hidden');
+            
+            // Simulate progress
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.random() * 15;
+                if (progress > 95) progress = 95;
+                
+                document.getElementById('progress-bar').style.width = progress + '%';
+                
+                const messages = [
+                    'Analyzing video...',
+                    'Processing subtitles...',
+                    'Applying effects...',
+                    'Rendering video...',
+                    'Almost done...'
+                ];
+                const messageIndex = Math.min(Math.floor(progress / 20), messages.length - 1);
+                document.getElementById('progress-text').textContent = messages[messageIndex];
+            }, 800);
+            
+            window.progressInterval = interval;
+        }
+
+        function hideProcessing() {
+            document.getElementById('submitBtn').disabled = false;
+            document.getElementById('btnText').textContent = 'Process Video';
+            document.getElementById('processing-status').classList.add('hidden');
+            
+            if (window.progressInterval) {
+                clearInterval(window.progressInterval);
+                document.getElementById('progress-bar').style.width = '100%';
+            }
+        }
+
+        function showSuccess(blob) {
+            const url = URL.createObjectURL(blob);
+            const link = document.getElementById('download-link');
+            link.href = url;
+            
+            // Set filename based on current API
+            const outputName = document.getElementById('outputName').value || 'processed_video';
+            const extension = currentAPI === 'encode' ? 
+                (document.getElementById('format')?.value || 'mp4') : 'mp4';
+            link.download = `${outputName}.${extension}`;
+            
+            document.getElementById('result-section').classList.remove('hidden');
+            document.getElementById('result-section').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function showError(message) {
+            document.getElementById('error-message').textContent = message;
+            document.getElementById('error-section').classList.remove('hidden');
+            document.getElementById('error-section').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function hideError() {
+            document.getElementById('error-section').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>

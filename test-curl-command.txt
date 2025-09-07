@@ -1,0 +1,31 @@
+# Test the template system with curl
+
+# 1. First, list available templates:
+curl -X GET http://localhost:3000/api/encode-template
+
+# 2. Test the girlboss template (your exact request):
+curl -X POST http://localhost:3000/api/encode-template \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://dkkaakuajsyehonlipbu.supabase.co/storage/v1/object/public/videos/tiktok/6736250773027767302/7362188339048353066",
+    "srtContent": "1\n00:00:00,000 --> 00:00:03,000\nGIRLBOSS ENERGY! 💅✨\n\n2\n00:00:03,000 --> 00:00:06,000\nOWN YOUR POWER! 👑",
+    "templateName": "girlboss",
+    "outputName": "test_girlboss"
+  }' \
+  --output test_girlboss.mp4 \
+  --progress-bar
+
+# 3. Test another template (hormozi):
+curl -X POST http://localhost:3000/api/encode-template \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://dkkaakuajsyehonlipbu.supabase.co/storage/v1/object/public/videos/tiktok/6736250773027767302/7362188339048353066",
+    "srtContent": "1\n00:00:00,000 --> 00:00:02,500\nATTENTION! 🚨💰\n\n2\n00:00:02,500 --> 00:00:05,000\nThis will CHANGE your LIFE! 🔥",
+    "templateName": "hormozi",
+    "outputName": "test_hormozi"
+  }' \
+  --output test_hormozi.mp4 \
+  --progress-bar
+
+# PowerShell version (for Windows):
+# .\test-reliable-template.ps1 girlboss 

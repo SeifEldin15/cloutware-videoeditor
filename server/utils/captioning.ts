@@ -126,9 +126,11 @@ export async function processVideoWithTimedSubtitles(inputUrl: string, transcrip
       
       command.outputOptions([
         '-c:v', 'libx264',      
-        '-preset', 'ultrafast', 
-        '-crf', '18',           
-        '-c:a', 'copy',         
+        '-preset', 'medium',    // Better quality than ultrafast
+        '-crf', '18',           // Keep high quality for captions
+        '-c:a', 'aac',          // Better audio codec than copy
+        '-b:a', '192k',         // Higher audio bitrate
+        '-ar', '48000',         // Professional sample rate
         '-map_metadata', '0',   
         '-movflags', 'frag_keyframe+empty_moov+faststart', 
         '-f', 'mp4'            
@@ -228,13 +230,15 @@ export async function processVideoWithSubtitlesFile(inputUrl: string, srtContent
       
       command.outputOptions([
         '-c:v', 'libx264',      
-        '-preset', 'ultrafast', 
-        '-crf', '23',           
+        '-preset', 'medium',    // Better quality than ultrafast  
+        '-crf', '20',           // Slightly better quality for captions
         '-c:a', 'aac',
-        '-b:a', '128k',         
+        '-b:a', '192k',         // Higher audio bitrate
+        '-ar', '48000',         // Professional sample rate
         '-map_metadata', '-1',   
         '-movflags', 'frag_keyframe+empty_moov+faststart', 
         '-pix_fmt', 'yuv420p',
+        '-profile:v', 'high',   // Better compression profile
         '-f', 'mp4'            
       ])
       .on('start', (commandLine: string) => {

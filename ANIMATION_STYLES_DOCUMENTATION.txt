@@ -1,0 +1,439 @@
+================================================================================
+                    VIDEO PROCESSING ANIMATION STYLES DOCUMENTATION
+================================================================================
+
+VERSION: 1.0
+LAST UPDATED: January 2025
+SYSTEM: Video Processing with Advanced Subtitle Animations
+
+================================================================================
+                                    OVERVIEW
+================================================================================
+
+This system provides 5 main animation styles for subtitle rendering, each with
+unique visual effects, parameters, and use cases. All animations support:
+
+• Dynamic font selection
+• Color customization  
+• Shadow/glow effects
+• Positioning controls
+• Shake animations (optional)
+• ASS subtitle format output
+
+================================================================================
+                               ANIMATION STYLES
+================================================================================
+
+1. GIRLBOSS ANIMATION
+================================================================================
+
+DESCRIPTION:
+Feminine, empowering style with pink/customizable colors, smooth word-by-word
+reveals with glow effects. Perfect for lifestyle, beauty, and empowerment content.
+
+FONT: Luckiest Guy (Bold, Impact style)
+
+PARAMETERS:
+• subtitleStyle: "girlboss"
+• fontFamily: "Luckiest Guy" (recommended)
+• fontSize: 10-72 (default: 48)
+• girlbossColor: HEX color (default: "#FF1493" - hot pink)
+• girlbossShadowStrength: 0.5-3.0 (default: 1.0)
+• girlbossAnimation: "none" | "shake" (default: "none")
+• verticalPosition: 0-100 (default: 18, from bottom %) - UNIVERSAL
+• outlineWidth: 0-8 (default: 2) - Text outline width
+• outlineColor: HEX color (default: "#000000") - Outline color
+• outlineBlur: 0-10 (default: 0) - Outline blur effect
+
+VISUAL EFFECTS:
+• Word-by-word color reveal
+• Soft glow/shadow effects
+• Smooth transitions
+• Optional shake animation for emphasis
+
+BEST USE CASES:
+• Beauty and lifestyle content
+• Empowerment messages
+• Fashion videos
+• Motivational content
+• Female-targeted marketing
+
+EXAMPLE USAGE:
+{
+  "subtitleStyle": "girlboss",
+  "fontFamily": "Luckiest Guy",
+  "fontSize": 48,
+  "girlbossColor": "#FF1493",
+  "girlbossShadowStrength": 2.0,
+  "girlbossAnimation": "shake",
+  "verticalPosition": 18
+}
+
+================================================================================
+
+2. HORMOZI VIRAL ANIMATION
+================================================================================
+
+DESCRIPTION:
+High-energy viral style with alternating bright colors per word. Designed for
+maximum attention and engagement. Inspired by Alex Hormozi's viral content style.
+
+FONT: Luckiest Guy (Bold, Impact style)
+
+PARAMETERS:
+• subtitleStyle: "hormozi"
+• fontFamily: "Luckiest Guy" (recommended)
+• fontSize: 10-72 (default: 50)
+• hormoziColors: Array of HEX colors (default: ["#0BF431", "#2121FF", "#1DE0FE", "#FFFF00"])
+• hormoziShadowStrength: 1-5 (default: 3)
+• hormoziAnimation: "none" | "shake" (default: "none")
+• verticalPosition: 0-100 (default: 15, from bottom %) - UNIVERSAL
+• outlineWidth: 0-8 (default: 2) - Text outline width
+• outlineColor: HEX color (default: "#000000") - Outline color
+• outlineBlur: 0-10 (default: 0) - Outline blur effect
+
+COLOR SEQUENCE (Default):
+1. #0BF431 - Bright Green (signature Hormozi color)
+2. #2121FF - Blue
+3. #1DE0FE - Cyan
+4. #FFFF00 - Yellow
+
+VISUAL EFFECTS:
+• Word-by-word alternating colors
+• Strong glow/shadow effects
+• High contrast for maximum visibility
+• Optional shake animation for viral effect
+
+BEST USE CASES:
+• Business/entrepreneurship content
+• Motivational videos
+• Marketing content
+• Attention-grabbing messages
+• Social media viral content
+• Sales and conversion videos
+
+EXAMPLE USAGE:
+{
+  "subtitleStyle": "hormozi",
+  "fontFamily": "Luckiest Guy",
+  "fontSize": 50,
+  "hormoziColors": ["#0BF431", "#FF0000", "#0080FF", "#FFFF00"],
+  "hormoziShadowStrength": 3.5,
+  "hormoziAnimation": "shake",
+  "verticalPosition": 15
+}
+
+================================================================================
+
+3. THINTOBOLD ANIMATION
+================================================================================
+
+DESCRIPTION:
+Elegant, sophisticated animation that groups words in pairs with smooth reveals.
+Features dynamic transformation from Montserrat Thin to Montserrat with 120% scaling.
+Perfect for professional and refined content.
+
+FONT: Montserrat Thin → Montserrat (with 120% scaling for bold effect)
+
+PARAMETERS:
+• subtitleStyle: "thintobold"
+• fontFamily: "Montserrat Thin" (recommended)
+• fontSize: 10-72 (default: 50)
+• thinToBoldColor: HEX color (default: "#FFFFFF")
+• thinToBoldShadowStrength: 0.5-3.0 (default: 1.8)
+• thinToBoldAnimation: "none" | "shake" (default: "none")
+• verticalPosition: 0-100 (default: 22, from bottom %) - UNIVERSAL
+• outlineWidth: 0-8 (default: 2) - Text outline width
+• outlineColor: HEX color (default: "#000000") - Outline color
+• outlineBlur: 0-10 (default: 0) - Outline blur effect
+
+VISUAL EFFECTS:
+• Word-pair grouping (2 words at a time)
+• Smooth, elegant transitions
+• Minimal glow effects
+• Clean, professional appearance
+
+BEST USE CASES:
+• Professional presentations
+• Corporate content
+• Educational videos
+• Luxury brand content
+• Sophisticated messaging
+• Documentary-style content
+
+EXAMPLE USAGE:
+{
+  "subtitleStyle": "thintobold",
+  "fontFamily": "Montserrat Thin",
+  "fontSize": 50,
+  "thinToBoldColor": "#FFFFFF",
+  "thinToBoldShadowStrength": 1.8,
+  "thinToBoldAnimation": "none",
+  "verticalPosition": 22
+}
+
+================================================================================
+
+4. WAVYCOLORS ANIMATION
+================================================================================
+
+DESCRIPTION:
+Dynamic rainbow color effects with wavy, flowing transitions. Creates eye-catching
+visual movement with character-level color cycling.
+
+FONT: Luckiest Guy (Bold, Impact style)
+
+PARAMETERS:
+• subtitleStyle: "wavycolors"
+• fontFamily: "Luckiest Guy" (recommended)
+• fontSize: 10-72 (default: 50)
+• wavyColorsOutlineWidth: 1-5 (default: 3) - Special effect outline
+• verticalPosition: 0-100 (default: 12, from bottom %) - UNIVERSAL
+• outlineWidth: 0-8 (default: 2) - Base text outline width
+• outlineColor: HEX color (default: "#000000") - Base outline color
+• outlineBlur: 0-10 (default: 0) - Outline blur effect
+
+COLOR SEQUENCE (Built-in):
+• Green (#00FF00)
+• Yellow (#FFFF00)
+• Light Blue (#00FFFF)
+
+VISUAL EFFECTS:
+• Character-level color cycling
+• Strong outline effects
+• Blur and glow combinations
+• Stretch effects for emphasis
+• Continuous color wave motion
+
+BEST USE CASES:
+• Party/entertainment content
+• Music videos
+• Gaming content
+• Youth-targeted content
+• Creative/artistic videos
+• Fun, energetic messaging
+
+EXAMPLE USAGE:
+{
+  "subtitleStyle": "wavycolors",
+  "fontFamily": "Luckiest Guy",
+  "fontSize": 50,
+  "wavyColorsOutlineWidth": 3,
+  "verticalPosition": 12
+}
+
+================================================================================
+
+5. BASIC ANIMATION
+================================================================================
+
+DESCRIPTION:
+Clean, professional subtitle style without special effects. Standard subtitle
+appearance with full customization options.
+
+FONT: Arial (Professional, Clean)
+
+PARAMETERS:
+• subtitleStyle: "basic"
+• fontSize: 10-72 (default: 48)
+• fontColor: Any valid color (default: "white")
+• fontFamily: Any available font (default: "Arial")
+• fontStyle: "regular" | "bold" | "italic" (default: "regular")
+• subtitlePosition: "top" | "middle" | "bottom" (default: "bottom")
+• horizontalAlignment: "left" | "center" | "right" (default: "center")
+• verticalPosition: 10-100 (default: 35) - UNIVERSAL
+• showBackground: true | false (default: true)
+• backgroundColor: Color with opacity (default: "black@0.8")
+• outlineWidth: 0-8 (default: 2) - Text outline width
+• outlineColor: HEX color (default: "#000000") - Outline color
+• outlineBlur: 0-10 (default: 0) - Outline blur effect
+
+VISUAL EFFECTS:
+• Static text display
+• Optional background box
+• Standard positioning
+• No special animations
+
+BEST USE CASES:
+• Professional content
+• News and information
+• Educational material
+• Accessibility requirements
+• Clean, readable subtitles
+• Standard video content
+
+EXAMPLE USAGE:
+{
+  "subtitleStyle": "basic",
+  "fontSize": 48,
+  "fontColor": "white",
+  "fontStyle": "bold",
+  "subtitlePosition": "bottom",
+  "horizontalAlignment": "center",
+  "verticalPosition": 35,
+  "showBackground": true,
+  "backgroundColor": "black@0.8"
+}
+
+================================================================================
+                               FONT RECOMMENDATIONS
+================================================================================
+
+PRIMARY FONTS:
+• Luckiest Guy - Bold, impactful, perfect for viral content
+• Montserrat Thin - Elegant, refined, professional
+• Arial - Clean, readable, universal
+
+FONT MAPPING BY STYLE:
+• Girlboss → Luckiest Guy
+• Hormozi → Luckiest Guy  
+• WavyColors → Luckiest Guy
+• ThinToBold → Montserrat Thin → Montserrat + scaling (dynamic)
+• Basic → Arial
+
+AVAILABLE FONTS:
+• Arial, Arial Black
+• Montserrat, Montserrat Thin, Montserrat ExtraBold, Montserrat Black
+• Luckiest Guy
+• Impact, Helvetica, Georgia, Times New Roman
+• Verdana, Trebuchet, Comic Sans MS, Courier New
+• Garamond, Palatino Linotype, Bookman Old Style
+• Erica One, Bungee, Sigmar, Sora, Tahoma
+• Gotham Ultra, Bodoni Moda
+
+================================================================================
+                                COMMON PARAMETERS
+================================================================================
+
+GLOBAL PARAMETERS (Available for all styles):
+• srtContent: SRT subtitle content (required)
+• fontSize: 10-72 pixels
+• fontFamily: Font name (see available fonts)
+• horizontalAlignment: "left" | "center" | "right"
+
+UNIVERSAL OUTLINE PARAMETERS (Available for all styles):
+• outlineWidth: 0-8 pixels (default: 2) - Width of text outline
+• outlineColor: HEX color (default: "#000000") - Color of text outline  
+• outlineBlur: 0-10 pixels (default: 0) - Blur/shadow effect for outline
+
+ANIMATION PARAMETERS:
+• [style]Animation: "none" | "shake" 
+  - "none": Static positioning
+  - "shake": Dynamic movement animation
+
+POSITIONING PARAMETERS:
+• [style]VerticalPosition: 0-100 (percentage from bottom)
+  - 0: Bottom of screen
+  - 50: Middle of screen
+  - 100: Top of screen
+
+SHADOW/GLOW PARAMETERS:
+• [style]ShadowStrength: Intensity of glow/shadow effects
+  - Lower values: Subtle effects
+  - Higher values: Strong, dramatic effects
+
+================================================================================
+                                 API USAGE
+================================================================================
+
+ENDPOINT: POST /api/encode
+
+REQUEST STRUCTURE:
+{
+  "url": "video_url",
+  "outputName": "output_filename",
+  "format": "mp4",
+  "caption": {
+    // Animation parameters go here
+  }
+}
+
+EXAMPLE COMPLETE REQUEST:
+{
+  "url": "https://example.com/video.mp4",
+  "outputName": "viral_video",
+  "format": "mp4",
+  "caption": {
+    "srtContent": "1\n00:00:00,000 --> 00:00:03,000\nATTENTION ENTREPRENEURS!\n\n2\n00:00:03,000 --> 00:00:06,000\nThis will CHANGE your business!",
+    "subtitleStyle": "hormozi",
+    "fontFamily": "Luckiest Guy",
+    "fontSize": 50,
+    "hormoziColors": ["#0BF431", "#FF0000", "#0080FF", "#FFFF00"],
+    "hormoziShadowStrength": 3.5,
+    "hormoziAnimation": "shake",
+    "verticalPosition": 15,
+    "outlineWidth": 3,
+    "outlineColor": "#FFFFFF",
+    "outlineBlur": 1
+  }
+}
+
+================================================================================
+                                BEST PRACTICES
+================================================================================
+
+1. CONTENT MATCHING:
+   • Business/Sales → Hormozi style
+   • Lifestyle/Beauty → Girlboss style
+   • Professional → ThinToBold or Basic
+   • Entertainment → WavyColors style
+
+2. FONT SELECTION:
+   • Impact content → Luckiest Guy
+   • Professional content → Montserrat Thin
+   • Standard content → Arial
+
+3. COLOR CHOICES:
+   • High contrast for readability
+   • Brand-appropriate colors
+   • Consideration for colorblind accessibility
+
+4. POSITIONING:
+   • Avoid blocking important visual elements
+   • Consider mobile viewing (larger fonts)
+   • Test readability on different screen sizes
+
+5. ANIMATION SETTINGS:
+   • Use shake animation sparingly for emphasis
+   • Match shadow strength to content energy
+   • Consider target audience preferences
+
+================================================================================
+                              TROUBLESHOOTING
+================================================================================
+
+COMMON ISSUES:
+
+1. Font Not Loading:
+   • Verify font name spelling
+   • Check font availability in system
+   • Fallback fonts will be used automatically
+
+2. Colors Not Displaying:
+   • Use HEX format (#RRGGBB)
+   • Verify valid color codes
+   • Check for proper array format for multi-colors
+
+3. Positioning Issues:
+   • Adjust verticalPosition parameter
+   • Check horizontalAlignment setting
+   • Verify SRT timing accuracy
+
+4. Performance Issues:
+   • Reduce shadow strength for faster processing
+   • Use simpler animations for long content
+   • Consider basic style for large subtitle files
+
+================================================================================
+                                   SUPPORT
+================================================================================
+
+For additional support or custom animation requests:
+• Check the system logs for detailed error messages
+• Verify all parameter formats and ranges
+• Test with basic style first, then add complexity
+• Ensure SRT content is properly formatted
+
+================================================================================
+                                END OF DOCUMENTATION
+================================================================================ 

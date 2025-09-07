@@ -81,7 +81,7 @@ export const generateASSFile = (
   const fontSize = style.fontSize || 50;
   const fontFamily = getStyleFont(styleType || 'basic', style.fontFamily);
   const alignment = style.textAlign === 'left' ? '1' : style.textAlign === 'right' ? '3' : '2';
-  const marginV = Math.round((720 * (100 - (style.verticalPosition || 50))) / 100);
+  const marginV = Math.round((720 * (style.verticalPosition || 50)) / 100);
 
   const fontColorASS = convertColorToASS(style.color || '#FFFFFF');
   const systemFontFamily = fontFamily;
@@ -225,7 +225,7 @@ export const generateAdvancedASSFile = (
   const fontSize = style.fontSize || 50;
   const fontFamily = getStyleFont(styleType, style.fontFamily);
   const alignment = style.textAlign === 'left' ? '1' : style.textAlign === 'right' ? '3' : '2';
-  const marginV = Math.round((720 * (100 - (style.verticalPosition || 50))) / 100);
+  const marginV = Math.round((720 * (style.verticalPosition || 50)) / 100);
 
   const fontColorASS = convertColorToASS(style.color || '#FFFFFF');
   const boldValue = (fontFamily.includes('Arial Black') || fontFamily.includes('Luckiest Guy') || fontFamily.toLowerCase().includes('black')) ? 1 : 0;

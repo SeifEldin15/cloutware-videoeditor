@@ -11,7 +11,7 @@ const requestSchema = z.object({
 });
 
 if (!process.env.ASSEMBLYAI_API_KEY) {
-  throw new Error('ASSEMBLYAI_API_KEY environment variable is not set');
+  console.warn('ASSEMBLYAI_API_KEY environment variable is not set - using demo mode');
 }
 
 const apiKey = process.env.ASSEMBLYAI_API_KEY;
@@ -92,6 +92,32 @@ export default eventHandler(async (event) => {
 
     console.log(`Transcribing video from URL: ${url}`);
 
+    // Demo mode if API key is not set
+    if (!process.env.ASSEMBLYAI_API_KEY) {
+      const demoSrt = `1
+00:00:00,000 --> 00:00:03,000
+This is a demo subtitle for testing.
+
+2
+00:00:03,000 --> 00:00:06,000
+The actual transcription requires an AssemblyAI API key.
+
+3
+00:00:06,000 --> 00:00:10,000
+You can get one at https://www.assemblyai.com/
+
+4
+00:00:10,000 --> 00:00:13,000
+Set it as ASSEMBLYAI_API_KEY environment variable.`;
+
+      return {
+        subtitles: demoSrt,
+        text: "This is a demo subtitle for testing. The actual transcription requires an AssemblyAI API key. You can get one at https://www.assemblyai.com/ Set it as ASSEMBLYAI_API_KEY environment variable.",
+        confidence: 0.95,
+        demo: true
+      };
+    }
+
     const response = await fetch('https://api.assemblyai.com/v2/transcript', {
       method: 'POST',
       headers: {
@@ -132,11 +158,15 @@ export default eventHandler(async (event) => {
       if (transcript.status === 'completed') {
         switch (outputFormat) {
           case 'text':
-            return transcript.text;
+            return { text: transcript.text };
           case 'srt':
-            return convertToSRT(transcript.words);
+            return { 
+              subtitles: convertToSRT(transcript.words),
+              text: transcript.text,
+              confidence: transcript.confidence
+            };
           case 'vtt':
-            return transcript.text;
+            return { text: transcript.text };
           case 'json':
           default:
             return {

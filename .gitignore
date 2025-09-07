@@ -25,3 +25,9 @@ logs
 
 .vercel
 .env*.local
+
+*.mp4
+*.ps1
+*.sh
+other
+*.MD
