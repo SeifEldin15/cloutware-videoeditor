@@ -51,7 +51,10 @@
         "x64",
         "arm64"
       ]
-    }
+    },
+    "ignoredBuiltDependencies": [
+      "ffmpeg-static"
+    ]
   },
   "engines": {
     "node": ">=22.0.0"
