@@ -175,11 +175,32 @@
                               placeholder="1&#10;00:00:00,000 --> 00:00:03,000&#10;First subtitle text&#10;&#10;2&#10;00:00:03,000 --> 00:00:06,000&#10;Second subtitle text"></textarea>
                 </div>
 
+                <!-- Auto Mode Manual Entry Option -->
+                <div id="auto-manual-subtitle-section" class="mt-4 hidden">
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-3">
+                        <p class="text-sm text-blue-700">
+                            <strong>💡 Alternative:</strong> You can also enter subtitles manually below instead of generating them with AI.
+                        </p>
+                    </div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Manual SRT Content (Optional)</label>
+                    <textarea id="autoModeManualSrtContent" rows="4" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none" 
+                              placeholder="Enter SRT content manually if you prefer not to use AI generation..."></textarea>
+                </div>
+
                 <!-- Auto Subtitle Generation -->
                 <div id="auto-subtitle-section" class="auto-subtitle-panel rounded-xl p-6 text-white hidden">
                     <div class="mb-4">
                         <h4 class="text-lg font-semibold mb-2">🎯 AI Transcription Settings</h4>
                         <p class="text-sm opacity-90">Automatically transcribe your video's audio into subtitles using advanced AI</p>
+                        <div class="bg-white bg-opacity-20 rounded-lg p-3 mt-3">
+                            <p class="text-sm"><strong>📋 How it works:</strong></p>
+                            <ol class="text-xs mt-1 ml-4 list-decimal">
+                                <li>Configure your transcription settings below</li>
+                                <li>Click "Generate Subtitles" to transcribe your video</li>
+                                <li>Review and edit the generated subtitles if needed</li>
+                                <li>Process your video with the styled subtitles</li>
+                            </ol>
+                        </div>
                     </div>
 
                     <div class="grid md:grid-cols-3 gap-4 mb-4">
@@ -452,9 +473,11 @@
             if (mode === 'manual') {
                 document.getElementById('manual-subtitle-section').classList.remove('hidden');
                 document.getElementById('auto-subtitle-section').classList.add('hidden');
+                document.getElementById('auto-manual-subtitle-section').classList.add('hidden');
             } else {
                 document.getElementById('manual-subtitle-section').classList.add('hidden');
                 document.getElementById('auto-subtitle-section').classList.remove('hidden');
+                document.getElementById('auto-manual-subtitle-section').classList.remove('hidden');
             }
         }
 
@@ -690,6 +713,12 @@
 
         // Process template video
         async function processTemplateVideo() {
+            // Validate video URL
+            const videoUrl = document.getElementById('videoUrl').value.trim();
+            if (!videoUrl) {
+                throw new Error('Please enter a video URL first');
+            }
+
             if (!selectedTemplate) {
                 throw new Error('Please select a subtitle template');
             }
@@ -703,14 +732,14 @@
                     throw new Error('Please enter subtitle content in SRT format');
                 }
             } else {
-                // Auto mode - check if subtitles were generated
+                // Auto mode - check if subtitles were generated or entered manually
                 const generatedContent = document.getElementById('generatedSrtContent').value.trim();
-                const manualContent = document.getElementById('templateSrtContent').value.trim();
+                const autoModeManualContent = document.getElementById('autoModeManualSrtContent').value.trim();
                 
-                srtContent = manualContent || generatedContent;
+                srtContent = generatedContent || autoModeManualContent;
                 
                 if (!srtContent) {
-                    throw new Error('Please generate subtitles first or switch to manual entry mode');
+                    throw new Error('Please generate subtitles using AI or enter them manually in the text area below');
                 }
             }
 
