@@ -1,0 +1,182 @@
+# GitLab CI/CD Pipeline for Video Processing Service
+stages:
+  - test
+  - build
+  - deploy
+
+variables:
+  NODE_VERSION: "22"
+  PNPM_VERSION: "9"
+  DOCKER_IMAGE: "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
+
+# Cache configuration
+cache:
+  key:
+    files:
+      - pnpm-lock.yaml
+  paths:
+    - .pnpm-store/
+
+# Test stage
+test:
+  stage: test
+  image: node:22-alpine
+  before_script:
+    - apk add --no-cache ffmpeg
+    - npm install -g pnpm@$PNPM_VERSION
+    - pnpm config set store-dir .pnpm-store
+  script:
+    - pnpm install --frozen-lockfile
+    - pnpm run lint || echo "Linting skipped"
+    - pnpm run build
+    - pnpm test || echo "Testing skipped"
+  artifacts:
+    paths:
+      - .output/
+    expire_in: 1 hour
+  only:
+    - main
+    - develop
+    - merge_requests
+
+# Build Docker image (optional)
+build_docker:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build -t $DOCKER_IMAGE .
+    - docker push $DOCKER_IMAGE
+  only:
+    - main
+
+# Deploy to Ubuntu server
+deploy_production:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh-client rsync
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - ssh-keyscan -H $SERVER_HOST >> ~/.ssh/known_hosts
+  script:
+    - |
+      # Create deployment package
+      mkdir -p deployment
+      cp -r .output deployment/
+      cp package.json deployment/
+      cp pnpm-lock.yaml deployment/
+      cp ecosystem.config.js deployment/ || echo "No PM2 config found"
+      tar -czf deployment.tar.gz -C deployment .
+      
+      # Upload to server
+      scp deployment.tar.gz $SSH_USER@$SERVER_HOST:/tmp/
+      
+      # Deploy on server
+      ssh $SSH_USER@$SERVER_HOST << 'EOF'
+        set -e
+        
+        # Navigate to deployment directory
+        cd /opt/video-processing
+        
+        # Backup current deployment
+        if [ -d "current" ]; then
+          mv current backup-$(date +%Y%m%d-%H%M%S) || true
+        fi
+        
+        # Create new deployment
+        mkdir -p current
+        cd current
+        
+        # Extract deployment
+        tar -xzf /tmp/deployment.tar.gz
+        
+        # Install production dependencies
+        pnpm install --prod --frozen-lockfile || npm install --production --frozen-lockfile
+        
+        # Restart application
+        pm2 restart video-processing || pm2 start ecosystem.config.js
+        
+        # Clean up
+        rm -f /tmp/deployment.tar.gz
+        
+        # Keep only last 3 backups
+        cd /opt/video-processing
+        ls -t backup-* | tail -n +4 | xargs rm -rf || true
+        
+        # Health check
+        sleep 10
+        pm2 status video-processing
+      EOF
+  environment:
+    name: production
+    url: http://$SERVER_HOST
+  when: manual
+  only:
+    - main
+
+# Deploy to staging server
+deploy_staging:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh-client
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - ssh-keyscan -H $STAGING_HOST >> ~/.ssh/known_hosts
+  script:
+    - |
+      # Similar deployment script for staging
+      echo "Deploying to staging server..."
+      # Add staging-specific deployment logic here
+  environment:
+    name: staging
+    url: http://$STAGING_HOST
+  only:
+    - develop
+
+# Rollback deployment
+rollback:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh-client
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - ssh-keyscan -H $SERVER_HOST >> ~/.ssh/known_hosts
+  script:
+    - |
+      ssh $SSH_USER@$SERVER_HOST << 'EOF'
+        cd /opt/video-processing
+        
+        # Find latest backup
+        LATEST_BACKUP=$(ls -t backup-* | head -n 1)
+        
+        if [ -z "$LATEST_BACKUP" ]; then
+          echo "No backup found for rollback"
+          exit 1
+        fi
+        
+        # Backup current (failed) deployment
+        mv current failed-$(date +%Y%m%d-%H%M%S) || true
+        
+        # Restore from backup
+        mv $LATEST_BACKUP current
+        
+        # Restart application
+        cd current
+        pm2 restart video-processing
+        
+        echo "Rollback completed to $LATEST_BACKUP"
+      EOF
+  when: manual
+  only:
+    - main

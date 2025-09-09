@@ -13,6 +13,33 @@ node_modules
 logs
 *.log
 
+# Environment files
+.env
+.env.*
+!.env.example
+.env.deploy
+
+# Deployment files
+deployment/
+deployment.tar.gz
+deployment.zip
+github-secrets-template.txt
+deployment-checklist.md
+
+# Server files
+uploads/
+temp/
+backup-*/
+
+# SSL certificates
+ssl/
+*.pem
+*.key
+*.crt
+
+# PM2
+.pm2/
+
 # Misc
 .DS_Store
 .fleet

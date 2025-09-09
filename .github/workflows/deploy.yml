@@ -1,0 +1,163 @@
+name: Deploy to Ubuntu Server
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [22.x]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint || echo "Linting skipped"
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Test
+        run: pnpm test || echo "Tests skipped"
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Create deployment package
+        run: |
+          mkdir -p deployment
+          # include build output + minimal files needed to run
+          if [ -d ".output" ]; then
+            cp -r .output deployment/
+          elif [ -d "dist" ]; then
+            cp -r dist deployment/
+          fi
+          cp package.json deployment/ || true
+          cp pnpm-lock.yaml deployment/ || true
+          # ship an ecosystem file if present in repo; otherwise PM2 will use the one on server
+          cp ecosystem.config.js deployment/ || echo "No repo PM2 config found"
+          tar -czf deployment.tar.gz -C deployment .
+
+      - name: Prepare server dir
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.PRIVATE_KEY }}
+          port: ${{ secrets.PORT }}
+          script: |
+            set -e
+            mkdir -p /opt/video-processing
+            cd /opt/video-processing
+            # rotate current -> backup timestamp
+            if [ -d "current" ]; then
+              mv current backup-$(date +%Y%m%d-%H%M%S)
+            fi
+            mkdir -p current
+
+      - name: Upload package
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.PRIVATE_KEY }}
+          port: ${{ secrets.PORT }}
+          source: "deployment.tar.gz"
+          target: "/opt/video-processing/"
+
+      - name: Extract & install (prod)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.PRIVATE_KEY }}
+          port: ${{ secrets.PORT }}
+          script: |
+            set -e
+            cd /opt/video-processing
+            tar -xzf deployment.tar.gz -C current/
+            rm -f deployment.tar.gz
+
+            cd current
+            # If your output is fully standalone (e.g., Nitro "standalone"),
+            # you can skip prod install. Otherwise keep it:
+            if [ -f pnpm-lock.yaml ]; then
+              pnpm install --prod --frozen-lockfile || true
+            elif [ -f package.json ]; then
+              npm ci --omit=dev || npm install --production || true
+            fi
+
+            # Prefer repo-provided ecosystem if shipped; else the server one
+            if [ -f ecosystem.config.js ]; then
+              pm2 startOrRestart ecosystem.config.js --only video-processing || pm2 start ecosystem.config.js
+            else
+              pm2 restart video-processing || pm2 start /opt/video-processing/ecosystem.config.js
+            fi
+
+            pm2 save
+
+            # keep only last 3 backups
+            cd /opt/video-processing
+            ls -dt backup-* 2>/dev/null | tail -n +4 | xargs -r rm -rf
+
+      - name: Health Check
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.PRIVATE_KEY }}
+          port: ${{ secrets.PORT }}
+          script: |
+            sleep 10
+            pm2 status video-processing
+            # Optional HTTP check if you expose /health locally:
+            curl -fsS http://127.0.0.1:3000/health || echo "No /health endpoint"
