@@ -128,12 +128,23 @@ export class SubtitleProcessor {
     caption: CaptionOptions,
     videoOptions?: VideoProcessingOptions
   ): Promise<PassThrough> {
+    console.log('🎬 SubtitleProcessor.processAdvanced() started')
+    console.log('📹 Video URL:', url)
+    console.log('📝 Caption config:', JSON.stringify(caption, null, 2))
+    console.log('⚙️ Video options:', JSON.stringify(videoOptions, null, 2))
+    
     if (!caption?.srtContent) {
+      console.error('❌ No SRT content provided')
       throw new Error('SRT content is required for advanced subtitle processing')
     }
 
+    console.log('📄 SRT content length:', caption.srtContent.length)
+    console.log('📄 SRT preview:', caption.srtContent.substring(0, 100) + '...')
+
     const styleOptions = this.buildStyleOptions(caption)
+    console.log('🎨 Built style options:', JSON.stringify(styleOptions, null, 2))
     
+    console.log('🚀 Starting video processing...')
     return this.processVideoWithAdvancedSubtitles(
       url,
       caption.srtContent,
@@ -624,33 +635,77 @@ export class SubtitleProcessor {
 
         outputOptions.push('-threads', optimalThreads, '-pix_fmt', 'yuv420p', '-f', 'mpegts')
 
+        console.log('🔧 FFmpeg Output Options:', JSON.stringify(outputOptions, null, 2))
+        console.log('📁 Temp ASS file:', tempAssFile)
+        console.log('📁 Fonts dir:', fontsDir)
+        
         ffmpegCommand.outputOptions(outputOptions)
           .on('start', (commandLine: string) => {
-            console.log('Advanced subtitle FFmpeg started:', commandLine)
+            console.log('🚀 Advanced subtitle FFmpeg started')
+            console.log('📋 Full command:', commandLine)
           })
           .on('progress', (progress: any) => {
             if (progress.percent) {
-              console.log(`Advanced subtitle processing: ${progress.percent.toFixed(2)}%`)
+              console.log(`📊 Advanced subtitle processing: ${progress.percent.toFixed(2)}%`)
+            }
+            if (progress.targetSize) {
+              console.log(`📏 Target size: ${progress.targetSize}kB, current: ${progress.size}kB`)
             }
           })
           .on('stderr', (stderrLine: string) => {
             commandOutput += stderrLine + '\n'
-            console.log('Advanced subtitle FFmpeg stderr:', stderrLine)
+            // Log important stderr lines but filter noise
+            if (stderrLine.includes('error') || stderrLine.includes('Error') || 
+                stderrLine.includes('failed') || stderrLine.includes('Failed') ||
+                stderrLine.includes('Invalid') || stderrLine.includes('Cannot')) {
+              console.error('🚨 FFmpeg stderr (ERROR):', stderrLine)
+            } else if (stderrLine.includes('Stream mapping:') || 
+                       stderrLine.includes('Output #0') || 
+                       stderrLine.includes('video:') || 
+                       stderrLine.includes('audio:')) {
+              console.log('ℹ️ FFmpeg info:', stderrLine)
+            }
           })
           .on('error', (err: Error) => {
-            console.error('Advanced subtitle FFmpeg error:', err)
-            console.error('Command output:', commandOutput)
+            console.error('❌ Advanced subtitle FFmpeg error:', err.message)
+            console.error('📝 Full command output:')
+            console.error(commandOutput)
+            console.error('📁 Temp files:')
+            console.error('- ASS file:', tempAssFile, tempAssFile && existsSync(tempAssFile) ? 'EXISTS' : 'MISSING')
+            console.error('- Fonts dir:', fontsDir, fontsDir && existsSync(fontsDir) ? 'EXISTS' : 'MISSING')
             this.cleanupTempFile(tempAssFile)
             if (fontCleanup) fontCleanup()
             reject(new Error(`FFmpeg error: ${err.message}\nCommand output: ${commandOutput}`))
           })
           .on('end', () => {
-            console.log('Advanced subtitle FFmpeg process ended')
+            console.log('✅ Advanced subtitle FFmpeg process completed successfully')
+            console.log('📊 Final command output length:', commandOutput.length)
             this.cleanupTempFile(tempAssFile)
             if (fontCleanup) fontCleanup()
           })
 
+        // Add stream monitoring
+        let totalBytes = 0
+        outputStream.on('data', (chunk) => {
+          totalBytes += chunk.length
+          if (totalBytes % (1024 * 1024) === 0) { // Log every MB
+            console.log(`📊 Stream data: ${(totalBytes / 1024 / 1024).toFixed(1)}MB processed`)
+          }
+        })
+
+        outputStream.on('end', () => {
+          console.log(`🎯 Stream ended successfully. Total size: ${(totalBytes / 1024 / 1024).toFixed(2)}MB`)
+          if (totalBytes === 0) {
+            console.error('🚨 WARNING: Output stream is empty (0 bytes)!')
+          }
+        })
+
+        outputStream.on('error', (streamError) => {
+          console.error('🚨 Output stream error:', streamError)
+        })
+
         ffmpegCommand.pipe(outputStream, { end: true })
+        console.log('🔗 FFmpeg piped to output stream')
 
         resolve(outputStream)
 
