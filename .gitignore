@@ -46,12 +46,12 @@ ssl/
 .idea
 
 # Local env files
-.env
-.env.*
-!.env.example
+# .env
+# .env.*
+# !.env.example
 
 .vercel
-.env*.local
+# .env*.local
 
 *.mp4
 *.ps1
