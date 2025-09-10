@@ -14,7 +14,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "prod": "NODE_ENV=production pnpm run build && pnpm run start",
-    "pm2:start": "pm2 start ecosystem.config.js",
+    "pm2:start": "pm2 start ecosystem.config.cjs",
     "pm2:stop": "pm2 stop video-processing",
     "pm2:restart": "pm2 restart video-processing",
     "pm2:logs": "pm2 logs video-processing",

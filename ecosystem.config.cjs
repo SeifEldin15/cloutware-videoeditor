@@ -1,5 +1,5 @@
-// Production PM2 Configuration
-export default {
+// Production PM2 Configuration (CommonJS version for compatibility)
+module.exports = {
   apps: [{
     name: 'video-processing',
     script: '.output/server/index.mjs',
@@ -39,4 +39,4 @@ export default {
     // Environment specific
     node_args: '--max-old-space-size=2048'
   }]
-}
+};
