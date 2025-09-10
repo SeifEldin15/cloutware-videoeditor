@@ -14,10 +14,10 @@ logs
 *.log
 
 # Environment files
-.env
-.env.*
-!.env.example
-.env.deploy
+# .env
+# .env.*
+# !.env.example
+# .env.deploy
 
 # Deployment files
 deployment/
