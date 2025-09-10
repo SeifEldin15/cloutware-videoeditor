@@ -1,3 +1,5 @@
+import { existsSync } from 'fs'
+
 export default defineNuxtConfig({
   modules: ['@nuxt/eslint'],
   eslint: { config: { stylistic: true } },
@@ -7,21 +9,29 @@ export default defineNuxtConfig({
     client: true,
   },
 
-  // HTTPS Configuration for Development
+  // HTTPS Configuration for Development (only if certificates exist)
   devServer: {
-    https: {
-      key: './certs/localhost.key',
-      cert: './certs/localhost.crt'
-    },
+    ...(existsSync('./certs/localhost.key') && existsSync('./certs/localhost.crt') 
+      ? {
+          https: {
+            key: './certs/localhost.key',
+            cert: './certs/localhost.crt'
+          }
+        } 
+      : {}
+    ),
     host: '0.0.0.0',
     port: 3000
   },
 
-  // Security Headers
+  // Security Headers (only add HSTS if using HTTPS)
   routeRules: {
     '/**': {
       headers: {
-        'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+        ...(existsSync('./certs/localhost.key') && existsSync('./certs/localhost.crt')
+          ? { 'Strict-Transport-Security': 'max-age=31536000; includeSubDomains' }
+          : {}
+        ),
         'X-Content-Type-Options': 'nosniff',
         'X-Frame-Options': 'DENY',
         'X-XSS-Protection': '1; mode=block'
