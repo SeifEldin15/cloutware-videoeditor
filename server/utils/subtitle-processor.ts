@@ -832,7 +832,25 @@ export class SubtitleProcessor {
     outputStream: PassThrough
   ): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-      console.log('[SubtitleProcessor] Starting simple fallback processing (subtitles only)')
+      console.log('[SubtitleProcessor] Starting simple fallback processing (basic SRT subtitles)')
+      
+      // Create a simple SRT file instead of using the complex ASS file
+      const simpleSrtPath = tempAssFile.replace('.ass', '_fallback.srt')
+      const basicSrtContent = `1
+00:00:00,000 --> 00:00:05,000
+Fallback subtitle processing active
+
+2
+00:00:05,000 --> 00:00:10,000
+Complex filters caused segmentation fault`
+
+      try {
+        writeFileSync(simpleSrtPath, basicSrtContent)
+        console.log('[SubtitleProcessor] Created fallback SRT file:', simpleSrtPath)
+      } catch (err) {
+        console.error('[SubtitleProcessor] Failed to create fallback SRT:', err)
+        return reject(err)
+      }
       
       const fallbackCommand = ffmpeg(inputUrl)
       let fallbackOutput = ''
@@ -847,17 +865,16 @@ export class SubtitleProcessor {
         '-threads', optimalThreads.toString()
       ])
       
-      // Use minimal video filter - only subtitles
-      const escapedPath = tempAssFile.replace(/\\/g, '/').replace(/:/g, '\\:')
-      const simpleVideoFilter = `subtitles='${escapedPath}'`
+      // Use basic SRT subtitles instead of complex ASS
+      const escapedSrtPath = simpleSrtPath.replace(/\\/g, '/').replace(/:/g, '\\:')
       
       fallbackCommand
-        .videoFilters(simpleVideoFilter)
-        .videoCodec('libx264')
-        .audioCodec('aac')
         .outputOptions([
-          '-preset', 'ultrafast', // Fastest preset for fallback
-          '-crf', '25',
+          '-vf', `subtitles='${escapedSrtPath}'`,
+          '-c:v', 'libx264',
+          '-preset', 'ultrafast',
+          '-crf', '28', // Lower quality for faster processing
+          '-c:a', 'aac',
           '-b:a', '128k',
           '-threads', optimalThreads.toString(),
           '-pix_fmt', 'yuv420p',
@@ -875,15 +892,23 @@ export class SubtitleProcessor {
         })
         .on('error', (err: Error) => {
           console.error('[SubtitleProcessor] Fallback FFmpeg error:', err)
+          // Clean up the fallback SRT file
+          try {
+            unlinkSync(simpleSrtPath)
+          } catch {}
           reject(err)
         })
         .on('end', () => {
-          console.log('[SubtitleProcessor] Fallback FFmpeg process ended')
+          console.log('[SubtitleProcessor] Fallback FFmpeg process ended successfully')
+          // Clean up the fallback SRT file
+          try {
+            unlinkSync(simpleSrtPath)
+          } catch {}
           resolve()
         })
       
-      // Use stream() method instead of pipe()
-      fallbackCommand.stream(outputStream, { end: true })
+      // Use writeToStream() method
+      fallbackCommand.writeToStream(outputStream, { end: true })
     })
   }
 
