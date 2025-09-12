@@ -716,11 +716,15 @@ export class SubtitleProcessor {
           })
           .on('error', (err: Error) => {
             console.error('[SubtitleProcessor] Advanced subtitle FFmpeg error:', err)
+            console.error('[SubtitleProcessor] Error message details:', err.message)
+            console.error('[SubtitleProcessor] Error type:', typeof err.message)
             console.error('[SubtitleProcessor] Command output:', commandOutput)
             console.error('[SubtitleProcessor] ASS file exists at error:', tempAssFile ? existsSync(tempAssFile) : 'tempAssFile is null')
             
             // Check if this is a segmentation fault
-            if (err.message.includes('SIGSEGV') || err.message.includes('segmentation fault')) {
+            if (err.message.includes('SIGSEGV') || 
+                err.message.includes('segmentation fault') || 
+                err.message.includes('killed with signal SIGSEGV')) {
               console.log('[SubtitleProcessor] Segmentation fault detected, attempting fallback processing...')
               
               // Try with a simpler command (subtitles only, no other filters)
