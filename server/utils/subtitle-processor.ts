@@ -1,7 +1,7 @@
 import { PassThrough } from 'stream'
 import ffmpeg from './ffmpeg'
 import os from 'os'
-import { writeFileSync, unlinkSync, existsSync, copyFileSync, mkdirSync, rmSync } from 'fs'
+import { writeFileSync, unlinkSync, existsSync, copyFileSync, mkdirSync, rmSync, statSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { processVideoWithSubtitlesFile } from './captioning'
@@ -563,7 +563,19 @@ export class SubtitleProcessor {
         writeFileSync(tempAssFile, assContent)
         
         console.log(`[SubtitleProcessor] ASS file created at: ${tempAssFile}`)
-        console.log(`[SubtitleProcessor] ASS file size: ${existsSync(tempAssFile) ? require('fs').statSync(tempAssFile).size : 'FILE NOT FOUND'} bytes`)
+        
+        // Check file size using fs import (already imported at top)
+        let fileSize = 'FILE NOT FOUND'
+        try {
+          if (existsSync(tempAssFile)) {
+            const stats = statSync(tempAssFile)
+            fileSize = `${stats.size} bytes`
+          }
+        } catch (error) {
+          fileSize = 'Error reading file'
+        }
+        
+        console.log(`[SubtitleProcessor] ASS file size: ${fileSize}`)
         console.log(`[SubtitleProcessor] ASS content preview (first 500 chars):`)
         console.log(assContent.substring(0, 500))
 
