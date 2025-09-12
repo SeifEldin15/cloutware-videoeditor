@@ -1,0 +1,16 @@
+# Instructions to run debug script on Ubuntu server
+
+# 1. SSH into your Ubuntu server
+ssh username@54.67.30.66
+
+# 2. Navigate to your project directory
+cd /opt/video-processing/current
+
+# 3. Make the script executable
+chmod +x debug-ubuntu-video.sh
+
+# 4. Run the debug script
+./debug-ubuntu-video.sh
+
+# Alternative: Run with bash explicitly
+bash debug-ubuntu-video.sh

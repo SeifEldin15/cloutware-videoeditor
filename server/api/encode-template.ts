@@ -96,20 +96,16 @@ export default eventHandler(async (event) => {
     const body = await readValidatedBody(event, templateRequestSchema.parse)
     const { url, srtContent, templateName, outputName, format, options } = body
     
-    console.log(`🎬 Processing video with template: ${templateName}`)
-    console.log(`📹 Video URL: ${url}`)
-    console.log(`📝 SRT length: ${srtContent.length} characters`)
-    console.log(`📊 Request body:`, JSON.stringify(body, null, 2))
+    console.log(`Processing video with template: ${templateName}`)
+    console.log(`Video URL: ${url}`)
+    console.log(`SRT length: ${srtContent.length} characters`)
     
     // Get the template configuration
     const template = getStyleTemplate(templateName)
     if (!template) {
       const availableTemplates = Object.keys(styleTemplates)
-      console.error(`❌ Template '${templateName}' not found. Available: ${availableTemplates.join(', ')}`)
       throw new Error(`Template '${templateName}' not found. Available templates: ${availableTemplates.join(', ')}`)
     }
-    
-    console.log(`✅ Template found: ${template.name} - ${template.description}`)
     
     // Apply template configuration with user options
     const userOptions: any = { srtContent }
@@ -132,33 +128,12 @@ export default eventHandler(async (event) => {
     await validateVideoUrl(url)
     
     // Process video with template-based subtitles
-    console.log('🚀 Starting SubtitleProcessor.processAdvanced()...')
     const videoStream = await SubtitleProcessor.processAdvanced(url, captionConfig, options)
-    console.log('✅ SubtitleProcessor.processAdvanced() completed, got stream')
     
     // Set response headers
     setResponseHeader(event, 'Content-Type', 'video/mp4')
     setResponseHeader(event, 'Content-Disposition', `attachment; filename="${outputName}.mp4"`)
-    console.log(`📤 Response headers set for: ${outputName}.mp4`)
     
-    // Monitor the stream being returned
-    let responseBytes = 0
-    videoStream.on('data', (chunk) => {
-      responseBytes += chunk.length
-    })
-    
-    videoStream.on('end', () => {
-      console.log(`🎯 Response stream ended. Total sent: ${(responseBytes / 1024 / 1024).toFixed(2)}MB`)
-      if (responseBytes === 0) {
-        console.error('🚨 CRITICAL: Response stream was empty (0 bytes)!')
-      }
-    })
-    
-    videoStream.on('error', (streamError) => {
-      console.error('🚨 Response stream error:', streamError)
-    })
-    
-    console.log('📤 Returning video stream to client')
     return videoStream
     
   } catch (error) {

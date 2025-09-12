@@ -1,0 +1,12 @@
+# Run this from your local Windows machine to execute debug on Ubuntu server
+
+# Option A: Run the simple debug test
+ssh username@54.67.30.66 "cd /opt/video-processing/current && bash -c 'curl -s https://raw.githubusercontent.com/SeifEldin15/cloutware-videoeditor/main/simple-debug.sh | bash'"
+
+# Option B: Manual SSH session
+ssh username@54.67.30.66
+
+# Then once connected, run:
+# cd /opt/video-processing/current
+# chmod +x debug-ubuntu-video.sh
+# ./debug-ubuntu-video.sh
