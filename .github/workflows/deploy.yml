@@ -83,8 +83,14 @@ jobs:
           fi
           cp package.json deployment/ || true
           cp pnpm-lock.yaml deployment/ || true
-          # ship an ecosystem file if present in repo; otherwise PM2 will use the one on server
-          cp ecosystem.config.js deployment/ || echo "No repo PM2 config found"
+          # ship an ecosystem file if present in repo; prioritize .cjs for ES module compatibility
+          if [ -f "ecosystem.config.cjs" ]; then
+            cp ecosystem.config.cjs deployment/
+          elif [ -f "ecosystem.config.js" ]; then
+            cp ecosystem.config.js deployment/
+          else
+            echo "No repo PM2 config found"
+          fi
           tar -czf deployment.tar.gz -C deployment .
 
       - name: Prepare server dir
@@ -136,8 +142,10 @@ jobs:
               npm ci --omit=dev || npm install --production || true
             fi
 
-            # Prefer repo-provided ecosystem if shipped; else the server one
-            if [ -f ecosystem.config.js ]; then
+            # Prefer repo-provided ecosystem if shipped; prioritize .cjs for ES module compatibility
+            if [ -f ecosystem.config.cjs ]; then
+              pm2 startOrRestart ecosystem.config.cjs --only video-processing || pm2 start ecosystem.config.cjs
+            elif [ -f ecosystem.config.js ]; then
               pm2 startOrRestart ecosystem.config.js --only video-processing || pm2 start ecosystem.config.js
             else
               pm2 restart video-processing || pm2 start /opt/video-processing/ecosystem.config.js
