@@ -10,7 +10,7 @@ import type { CaptionOptions, VideoProcessingOptions } from './validation-schema
 import { resolve, join as pathJoin } from 'path'
 
 const availableCpuCores = os.cpus().length
-const optimalThreads = Math.max(2, Math.floor(availableCpuCores * 0.75)).toString()
+const optimalThreads = Math.max(2, Math.floor(availableCpuCores * 0.75))
 
 // Font file mappings - matching the working ffmpeggenerator.js pattern
 const fontFileMap: Record<string, string> = {
@@ -632,10 +632,24 @@ export class SubtitleProcessor {
         console.log(`[SubtitleProcessor] Escaped path: ${escapedPath}`)
         console.log(`[SubtitleProcessor] Fonts dir: ${fontsDir || 'none'}`)
         console.log(`[SubtitleProcessor] ASS file exists: ${existsSync(tempAssFile)}`)
+        console.log(`[SubtitleProcessor] Base video filter: ${baseVideoFilter || 'none'}`)
 
-        const videoFilter = baseVideoFilter
-          ? `${baseVideoFilter},${subtitleFilter}`
-          : subtitleFilter
+        // Check for problematic filter combinations that cause segfaults
+        let videoFilter = subtitleFilter
+        if (baseVideoFilter) {
+          const isProblematicCombination = this.hasProblematicFilterCombination(baseVideoFilter)
+          if (isProblematicCombination) {
+            console.log(`[SubtitleProcessor] WARNING: Detected problematic filter combination, using safe fallback`)
+            console.log(`[SubtitleProcessor] Problematic base filter: ${baseVideoFilter}`)
+            // Use safe fallback - apply a simplified version of anti-detection filters
+            const safeBaseFilter = this.createSafeVideoFilter(baseVideoFilter)
+            videoFilter = safeBaseFilter ? `${safeBaseFilter},${subtitleFilter}` : subtitleFilter
+          } else {
+            videoFilter = `${baseVideoFilter},${subtitleFilter}`
+          }
+        }
+
+        console.log(`[SubtitleProcessor] Final video filter: ${videoFilter}`)
 
         const outputOptions = ['-vf', videoFilter]
 
@@ -670,7 +684,14 @@ export class SubtitleProcessor {
           outputOptions.push('-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-c:a', 'aac', '-b:a', '128k')
         }
 
-        outputOptions.push('-threads', optimalThreads, '-pix_fmt', 'yuv420p', '-f', 'mpegts')
+        // Use safer output format options to avoid segfaults
+        outputOptions.push('-threads', optimalThreads.toString(), '-pix_fmt', 'yuv420p')
+        
+        // Add error resilience options
+        outputOptions.push('-err_detect', 'ignore_err')
+        outputOptions.push('-fflags', '+genpts')
+        
+        outputOptions.push('-f', 'mpegts')
 
         ffmpegCommand.outputOptions(outputOptions)
           .on('start', (commandLine: string) => {
@@ -697,6 +718,30 @@ export class SubtitleProcessor {
             console.error('[SubtitleProcessor] Advanced subtitle FFmpeg error:', err)
             console.error('[SubtitleProcessor] Command output:', commandOutput)
             console.error('[SubtitleProcessor] ASS file exists at error:', tempAssFile ? existsSync(tempAssFile) : 'tempAssFile is null')
+            
+            // Check if this is a segmentation fault
+            if (err.message.includes('SIGSEGV') || err.message.includes('segmentation fault')) {
+              console.log('[SubtitleProcessor] Segmentation fault detected, attempting fallback processing...')
+              
+              // Try with a simpler command (subtitles only, no other filters)
+              if (tempAssFile) {
+                this.processWithSimpleFallback(inputUrl, tempAssFile, outputStream)
+                  .then(() => {
+                    console.log('[SubtitleProcessor] Fallback processing succeeded')
+                    this.cleanupTempFile(tempAssFile)
+                    if (fontCleanup) fontCleanup()
+                    resolve()
+                  })
+                  .catch((fallbackError: Error) => {
+                    console.error('[SubtitleProcessor] Fallback processing also failed:', fallbackError)
+                    this.cleanupTempFile(tempAssFile)
+                    if (fontCleanup) fontCleanup()
+                    reject(new Error(`FFmpeg segmentation fault and fallback failed: ${err.message}`))
+                  })
+                return
+              }
+            }
+            
             this.cleanupTempFile(tempAssFile)
             if (fontCleanup) fontCleanup()
             reject(new Error(`FFmpeg error: ${err.message}\nCommand output: ${commandOutput}`))
@@ -717,6 +762,122 @@ export class SubtitleProcessor {
         if (fontCleanup) fontCleanup()
         reject(error)
       }
+    })
+  }
+
+  private static hasProblematicFilterCombination(baseVideoFilter: string): boolean {
+    if (!baseVideoFilter) return false
+    
+    // Check for combinations that commonly cause segfaults with subtitles
+    const problematicPatterns = [
+      // Crop + rotate + subtitles combination is known to cause segfaults
+      /crop=.*,.*rotate=.*PI/,
+      // Complex rotation with subtitles
+      /rotate=.*PI.*180/,
+      // Multiple geometric transformations
+      /crop=.*,.*rotate=.*,.*scale=/,
+      // Anti-detection filters with complex transformations
+      /crop=in_w-\d+:in_h-\d+.*rotate=.*PI/
+    ]
+    
+    for (const pattern of problematicPatterns) {
+      if (pattern.test(baseVideoFilter)) {
+        console.log(`[SubtitleProcessor] Detected problematic pattern: ${pattern.source}`)
+        return true
+      }
+    }
+    
+    return false
+  }
+
+  private static createSafeVideoFilter(problematicFilter: string): string {
+    console.log(`[SubtitleProcessor] Creating safe filter from: ${problematicFilter}`)
+    
+    // Extract safe components and avoid problematic combinations
+    const parts = problematicFilter.split(',')
+    const safeFilters: string[] = []
+    
+    for (const part of parts) {
+      const trimmedPart = part.trim()
+      
+      // Skip problematic combinations
+      if (trimmedPart.includes('crop=in_w-') && trimmedPart.includes('rotate=')) {
+        console.log(`[SubtitleProcessor] Skipping problematic crop+rotate: ${trimmedPart}`)
+        continue
+      }
+      
+      // Allow safe individual filters
+      if (trimmedPart.startsWith('scale=') && !trimmedPart.includes('PI')) {
+        safeFilters.push(trimmedPart)
+      } else if (trimmedPart.includes('format=')) {
+        safeFilters.push(trimmedPart)
+      } else if (trimmedPart.includes('fps=')) {
+        safeFilters.push(trimmedPart)
+      }
+      // Skip crop and rotate filters that are known to cause issues with subtitles
+    }
+    
+    const safeFilter = safeFilters.join(',')
+    console.log(`[SubtitleProcessor] Safe filter created: ${safeFilter || 'none'}`)
+    return safeFilter
+  }
+
+  private static async processWithSimpleFallback(
+    inputUrl: string, 
+    tempAssFile: string, 
+    outputStream: PassThrough
+  ): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      console.log('[SubtitleProcessor] Starting simple fallback processing (subtitles only)')
+      
+      const fallbackCommand = ffmpeg(inputUrl)
+      let fallbackOutput = ''
+      
+      fallbackCommand.inputOptions([
+        '-protocol_whitelist', 'file,http,https,tcp,tls',
+        '-reconnect', '1',
+        '-reconnect_streamed', '1',
+        '-analyzeduration', '10000000',
+        '-probesize', '10000000',
+        '-thread_queue_size', '512',
+        '-threads', optimalThreads.toString()
+      ])
+      
+      // Use minimal video filter - only subtitles
+      const escapedPath = tempAssFile.replace(/\\/g, '/').replace(/:/g, '\\:')
+      const simpleVideoFilter = `subtitles='${escapedPath}'`
+      
+      fallbackCommand.outputOptions([
+        '-vf', simpleVideoFilter,
+        '-c:v', 'libx264',
+        '-preset', 'ultrafast', // Fastest preset for fallback
+        '-crf', '25',
+        '-c:a', 'aac',
+        '-b:a', '128k',
+        '-threads', optimalThreads.toString(),
+        '-pix_fmt', 'yuv420p',
+        '-err_detect', 'ignore_err',
+        '-f', 'mpegts'
+      ])
+      
+      fallbackCommand
+        .on('start', (commandLine: string) => {
+          console.log('[SubtitleProcessor] Fallback FFmpeg started:', commandLine)
+        })
+        .on('stderr', (stderrLine: string) => {
+          fallbackOutput += stderrLine + '\n'
+          console.log('[SubtitleProcessor] Fallback FFmpeg stderr:', stderrLine)
+        })
+        .on('error', (err: Error) => {
+          console.error('[SubtitleProcessor] Fallback FFmpeg error:', err)
+          reject(err)
+        })
+        .on('end', () => {
+          console.log('[SubtitleProcessor] Fallback FFmpeg process ended')
+          resolve()
+        })
+      
+      fallbackCommand.pipe(outputStream, { end: true })
     })
   }
 
