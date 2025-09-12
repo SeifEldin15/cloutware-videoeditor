@@ -561,8 +561,29 @@ export class SubtitleProcessor {
 
         tempAssFile = join(tmpdir(), `subtitle_${Date.now()}.ass`)
         writeFileSync(tempAssFile, assContent)
+        
+        console.log(`[SubtitleProcessor] ASS file created at: ${tempAssFile}`)
+        console.log(`[SubtitleProcessor] ASS file size: ${existsSync(tempAssFile) ? require('fs').statSync(tempAssFile).size : 'FILE NOT FOUND'} bytes`)
+        console.log(`[SubtitleProcessor] ASS content preview (first 500 chars):`)
+        console.log(assContent.substring(0, 500))
 
         const outputStream = new PassThrough({ highWaterMark: 4 * 1024 * 1024 })
+        let totalBytesWritten = 0
+
+        // Track data flowing through the stream
+        outputStream.on('data', (chunk) => {
+          totalBytesWritten += chunk.length
+          if (totalBytesWritten % (1024 * 1024) === 0) { // Log every MB
+            console.log(`[SubtitleProcessor] Written ${(totalBytesWritten / 1024 / 1024).toFixed(2)}MB to output stream`)
+          }
+        })
+
+        outputStream.on('end', () => {
+          console.log(`[SubtitleProcessor] Output stream ended. Total bytes: ${totalBytesWritten}`)
+          if (totalBytesWritten === 0) {
+            console.error('[SubtitleProcessor] WARNING: No data was written to output stream!')
+          }
+        })
 
         let commandOutput = ''
         const ffmpegCommand = ffmpeg(inputUrl)
@@ -594,7 +615,11 @@ export class SubtitleProcessor {
           ? `subtitles='${escapedPath}':fontsdir='${escapedFontsDir}'`
           : `subtitles='${escapedPath}'`
         
-        console.log(`🎨 Using subtitle filter: ${subtitleFilter}`)
+        console.log(`[SubtitleProcessor] Using subtitle filter: ${subtitleFilter}`)
+        console.log(`[SubtitleProcessor] Original path: ${tempAssFile}`)
+        console.log(`[SubtitleProcessor] Escaped path: ${escapedPath}`)
+        console.log(`[SubtitleProcessor] Fonts dir: ${fontsDir || 'none'}`)
+        console.log(`[SubtitleProcessor] ASS file exists: ${existsSync(tempAssFile)}`)
 
         const videoFilter = baseVideoFilter
           ? `${baseVideoFilter},${subtitleFilter}`
@@ -637,26 +662,35 @@ export class SubtitleProcessor {
 
         ffmpegCommand.outputOptions(outputOptions)
           .on('start', (commandLine: string) => {
-            console.log('Advanced subtitle FFmpeg started:', commandLine)
+            console.log('[SubtitleProcessor] Advanced subtitle FFmpeg started:', commandLine)
           })
           .on('progress', (progress: any) => {
             if (progress.percent) {
-              console.log(`Advanced subtitle processing: ${progress.percent.toFixed(2)}%`)
+              console.log(`[SubtitleProcessor] Advanced subtitle processing: ${progress.percent.toFixed(2)}%`)
             }
           })
           .on('stderr', (stderrLine: string) => {
             commandOutput += stderrLine + '\n'
-            console.log('Advanced subtitle FFmpeg stderr:', stderrLine)
+            console.log('[SubtitleProcessor] Advanced subtitle FFmpeg stderr:', stderrLine)
+            
+            // Check for specific errors
+            if (stderrLine.includes('No such file or directory')) {
+              console.error('[SubtitleProcessor] ERROR: FFmpeg cannot find subtitle file!')
+            }
+            if (stderrLine.includes('Invalid data found')) {
+              console.error('[SubtitleProcessor] ERROR: Invalid subtitle file format!')
+            }
           })
           .on('error', (err: Error) => {
-            console.error('Advanced subtitle FFmpeg error:', err)
-            console.error('Command output:', commandOutput)
+            console.error('[SubtitleProcessor] Advanced subtitle FFmpeg error:', err)
+            console.error('[SubtitleProcessor] Command output:', commandOutput)
+            console.error('[SubtitleProcessor] ASS file exists at error:', tempAssFile ? existsSync(tempAssFile) : 'tempAssFile is null')
             this.cleanupTempFile(tempAssFile)
             if (fontCleanup) fontCleanup()
             reject(new Error(`FFmpeg error: ${err.message}\nCommand output: ${commandOutput}`))
           })
           .on('end', () => {
-            console.log('Advanced subtitle FFmpeg process ended')
+            console.log('[SubtitleProcessor] Advanced subtitle FFmpeg process ended')
             this.cleanupTempFile(tempAssFile)
             if (fontCleanup) fontCleanup()
           })
