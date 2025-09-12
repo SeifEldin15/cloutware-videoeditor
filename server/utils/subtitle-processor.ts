@@ -851,18 +851,19 @@ export class SubtitleProcessor {
       const escapedPath = tempAssFile.replace(/\\/g, '/').replace(/:/g, '\\:')
       const simpleVideoFilter = `subtitles='${escapedPath}'`
       
-      fallbackCommand.outputOptions([
-        '-vf', simpleVideoFilter,
-        '-c:v', 'libx264',
-        '-preset', 'ultrafast', // Fastest preset for fallback
-        '-crf', '25',
-        '-c:a', 'aac',
-        '-b:a', '128k',
-        '-threads', optimalThreads.toString(),
-        '-pix_fmt', 'yuv420p',
-        '-err_detect', 'ignore_err',
-        '-f', 'mpegts'
-      ])
+      fallbackCommand
+        .videoFilters(simpleVideoFilter)
+        .videoCodec('libx264')
+        .audioCodec('aac')
+        .outputOptions([
+          '-preset', 'ultrafast', // Fastest preset for fallback
+          '-crf', '25',
+          '-b:a', '128k',
+          '-threads', optimalThreads.toString(),
+          '-pix_fmt', 'yuv420p',
+          '-err_detect', 'ignore_err',
+          '-f', 'mpegts'
+        ])
       
       fallbackCommand
         .on('start', (commandLine: string) => {
@@ -881,7 +882,8 @@ export class SubtitleProcessor {
           resolve()
         })
       
-      fallbackCommand.pipe(outputStream, { end: true })
+      // Use stream() method instead of pipe()
+      fallbackCommand.stream(outputStream, { end: true })
     })
   }
 
