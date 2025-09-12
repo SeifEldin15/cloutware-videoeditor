@@ -878,8 +878,7 @@ Complex filters caused segmentation fault`
           '-b:a', '128k',
           '-threads', optimalThreads.toString(),
           '-pix_fmt', 'yuv420p',
-          '-err_detect', 'ignore_err',
-          '-f', 'mpegts'
+          '-err_detect', 'ignore_err'
         ])
       
       fallbackCommand
@@ -907,8 +906,8 @@ Complex filters caused segmentation fault`
           resolve()
         })
       
-      // Use writeToStream() method
-      fallbackCommand.writeToStream(outputStream, { end: true })
+      // Use pipe() method with proper format
+      fallbackCommand.format('mpegts').pipe(outputStream, { end: true })
     })
   }
 
