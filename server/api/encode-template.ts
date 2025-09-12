@@ -70,6 +70,7 @@ const templateRequestSchema = z.object({
 })
 
 export default eventHandler(async (event) => {
+  const startTime = Date.now()
   try {
     const method = event.node.req.method
     
@@ -96,9 +97,10 @@ export default eventHandler(async (event) => {
     const body = await readValidatedBody(event, templateRequestSchema.parse)
     const { url, srtContent, templateName, outputName, format, options } = body
     
-    console.log(`Processing video with template: ${templateName}`)
-    console.log(`Video URL: ${url}`)
-    console.log(`SRT length: ${srtContent.length} characters`)
+    console.log(`[Template API] Processing video with template: ${templateName}`)
+    console.log(`[Template API] Video URL: ${url}`)
+    console.log(`[Template API] SRT length: ${srtContent.length} characters`)
+    console.log(`[Template API] Request body:`, JSON.stringify(body, null, 2))
     
     // Get the template configuration
     const template = getStyleTemplate(templateName)
@@ -113,31 +115,51 @@ export default eventHandler(async (event) => {
     // Only override verticalPosition if user provided one
     if (options.verticalPosition !== undefined) {
       userOptions.verticalPosition = options.verticalPosition
-      console.log(`🎯 User specified vertical position: ${options.verticalPosition}`)
+      console.log(`[Template API] 🎯 User specified vertical position: ${options.verticalPosition}`)
     } else {
-      console.log(`📍 Using template default vertical position`)
+      console.log(`[Template API] 📍 Using template default vertical position`)
     }
     
     const captionConfig = applyTemplate(templateName, userOptions)
+    console.log(`[Template API] Caption config:`, JSON.stringify(captionConfig, null, 2))
     
-    console.log(`Applied template: ${template.name} (${template.description})`)
-    console.log(`Font: ${template.fontFamily}`)
-    console.log(`Vertical Position: ${options.verticalPosition !== undefined ? options.verticalPosition + ' (user)' : 'template default'}`)
+    console.log(`[Template API] Applied template: ${template.name} (${template.description})`)
+    console.log(`[Template API] Font: ${template.fontFamily}`)
+    console.log(`[Template API] Vertical Position: ${options.verticalPosition !== undefined ? options.verticalPosition + ' (user)' : 'template default'}`)
     
     // Validate URL accessibility
+    console.log(`[Template API] Validating URL accessibility...`)
     await validateVideoUrl(url)
+    console.log(`[Template API] URL validation successful`)
     
     // Process video with template-based subtitles
+    console.log(`[Template API] Starting advanced subtitle processing...`)
     const videoStream = await SubtitleProcessor.processAdvanced(url, captionConfig, options)
     
     // Set response headers
+    console.log(`[Template API] Setting response headers`)
     setResponseHeader(event, 'Content-Type', 'video/mp4')
     setResponseHeader(event, 'Content-Disposition', `attachment; filename="${outputName}.mp4"`)
+    
+    // Track stream data for debugging
+    let totalBytes = 0
+    videoStream.on('data', (chunk) => {
+      totalBytes += chunk.length
+    })
+    
+    videoStream.on('end', () => {
+      const processingTime = Date.now() - startTime
+      console.log(`[Template API] Stream ended. Total bytes sent: ${totalBytes}, Processing time: ${processingTime}ms`)
+      if (totalBytes === 0) {
+        console.error(`[Template API] WARNING: Stream sent 0 bytes!`)
+      }
+    })
     
     return videoStream
     
   } catch (error) {
-    console.error('Error processing video with template:', error)
+    const processingTime = Date.now() - startTime
+    console.error(`[Template API] Error processing video with template (${processingTime}ms):`, error)
     event.node.res.statusCode = 500
     
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'

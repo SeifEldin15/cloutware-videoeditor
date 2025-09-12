@@ -7,6 +7,7 @@ import { TextReplacementProcessor } from '../utils/text-replacement-processor'
 import { ValidationSchemas } from '../utils/validation-schemas'
 
 export default eventHandler(async (event) => {
+  const startTime = Date.now()
   try {
     const query = await getValidatedQuery(event, ValidationSchemas.querySchema.parse)
     const body = await readValidatedBody(event, ValidationSchemas.bodySchema.parse)
@@ -14,41 +15,55 @@ export default eventHandler(async (event) => {
     const format = query.format || body.format
     const { url, outputName, options, caption } = body
     
-    console.log(`Processing video: ${url}, format: ${format}`)
+    console.log(`[Encode API] Processing video: ${url}, format: ${format}, outputName: ${outputName}`)
+    console.log(`[Encode API] Request body:`, JSON.stringify(body, null, 2))
     
     // Validate format constraints
     if (format !== 'mp4' && caption?.srtContent) {
       throw new Error('Captions can only be applied to MP4 format videos')
     }
     
-    if (format !== 'mp4' && caption?.textReplacements?.length) {
-      throw new Error('Text replacements can only be applied to MP4 format videos')
-    }
-    
     // Validate URL accessibility
+    console.log(`[Encode API] Validating URL accessibility...`)
     await validateVideoUrl(url)
+    console.log(`[Encode API] URL validation successful`)
     
     let videoStream: PassThrough
     
-    if (format === 'mp4' && caption?.textReplacements?.length) {
-      console.log(`Processing with ${caption.textReplacements.length} text replacement(s)`)
-      videoStream = await TextReplacementProcessor.process(url, caption.textReplacements, options, outputName)
-    } else if (format === 'mp4' && caption?.srtContent) {
+    if (format === 'mp4' && caption?.srtContent) {
+      console.log(`[Encode API] Processing with subtitles`)
       videoStream = await processVideoWithSubtitles(url, caption, options)
     } else {
+      console.log(`[Encode API] Processing basic video`)
       videoStream = await VideoProcessor.process(url, format, options, outputName)
     }
     
     const contentType = getContentTypeForFormat(format)
     const fileExtension = getFileExtensionForFormat(format)
     
+    console.log(`[Encode API] Setting response headers - Content-Type: ${contentType}`)
     setResponseHeader(event, 'Content-Type', contentType)
     setResponseHeader(event, 'Content-Disposition', `attachment; filename="${outputName}.${fileExtension}"`)
+    
+    // Track stream data for debugging
+    let totalBytes = 0
+    videoStream.on('data', (chunk) => {
+      totalBytes += chunk.length
+    })
+    
+    videoStream.on('end', () => {
+      const processingTime = Date.now() - startTime
+      console.log(`[Encode API] Stream ended. Total bytes sent: ${totalBytes}, Processing time: ${processingTime}ms`)
+      if (totalBytes === 0) {
+        console.error(`[Encode API] WARNING: Stream sent 0 bytes!`)
+      }
+    })
     
     return videoStream
     
   } catch (error) {
-    console.error('Error processing video:', error)
+    const processingTime = Date.now() - startTime
+    console.error(`[Encode API] Error processing video (${processingTime}ms):`, error)
     event.node.res.statusCode = 500
     
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'

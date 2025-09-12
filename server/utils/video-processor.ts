@@ -32,11 +32,13 @@ export class VideoProcessor {
       inputOptions?: string[]
     }
   ): Promise<PassThrough> {
-    console.log(`Processing ${options.name}...`)
+    console.log(`[VideoProcessor] Processing ${options.name} from ${inputUrl}...`)
+    console.log(`[VideoProcessor] Output options:`, options.outputOptions)
 
     return new Promise<PassThrough>((resolve, reject) => {
       try {
         const outputStream = new PassThrough({ highWaterMark: 4 * 1024 * 1024 })
+        let totalBytesWritten = 0
 
         let commandOutput = ''
         let ffmpegCommand = ffmpeg(inputUrl)
@@ -96,25 +98,33 @@ export class VideoProcessor {
         ffmpegCommand
           .outputOptions(cleanedOutputOptions)
           .on('start', (commandLine: string) => {
-            console.log(`${options.name} FFmpeg started:`, commandLine)
+            console.log(`[VideoProcessor] ${options.name} FFmpeg started:`, commandLine)
           })
           .on('progress', (progress: any) => {
             if (progress.percent) {
-              console.log(`${options.name} Processing: ${progress.percent.toFixed(2)}%`)
+              console.log(`[VideoProcessor] ${options.name} Processing: ${progress.percent.toFixed(2)}%`)
             }
           })
           .on('stderr', (stderrLine: string) => {
             commandOutput += stderrLine + '\n'
-            console.log(`${options.name} FFmpeg stderr:`, stderrLine)
+            console.log(`[VideoProcessor] ${options.name} FFmpeg stderr:`, stderrLine)
           })
           .on('error', (err: Error) => {
-            console.error(`${options.name} FFmpeg error:`, err)
-            console.error(`${options.name} Command output:`, commandOutput)
+            console.error(`[VideoProcessor] ${options.name} FFmpeg error:`, err)
+            console.error(`[VideoProcessor] ${options.name} Command output:`, commandOutput)
             reject(new Error(`FFmpeg error: ${err.message}\nCommand output: ${commandOutput}`))
           })
           .on('end', () => {
-            console.log(`${options.name} FFmpeg process ended`)
+            console.log(`[VideoProcessor] ${options.name} FFmpeg process ended. Total bytes: ${totalBytesWritten}`)
           })
+
+        // Track bytes written to the output stream
+        outputStream.on('data', (chunk) => {
+          totalBytesWritten += chunk.length
+          if (totalBytesWritten % (1024 * 1024) === 0) { // Log every MB
+            console.log(`[VideoProcessor] ${options.name} Written ${(totalBytesWritten / 1024 / 1024).toFixed(2)}MB`)
+          }
+        })
 
         ffmpegCommand.outputOptions(['-preset', 'veryfast', '-threads', optimalThreads])
         ffmpegCommand.pipe(outputStream, { end: true })

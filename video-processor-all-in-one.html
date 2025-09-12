@@ -331,6 +331,9 @@
                 <span id="processBtnText">🚀 Process Video</span>
                 <div id="processSpinner" class="hidden inline-block ml-2 w-5 h-5 border-2 border-white border-t-transparent rounded-full spinner"></div>
             </button>
+            <button onclick="clearLogs()" class="ml-4 bg-gray-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-gray-600 transition-colors">
+                🧹 Clear Logs
+            </button>
         </div>
 
         <!-- Results Section -->
@@ -627,6 +630,125 @@
             });
         }
 
+        // Console logging helper
+        function logToConsole(level, message, data = null) {
+            const timestamp = new Date().toISOString();
+            const logMessage = `[${timestamp}] [${level}] ${message}`;
+            
+            console.log(logMessage);
+            if (data) {
+                console.log('[DATA]:', data);
+            }
+            
+            // Display all logs in UI (not just errors and warnings)
+            addLogToUI(level, message, data);
+        }
+
+        // Add log to UI
+        function addLogToUI(level, message, data = null) {
+            let logContainer = document.getElementById('logContainer');
+            if (!logContainer) {
+                // Create log container if it doesn't exist
+                logContainer = document.createElement('div');
+                logContainer.id = 'logContainer';
+                logContainer.className = 'mt-4 p-4 bg-gray-100 rounded-lg max-h-64 overflow-y-auto border';
+                logContainer.innerHTML = '<h4 class="font-bold text-gray-800 mb-2">🔍 Debug Logs</h4><div id="logContent"></div>';
+                
+                // Insert after the error div
+                const errorDiv = document.getElementById('error');
+                errorDiv.parentNode.insertBefore(logContainer, errorDiv.nextSibling);
+            }
+            
+            const logContent = document.getElementById('logContent');
+            const timestamp = new Date().toLocaleTimeString();
+            const levelColor = level === 'ERROR' ? 'text-red-600' : 
+                              level === 'WARN' ? 'text-yellow-600' : 
+                              level === 'INFO' ? 'text-blue-600' : 'text-gray-600';
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = 'mb-2 p-2 border-l-4 border-gray-300 bg-white rounded';
+            logEntry.innerHTML = `
+                <div class="flex items-start justify-between">
+                    <span class="text-xs text-gray-500">${timestamp}</span>
+                    <span class="text-xs font-bold ${levelColor}">${level}</span>
+                </div>
+                <div class="text-sm text-gray-800 mt-1">${message}</div>
+                ${data ? `<pre class="text-xs bg-gray-50 p-2 mt-2 rounded overflow-x-auto">${JSON.stringify(data, null, 2)}</pre>` : ''}
+            `;
+            
+            logContent.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        // Add network request inspector
+        function addNetworkInspector(requestData, responseData) {
+            let networkContainer = document.getElementById('networkContainer');
+            if (!networkContainer) {
+                // Create network container if it doesn't exist
+                networkContainer = document.createElement('div');
+                networkContainer.id = 'networkContainer';
+                networkContainer.className = 'mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200';
+                networkContainer.innerHTML = '<h4 class="font-bold text-blue-800 mb-2">🌐 Network Inspector</h4><div id="networkContent"></div>';
+                
+                // Insert after the log container
+                const logContainer = document.getElementById('logContainer');
+                if (logContainer) {
+                    logContainer.parentNode.insertBefore(networkContainer, logContainer.nextSibling);
+                } else {
+                    const errorDiv = document.getElementById('error');
+                    errorDiv.parentNode.insertBefore(networkContainer, errorDiv.nextSibling);
+                }
+            }
+            
+            const networkContent = document.getElementById('networkContent');
+            const timestamp = new Date().toLocaleTimeString();
+            
+            const networkEntry = document.createElement('div');
+            networkEntry.className = 'mb-4 p-3 border border-blue-300 bg-white rounded';
+            networkEntry.innerHTML = `
+                <div class="flex items-start justify-between mb-2">
+                    <span class="text-xs text-blue-600 font-bold">${timestamp}</span>
+                    <span class="text-xs text-blue-500">${requestData.method} ${requestData.url}</span>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <h5 class="font-bold text-blue-700 mb-1">📤 Request</h5>
+                        <pre class="text-xs bg-blue-50 p-2 rounded overflow-x-auto">${JSON.stringify(requestData, null, 2)}</pre>
+                    </div>
+                    <div>
+                        <h5 class="font-bold text-blue-700 mb-1">📥 Response</h5>
+                        <pre class="text-xs bg-blue-50 p-2 rounded overflow-x-auto">${JSON.stringify(responseData, null, 2)}</pre>
+                    </div>
+                </div>
+            `;
+            
+            networkContent.appendChild(networkEntry);
+            networkContainer.scrollTop = networkContainer.scrollHeight;
+        }
+
+        // Clear logs function
+        function clearLogs() {
+            const logContainer = document.getElementById('logContainer');
+            const networkContainer = document.getElementById('networkContainer');
+            
+            if (logContainer) {
+                const logContent = document.getElementById('logContent');
+                if (logContent) {
+                    logContent.innerHTML = '';
+                }
+            }
+            
+            if (networkContainer) {
+                const networkContent = document.getElementById('networkContent');
+                if (networkContent) {
+                    networkContent.innerHTML = '';
+                }
+            }
+            
+            console.clear();
+            logToConsole('INFO', 'Logs cleared');
+        }
+
         // Main process video function
         async function processVideo() {
             const videoUrl = document.getElementById('videoUrl').value.trim();
@@ -634,6 +756,11 @@
                 showError('Please enter a video URL');
                 return;
             }
+
+            logToConsole('INFO', 'Starting video processing', { 
+                videoUrl, 
+                processingType: currentProcessingType 
+            });
 
             const processBtn = document.getElementById('processBtn');
             const btnText = document.getElementById('processBtnText');
@@ -650,19 +777,32 @@
                 let result;
                 
                 if (currentProcessingType === 'basic') {
+                    logToConsole('INFO', 'Processing basic video with subtitles');
                     result = await processBasicVideo();
                 } else if (currentProcessingType === 'template') {
+                    logToConsole('INFO', 'Processing template video');
                     result = await processTemplateVideo();
                 } else if (currentProcessingType === 'text-replace') {
+                    logToConsole('INFO', 'Processing text replacement video');
                     result = await processTextReplace();
                 }
 
                 if (result) {
+                    logToConsole('INFO', 'Video processing completed successfully', {
+                        blobSize: result.blob?.size || 'unknown',
+                        filename: result.filename
+                    });
                     showResults(result);
+                } else {
+                    logToConsole('ERROR', 'No result returned from processing');
+                    throw new Error('No result returned from video processing');
                 }
 
             } catch (error) {
-                console.error('Processing error:', error);
+                logToConsole('ERROR', 'Processing failed', {
+                    error: error.message,
+                    stack: error.stack
+                });
                 showError(error.message);
             } finally {
                 // Reset button state
@@ -691,23 +831,63 @@
                 }
             };
 
+            logToConsole('INFO', 'Sending basic video processing request', payload);
+
+            const requestData = {
+                method: 'POST',
+                url: '/api/encode',
+                headers: { 'Content-Type': 'application/json' },
+                body: payload
+            };
+
             const response = await fetch('/api/encode', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
 
+            const responseData = {
+                status: response.status,
+                statusText: response.statusText,
+                headers: Object.fromEntries(response.headers.entries()),
+                contentLength: response.headers.get('content-length') || 'unknown'
+            };
+
+            addNetworkInspector(requestData, responseData);
+
+            logToConsole('INFO', 'Received response from /api/encode', responseData);
+
             if (!response.ok) {
-                const error = await response.json().catch(() => ({}));
+                let error;
+                try {
+                    error = await response.json();
+                } catch (e) {
+                    error = { error: `HTTP ${response.status}: ${response.statusText}` };
+                }
+                logToConsole('ERROR', 'API request failed', { status: response.status, error });
                 throw new Error(error.error || `Processing failed: ${response.status}`);
             }
 
             // Handle video download
             const blob = await response.blob();
+            logToConsole('INFO', 'Received blob from server', {
+                size: blob.size,
+                type: blob.type
+            });
+
+            if (blob.size === 0) {
+                logToConsole('ERROR', 'Received empty blob (0 bytes)', {
+                    contentType: blob.type,
+                    response: responseData
+                });
+                throw new Error('Received empty video file (0 bytes). Check server logs for processing errors.');
+            }
+
             const url = window.URL.createObjectURL(blob);
             return {
                 type: 'download',
                 url: url,
+                blob: blob,
                 filename: `${payload.outputName}.mp4`,
                 message: 'Basic video processing completed successfully!'
             };
@@ -770,23 +950,64 @@
                 payload.options.verticalPosition = verticalPosition;
             }
 
+            logToConsole('INFO', 'Sending template video processing request', payload);
+
+            const requestData = {
+                method: 'POST',
+                url: '/api/encode-template',
+                headers: { 'Content-Type': 'application/json' },
+                body: payload
+            };
+
             const response = await fetch('/api/encode-template', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
 
+            const responseData = {
+                status: response.status,
+                statusText: response.statusText,
+                headers: Object.fromEntries(response.headers.entries()),
+                contentLength: response.headers.get('content-length') || 'unknown'
+            };
+
+            addNetworkInspector(requestData, responseData);
+
+            logToConsole('INFO', 'Received response from /api/encode-template', responseData);
+
             if (!response.ok) {
-                const error = await response.json().catch(() => ({}));
+                let error;
+                try {
+                    error = await response.json();
+                } catch (e) {
+                    error = { error: `HTTP ${response.status}: ${response.statusText}` };
+                }
+                logToConsole('ERROR', 'Template API request failed', { status: response.status, error });
                 throw new Error(error.error || `Template processing failed: ${response.status}`);
             }
 
             // Handle video download
             const blob = await response.blob();
+            logToConsole('INFO', 'Received blob from template server', {
+                size: blob.size,
+                type: blob.type
+            });
+
+            if (blob.size === 0) {
+                logToConsole('ERROR', 'Received empty template blob (0 bytes)', {
+                    contentType: blob.type,
+                    templateName: selectedTemplate,
+                    response: responseData
+                });
+                throw new Error('Received empty video file (0 bytes). Template processing may have failed on the server.');
+            }
+
             const url = window.URL.createObjectURL(blob);
             return {
                 type: 'download',
                 url: url,
+                blob: blob,
                 filename: `${payload.outputName}.mp4`,
                 message: `Template video processed successfully with ${styleTemplates[selectedTemplate].name} style!`
             };
@@ -815,23 +1036,50 @@
                 fontColor: document.getElementById('replaceFontColor').value
             };
 
+            logToConsole('INFO', 'Sending text replacement processing request', payload);
+
             const response = await fetch('/api/text-replace', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
 
+            logToConsole('INFO', 'Received response from /api/text-replace', {
+                status: response.status,
+                statusText: response.statusText,
+                headers: Object.fromEntries(response.headers.entries())
+            });
+
             if (!response.ok) {
                 const error = await response.json().catch(() => ({}));
+                logToConsole('ERROR', 'Text replacement API request failed', { status: response.status, error });
                 throw new Error(error.error || `Text replacement failed: ${response.status}`);
             }
 
             // Handle video download
             const blob = await response.blob();
+            logToConsole('INFO', 'Received blob from text replacement server', {
+                size: blob.size,
+                type: blob.type
+            });
+
+            if (blob.size === 0) {
+                logToConsole('ERROR', 'Received empty text replacement blob (0 bytes)', {
+                    contentType: blob.type,
+                    replacements: replacements,
+                    response: {
+                        status: response.status,
+                        headers: Object.fromEntries(response.headers.entries())
+                    }
+                });
+                throw new Error('Received empty video file (0 bytes). Text replacement processing may have failed on the server.');
+            }
+
             const url = window.URL.createObjectURL(blob);
             return {
                 type: 'download',
                 url: url,
+                blob: blob,
                 filename: `${payload.outputName}.mp4`,
                 message: 'Text replacement completed successfully!'
             };

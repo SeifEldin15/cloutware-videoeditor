@@ -80,15 +80,19 @@ interface StyleOptions {
 
 export class SubtitleProcessor {
   static async processBasic(url: string, caption: CaptionOptions): Promise<PassThrough> {
+    console.log(`[SubtitleProcessor] Starting basic processing for URL: ${url}`)
+    
     if (!caption?.srtContent) {
       throw new Error('SRT content is required for basic subtitle processing')
     }
+
+    console.log(`[SubtitleProcessor] Basic processing - SRT content length: ${caption.srtContent.length} characters`)
 
     let srtContent = caption.srtContent;
 
     // Apply word mode processing for basic subtitles if specified
     if (caption.wordMode && caption.wordMode !== 'normal') {
-      console.log(`🔀 Processing basic subtitles in ${caption.wordMode} word mode with ${caption.wordsPerGroup || 1} words per group`)
+      console.log(`[SubtitleProcessor] 🔀 Processing basic subtitles in ${caption.wordMode} word mode with ${caption.wordsPerGroup || 1} words per group`)
       
       const segments = parseSRT(caption.srtContent);
       const wordSegments = processWordModeSegments(
@@ -104,9 +108,10 @@ export class SubtitleProcessor {
         return `${index + 1}\n${startTime} --> ${endTime}\n${segment.text}\n`;
       }).join('\n');
       
-      console.log(`📝 Generated ${wordSegments.length} word-level segments for basic processing`)
+      console.log(`[SubtitleProcessor] 📝 Generated ${wordSegments.length} word-level segments for basic processing`)
     }
 
+    console.log(`[SubtitleProcessor] Calling processVideoWithSubtitlesFile...`)
     return processVideoWithSubtitlesFile(url, srtContent, {
       fontSize: caption.fontSize,
       fontColor: caption.fontColor,
@@ -128,11 +133,17 @@ export class SubtitleProcessor {
     caption: CaptionOptions,
     videoOptions?: VideoProcessingOptions
   ): Promise<PassThrough> {
+    console.log(`[SubtitleProcessor] Starting advanced processing for URL: ${url}`)
+    
     if (!caption?.srtContent) {
       throw new Error('SRT content is required for advanced subtitle processing')
     }
 
+    console.log(`[SubtitleProcessor] Advanced processing - SRT content length: ${caption.srtContent.length} characters`)
+    console.log(`[SubtitleProcessor] Subtitle style: ${caption.subtitleStyle || 'basic'}`)
+
     const styleOptions = this.buildStyleOptions(caption)
+    console.log(`[SubtitleProcessor] Built style options:`, styleOptions)
     
     return this.processVideoWithAdvancedSubtitles(
       url,
