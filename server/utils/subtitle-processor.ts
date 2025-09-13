@@ -906,9 +906,7 @@ Complex filters caused segmentation fault`
           } catch {}
           resolve()
         })
-      
-      // Use pipe() method 
-      fallbackCommand.pipe(outputStream, { end: true })
+        .pipe(outputStream, { end: true })
     })
   }
 
