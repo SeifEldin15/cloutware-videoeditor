@@ -190,7 +190,10 @@ export const getFontFilePath = (fontFamily: string): string => {
     return ''; 
   }
   
-  return join(process.cwd(), 'public', 'fonts', fontFile);
+  const fontPath = join(process.cwd(), 'public', 'fonts', fontFile);
+  
+  // Ensure path separators are consistent for cross-platform compatibility
+  return fontPath.replace(/\\/g, '/');
 };
 
 export const generateFontsSection = (fontFamily: string): string => {

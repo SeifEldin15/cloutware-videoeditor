@@ -2,9 +2,11 @@ import { PassThrough } from 'stream'
 import ffmpeg from './ffmpeg'
 import os from 'os'
 import type { TextReplacementOptions } from './validation-schemas'
+import { getFontFilePath } from './subtitleUtils'
 
 const availableCpuCores = os.cpus().length
-const optimalThreads = Math.max(2, Math.floor(availableCpuCores * 0.75)).toString()
+// Keep filtergraph single-threaded for stability
+const optimalThreads = '1'
 
 export class TextReplacementProcessor {
   static async process(
@@ -48,8 +50,9 @@ export class TextReplacementProcessor {
           '-analyzeduration', '10000000',
           '-probesize', '10000000',
           '-thread_queue_size', '512',
-          '-hwaccel', 'auto',
-          '-threads', optimalThreads
+          '-hwaccel', 'none',
+          '-threads', optimalThreads,
+          '-filter_threads', '1'
         ])
 
         const videoFilters = this.buildVideoFilters(config.textReplacements, config.options)
@@ -103,6 +106,9 @@ export class TextReplacementProcessor {
     options?: TextReplacementOptions['options']
   ): string {
     const filters: string[] = []
+    
+    // Always ensure even dimensions BEFORE overlays
+    filters.push("scale=trunc(iw/2)*2:trunc(ih/2)*2")
 
     if (options) {
       if (options.speedFactor && options.speedFactor !== 1) {
@@ -185,16 +191,20 @@ export class TextReplacementProcessor {
       .replace(/:/g, '\\:')
       .replace(/\n/g, ' ')
 
+    // Prefer a concrete font file when available (Linux-safe).
+    // Falls back to font family if no TTF path is known.
     let fontSpec = style.fontFamily || 'Arial'
-    if (style.fontWeight === 'bold') {
-      fontSpec += ' Bold'
-    }
-    if (style.fontStyle === 'italic') {
-      fontSpec += ' Italic'
-    }
+    const fontFilePath = getFontFilePath(fontSpec)  // uses your existing map in subtitle-utils
 
     let drawTextFilter = `drawtext=text='${escapedText}'`
-    drawTextFilter += `:font='${fontSpec}'`
+    if (fontFilePath) {
+      drawTextFilter += `:fontfile='${fontFilePath.replace(/'/g, "'\\''")}'`
+    } else {
+      // Family fallback (less stable on Linux)
+      if (style.fontWeight === 'bold') fontSpec += ' Bold'
+      if (style.fontStyle === 'italic') fontSpec += ' Italic'
+      drawTextFilter += `:font='${fontSpec}'`
+    }
     drawTextFilter += `:fontsize=${style.fontSize || 24}`
     drawTextFilter += `:fontcolor=${style.fontColor || '#FFFFFF'}`
     drawTextFilter += `:x=${xPosition}`

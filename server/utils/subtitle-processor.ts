@@ -10,7 +10,8 @@ import type { CaptionOptions, VideoProcessingOptions } from './validation-schema
 import { resolve, join as pathJoin } from 'path'
 
 const availableCpuCores = os.cpus().length
-const optimalThreads = Math.max(2, Math.floor(availableCpuCores * 0.75)).toString()
+// Keep filtergraph single-threaded for stability
+const optimalThreads = '1'
 
 // Font file mappings - matching the working ffmpeggenerator.js pattern
 const fontFileMap: Record<string, string> = {
@@ -457,8 +458,9 @@ export class SubtitleProcessor {
           '-analyzeduration', '10000000',
           '-probesize', '10000000',
           '-thread_queue_size', '512',
-          '-hwaccel', 'auto',
-          '-threads', optimalThreads
+          '-hwaccel', 'none',              // was auto
+          '-threads', '1',                 // cap threads
+          '-filter_threads', '1'           // important for filtergraph stability
         ])
 
         const advancedOptions = videoOptions ? this.buildAdvancedProcessingOptions(videoOptions) : []
@@ -470,16 +472,25 @@ export class SubtitleProcessor {
         }
 
         const escapedPath = tempAssFile.replace(/\\/g, '/').replace(/:/g, '\\:')
-        const escapedFontsDir = fontsDir ? fontsDir.replace(/\\/g, '/').replace(/:/g, '\\:') : null
-        const subtitleFilter = escapedFontsDir 
-          ? `subtitles='${escapedPath}':fontsdir='${escapedFontsDir}'`
-          : `subtitles='${escapedPath}'`
         
-        console.log(`🎨 Using subtitle filter: ${subtitleFilter}`)
-
-        const videoFilter = baseVideoFilter
-          ? `${baseVideoFilter},${subtitleFilter}`
-          : subtitleFilter
+        // Use ass filter with fontsdir for better stability
+        const vf = [
+          "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+          `ass='${escapedPath}':fontsdir=/usr/share/fonts:/home/ubuntu/codes/cloutware-videoeditor/public/fonts`
+        ]
+        
+        // Add any existing video filters from advanced options
+        if (baseVideoFilter) {
+          // Parse existing filters and add them after ass filter
+          const existingFilters = baseVideoFilter.split(',')
+          vf.push(...existingFilters.filter(f => 
+            !f.includes('subtitles=') && 
+            !f.includes('scale=') // avoid duplicate scale
+          ))
+        }
+        
+        const videoFilter = vf.join(',')
+        console.log(`🎨 Using ass filter: ${videoFilter}`)
 
         const outputOptions = ['-vf', videoFilter]
 
@@ -511,10 +522,10 @@ export class SubtitleProcessor {
         if (codecOptions.length > 0) {
           outputOptions.push(...codecOptions)
         } else {
-          outputOptions.push('-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-c:a', 'aac', '-b:a', '128k')
+          outputOptions.push('-c:v', 'libx264', '-crf', '23', '-c:a', 'aac', '-b:a', '128k')
         }
 
-        outputOptions.push('-threads', optimalThreads, '-pix_fmt', 'yuv420p', '-f', 'mpegts')
+        outputOptions.push('-threads', '1', '-pix_fmt', 'yuv420p', '-f', 'mpegts')
 
         ffmpegCommand.outputOptions(outputOptions)
           .on('start', (commandLine: string) => {
@@ -595,7 +606,7 @@ export class SubtitleProcessor {
     }
     
     if (options?.antiDetection?.noiseAddition) {
-      videoFilters.push('noise=alls=1:allf=t')
+      videoFilters.push('noise=all=1:allf=t')
     }
     
     if (options?.antiDetection?.subtleRotation) {
@@ -627,7 +638,7 @@ export class SubtitleProcessor {
     outputOptions.push('-c:v', 'libx264')
     outputOptions.push('-preset', 'veryfast')
     outputOptions.push('-crf', '23')
-    outputOptions.push('-threads', optimalThreads)
+    outputOptions.push('-threads', '1')
     outputOptions.push('-pix_fmt', 'yuv420p')
     outputOptions.push('-c:a', 'aac')
     outputOptions.push('-b:a', '128k')
