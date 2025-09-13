@@ -9,11 +9,13 @@ module.exports = {
       NODE_ENV: 'production',
       PORT: 3000,
       NUXT_HOST: '0.0.0.0',
-      NUXT_PORT: 3000
+      NUXT_PORT: 3000,
+      ASSEMBLYAI_API_KEY: process.env.ASSEMBLYAI_API_KEY
     },
     env_production: {
       NODE_ENV: 'production',
-      PORT: 3000
+      PORT: 3000,
+      ASSEMBLYAI_API_KEY: process.env.ASSEMBLYAI_API_KEY
     },
     // Logging
     log_file: '/var/log/video-processing/combined.log',

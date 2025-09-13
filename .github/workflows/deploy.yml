@@ -83,6 +83,8 @@ jobs:
           fi
           cp package.json deployment/ || true
           cp pnpm-lock.yaml deployment/ || true
+          # Include environment files
+          cp .env deployment/ || true
           # ship an ecosystem file if present in repo; prioritize .cjs for ES module compatibility
           if [ -f "ecosystem.config.cjs" ]; then
             cp ecosystem.config.cjs deployment/
