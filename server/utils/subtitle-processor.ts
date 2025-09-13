@@ -832,7 +832,7 @@ export class SubtitleProcessor {
     outputStream: PassThrough
   ): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-      console.log('[SubtitleProcessor] Starting simple fallback processing (basic SRT subtitles)')
+      console.log('[SubtitleProcessor] Starting simple fallback processing (basic SRT subtitles) - v2025.09.13.001')
       
       // Create a simple SRT file instead of using the complex ASS file
       const simpleSrtPath = tempAssFile.replace('.ass', '_fallback.srt')
