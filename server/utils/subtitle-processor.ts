@@ -575,7 +575,7 @@ export class SubtitleProcessor {
           fileSize = 'Error reading file'
         }
         
-        
+
         console.log(`[SubtitleProcessor] ASS file size: ${fileSize}`)
         console.log(`[SubtitleProcessor] ASS content preview (first 500 chars):`)
         console.log(assContent.substring(0, 500))
@@ -833,7 +833,7 @@ export class SubtitleProcessor {
     outputStream: PassThrough
   ): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-      console.log('[SubtitleProcessor] Starting simple fallback processing (basic SRT subtitles) - v2025.09.13.001')
+      console.log('[SubtitleProcessor] Starting simple fallback processing (basic SRT subtitles) - v2025.09.13.002')
       
       // Create a simple SRT file instead of using the complex ASS file
       const simpleSrtPath = tempAssFile.replace('.ass', '_fallback.srt')
@@ -882,8 +882,6 @@ Complex filters caused segmentation fault`
           '-pix_fmt', 'yuv420p',
           '-err_detect', 'ignore_err'
         ])
-      
-      fallbackCommand
         .on('start', (commandLine: string) => {
           console.log('[SubtitleProcessor] Fallback FFmpeg started:', commandLine)
         })
