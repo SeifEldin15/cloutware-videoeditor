@@ -11,6 +11,7 @@ export default defineEventHandler(async (event) => {
       memory: process.memoryUsage(),
       nodejs: process.version,
       environment: process.env.NODE_ENV || 'development',
+      version: 'v2025.09.13.001', // Deployment tracking
       checks: {}
     }
     
