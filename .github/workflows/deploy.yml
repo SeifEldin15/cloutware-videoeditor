@@ -14,6 +14,23 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
+    - name: Check SSH Secrets
+      run: |
+        if [ -z "${{ secrets.SSH_USERNAME }}" ] || [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+          echo "❌ SSH secrets are not configured!"
+          echo ""
+          echo "Please add these secrets to your GitHub repository:"
+          echo "1. Go to Settings → Secrets and variables → Actions"
+          echo "2. Add these secrets:"
+          echo "   - SSH_USERNAME: Your server username (e.g., ubuntu)"
+          echo "   - SSH_PRIVATE_KEY: Your SSH private key content"
+          echo "   - SSH_PORT: 22 (optional)"
+          echo ""
+          echo "📚 See SIMPLE-CI-CD-GUIDE.md for detailed instructions"
+          exit 1
+        fi
+        echo "✅ SSH secrets are configured"
+      
     - name: Deploy to Server
       uses: appleboy/ssh-action@v1.0.3
       with:

@@ -161,35 +161,65 @@ git push origin main
 
 ### Common Issues
 
-1. **SSH Connection Failed**
+1. **❌ SSH secrets are not configured!**
+   - **Solution**: Add the required GitHub secrets (see Step 2 above)
+   - The workflow will fail with this message if secrets are missing
+   - Go to GitHub Settings → Secrets and variables → Actions
+
+2. **SSH Connection Failed**
    - Check your SSH credentials in GitHub secrets
    - Verify server IP and SSH access
    - Ensure SSH key is correctly formatted
 
-2. **Node.js/NPM Not Found**
+3. **Node.js/NPM Not Found**
    - Run the server setup script
    - Manually install Node.js 18+
 
-3. **PM2 Not Found**
+4. **PM2 Not Found**
    - Install PM2: `sudo npm install -g pm2`
 
-4. **Port 3000 Already in Use**
+5. **Port 3000 Already in Use**
    - Stop existing processes: `pm2 stop all`
    - Or change port in the workflow
 
-### Debugging
+### Debugging Steps
 
-```bash
-# SSH into server and check logs
-ssh your-username@18.144.88.135
-pm2 logs video-processing
+1. **Check GitHub Actions Logs**:
+   - Go to your repository → Actions tab
+   - Click on the failed workflow run
+   - Review the error messages
 
-# Check if application is responding
-curl http://localhost:3000
+2. **Verify SSH Setup**:
+   ```bash
+   # Test SSH connection locally
+   ssh your-username@18.144.88.135
+   ```
 
-# Check PM2 status
-pm2 status
+3. **Check Server Status**:
+   ```bash
+   # SSH into server and check logs
+   ssh your-username@18.144.88.135
+   pm2 logs video-processing
+   
+   # Check if application is responding
+   curl http://localhost:3000
+   
+   # Check PM2 status
+   pm2 status
+   ```
+
+### First-Time Setup Error
+
+If you see this error in GitHub Actions:
 ```
+❌ SSH secrets are not configured!
+```
+
+**This is expected!** Follow these steps:
+
+1. **Add GitHub Secrets** (detailed in Step 2 above)
+2. **Push another commit** to trigger the workflow again
+3. **The deployment should succeed** once secrets are configured
 
 ## ✅ Success Indicators
 
