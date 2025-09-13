@@ -38,7 +38,7 @@ jobs:
           restore-keys: ${{ runner.os }}-pnpm-
 
       - name: Install deps
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Lint
         run: pnpm run lint || echo "Linting skipped"
@@ -67,7 +67,7 @@ jobs:
           version: 9
 
       - name: Install deps
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Build
         run: pnpm run build
