@@ -642,7 +642,7 @@ export class SubtitleProcessor {
           if (isProblematicCombination) {
             console.log(`[SubtitleProcessor] WARNING: Detected problematic filter combination, using safe fallback`)
             console.log(`[SubtitleProcessor] Problematic base filter: ${baseVideoFilter}`)
-            // Use safe fallback - apply a simplified version of anti-detection filters
+            // Use safe fallback - completely skip video filters to prevent segfaults
             const safeBaseFilter = this.createSafeVideoFilter(baseVideoFilter)
             videoFilter = safeBaseFilter ? `${safeBaseFilter},${subtitleFilter}` : subtitleFilter
           } else {
@@ -773,23 +773,38 @@ export class SubtitleProcessor {
   private static hasProblematicFilterCombination(baseVideoFilter: string): boolean {
     if (!baseVideoFilter) return false
     
+    console.log(`[SubtitleProcessor] Checking filter for problems: ${baseVideoFilter}`)
+    
     // Check for combinations that commonly cause segfaults with subtitles
     const problematicPatterns = [
       // Crop + rotate + subtitles combination is known to cause segfaults
       /crop=.*,.*rotate=.*PI/,
+      // Specific pattern from the error: crop=in_w-2:in_h-2:1:1,rotate=0.1*PI/180
+      /crop=in_w-\d+:in_h-\d+:\d+:\d+,rotate=.*PI/,
       // Complex rotation with subtitles
       /rotate=.*PI.*180/,
+      // Any rotation with PI (mathematical expressions)
+      /rotate=.*\*PI/,
       // Multiple geometric transformations
       /crop=.*,.*rotate=.*,.*scale=/,
       // Anti-detection filters with complex transformations
-      /crop=in_w-\d+:in_h-\d+.*rotate=.*PI/
+      /crop=in_w-\d+:in_h-\d+.*rotate=.*PI/,
+      // Any crop followed by rotate with mathematical expressions
+      /crop=.*rotate=.*PI/
     ]
     
     for (const pattern of problematicPatterns) {
       if (pattern.test(baseVideoFilter)) {
         console.log(`[SubtitleProcessor] Detected problematic pattern: ${pattern.source}`)
+        console.log(`[SubtitleProcessor] Matched against: ${baseVideoFilter}`)
         return true
       }
+    }
+    
+    // Additional safety check for any filter containing both crop and rotate
+    if (baseVideoFilter.includes('crop=') && baseVideoFilter.includes('rotate=')) {
+      console.log(`[SubtitleProcessor] Detected crop+rotate combination - potential segfault risk`)
+      return true
     }
     
     return false
@@ -798,33 +813,37 @@ export class SubtitleProcessor {
   private static createSafeVideoFilter(problematicFilter: string): string {
     console.log(`[SubtitleProcessor] Creating safe filter from: ${problematicFilter}`)
     
-    // Extract safe components and avoid problematic combinations
-    const parts = problematicFilter.split(',')
-    const safeFilters: string[] = []
+    // For now, return 'none' to completely skip video filters when problematic combinations are detected
+    // This prevents segfaults by removing the complex filter chain entirely
+    console.log(`[SubtitleProcessor] Safe filter created: none`)
+    return ''
     
-    for (const part of parts) {
-      const trimmedPart = part.trim()
-      
-      // Skip problematic combinations
-      if (trimmedPart.includes('crop=in_w-') && trimmedPart.includes('rotate=')) {
-        console.log(`[SubtitleProcessor] Skipping problematic crop+rotate: ${trimmedPart}`)
-        continue
-      }
-      
-      // Allow safe individual filters
-      if (trimmedPart.startsWith('scale=') && !trimmedPart.includes('PI')) {
-        safeFilters.push(trimmedPart)
-      } else if (trimmedPart.includes('format=')) {
-        safeFilters.push(trimmedPart)
-      } else if (trimmedPart.includes('fps=')) {
-        safeFilters.push(trimmedPart)
-      }
-      // Skip crop and rotate filters that are known to cause issues with subtitles
-    }
-    
-    const safeFilter = safeFilters.join(',')
-    console.log(`[SubtitleProcessor] Safe filter created: ${safeFilter || 'none'}`)
-    return safeFilter
+    // Future improvement: Extract only safe components
+    // const parts = problematicFilter.split(',')
+    // const safeFilters: string[] = []
+    // 
+    // for (const part of parts) {
+    //   const trimmedPart = part.trim()
+    //   
+    //   // Skip all crop and rotate operations entirely
+    //   if (trimmedPart.startsWith('crop=') || trimmedPart.startsWith('rotate=')) {
+    //     console.log(`[SubtitleProcessor] Skipping unsafe filter: ${trimmedPart}`)
+    //     continue
+    //   }
+    //   
+    //   // Allow only very safe individual filters
+    //   if (trimmedPart.startsWith('scale=') && !trimmedPart.includes('PI') && !trimmedPart.includes('*')) {
+    //     safeFilters.push(trimmedPart)
+    //   } else if (trimmedPart.startsWith('format=')) {
+    //     safeFilters.push(trimmedPart)
+    //   } else if (trimmedPart.startsWith('fps=')) {
+    //     safeFilters.push(trimmedPart)
+    //   }
+    // }
+    // 
+    // const safeFilter = safeFilters.join(',')
+    // console.log(`[SubtitleProcessor] Safe filter created: ${safeFilter || 'none'}`)
+    // return safeFilter
   }
 
   private static async processWithSimpleFallback(
@@ -853,64 +872,77 @@ Complex filters caused segmentation fault`
         return reject(err)
       }
       
-      const fallbackCommand = ffmpeg(inputUrl)
-      let fallbackOutput = ''
-      
-      fallbackCommand.inputOptions([
-        '-protocol_whitelist', 'file,http,https,tcp,tls',
-        '-reconnect', '1',
-        '-reconnect_streamed', '1',
-        '-analyzeduration', '10000000',
-        '-probesize', '10000000',
-        '-thread_queue_size', '512',
-        '-threads', optimalThreads.toString()
-      ])
-      
-      // Use basic SRT subtitles instead of complex ASS
-      const escapedSrtPath = simpleSrtPath.replace(/\\/g, '/').replace(/:/g, '\\:')
-      
-      fallbackCommand
-        .format('mpegts')  // Set format BEFORE output options
-        .outputOptions([
-          '-vf', `subtitles='${escapedSrtPath}'`,
-          '-c:v', 'libx264',
-          '-preset', 'ultrafast',
-          '-crf', '28', // Lower quality for faster processing
-          '-c:a', 'aac',
-          '-b:a', '128k',
-          '-threads', optimalThreads.toString(),
-          '-pix_fmt', 'yuv420p',
-          '-err_detect', 'ignore_err'
+      try {
+        const fallbackCommand = ffmpeg(inputUrl)
+        let fallbackOutput = ''
+        
+        fallbackCommand.inputOptions([
+          '-protocol_whitelist', 'file,http,https,tcp,tls',
+          '-reconnect', '1',
+          '-reconnect_streamed', '1',
+          '-analyzeduration', '10000000',
+          '-probesize', '10000000',
+          '-thread_queue_size', '512',
+          '-threads', optimalThreads.toString()
         ])
-        .on('start', (commandLine: string) => {
-          console.log('[SubtitleProcessor] Fallback FFmpeg started:', commandLine)
-        })
-        .on('stderr', (stderrLine: string) => {
-          fallbackOutput += stderrLine + '\n'
-          console.log('[SubtitleProcessor] Fallback FFmpeg stderr:', stderrLine)
-        })
-        .on('error', (err: Error) => {
-          console.error('[SubtitleProcessor] Fallback FFmpeg error:', err)
-          // Clean up the fallback SRT file
-          try {
-            unlinkSync(simpleSrtPath)
-          } catch {}
-          reject(err)
-        })
-        .on('end', () => {
-          console.log('[SubtitleProcessor] Fallback FFmpeg process ended successfully')
-          // Clean up the fallback SRT file
-          try {
-            unlinkSync(simpleSrtPath)
-          } catch {}
-          resolve()
-        })
-        .pipe(outputStream, { end: true })
+        
+        // Use basic SRT subtitles instead of complex ASS
+        const escapedSrtPath = simpleSrtPath.replace(/\\/g, '/').replace(/:/g, '\\:')
+        
+        fallbackCommand
+          .outputOptions([
+            '-vf', `subtitles='${escapedSrtPath}'`,
+            '-c:v', 'libx264',
+            '-preset', 'ultrafast',
+            '-crf', '28', // Lower quality for faster processing
+            '-c:a', 'aac',
+            '-b:a', '128k',
+            '-threads', optimalThreads.toString(),
+            '-pix_fmt', 'yuv420p',
+            '-err_detect', 'ignore_err',
+            '-fflags', '+genpts',
+            '-f', 'mpegts'
+          ])
+          .on('start', (commandLine: string) => {
+            console.log('[SubtitleProcessor] Fallback FFmpeg started:', commandLine)
+          })
+          .on('stderr', (stderrLine: string) => {
+            fallbackOutput += stderrLine + '\n'
+            console.log('[SubtitleProcessor] Fallback FFmpeg stderr:', stderrLine)
+          })
+          .on('error', (err: Error) => {
+            console.error('[SubtitleProcessor] Fallback FFmpeg error:', err)
+            console.error('[SubtitleProcessor] Fallback command output:', fallbackOutput)
+            // Clean up the fallback SRT file
+            try {
+              unlinkSync(simpleSrtPath)
+            } catch {}
+            reject(new Error(`Fallback processing failed: ${err.message}\nOutput: ${fallbackOutput}`))
+          })
+          .on('end', () => {
+            console.log('[SubtitleProcessor] Fallback FFmpeg process ended successfully')
+            // Clean up the fallback SRT file
+            try {
+              unlinkSync(simpleSrtPath)
+            } catch {}
+            resolve()
+          })
+          
+        // Stream to the output
+        fallbackCommand.stream(outputStream, { end: true })
+        
+      } catch (setupError) {
+        console.error('[SubtitleProcessor] Failed to setup fallback command:', setupError)
+        try {
+          unlinkSync(simpleSrtPath)
+        } catch {}
+        reject(setupError)
+      }
     })
   }
 
   private static buildAdvancedProcessingOptions(options: VideoProcessingOptions): string[] {
-    const outputOptions = []
+    const outputOptions: string[] = []
     const timestamp = new Date().getTime().toString()
 
     // Basic metadata handling
@@ -982,7 +1014,7 @@ Complex filters caused segmentation fault`
     outputOptions.push('-c:v', 'libx264')
     outputOptions.push('-preset', 'medium')  // Better quality for subtitle processing
     outputOptions.push('-crf', '20')        // Higher quality for subtitle text clarity
-    outputOptions.push('-threads', optimalThreads)
+    outputOptions.push('-threads', optimalThreads.toString())
     outputOptions.push('-pix_fmt', 'yuv420p')
     outputOptions.push('-profile:v', 'high')
     outputOptions.push('-c:a', 'aac')
