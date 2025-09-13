@@ -575,6 +575,7 @@ export class SubtitleProcessor {
           fileSize = 'Error reading file'
         }
         
+        
         console.log(`[SubtitleProcessor] ASS file size: ${fileSize}`)
         console.log(`[SubtitleProcessor] ASS content preview (first 500 chars):`)
         console.log(assContent.substring(0, 500))
