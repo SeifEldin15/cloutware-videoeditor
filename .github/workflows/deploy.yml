@@ -1,0 +1,86 @@
+name: Deploy to Server
+
+# Trigger the workflow on push to main branch
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Deploy to Server
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: 18.144.88.135
+        username: ${{ secrets.SSH_USERNAME }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: ${{ secrets.SSH_PORT || '22' }}
+        script_stop: true
+        script: |
+          echo "🚀 Starting deployment process..."
+          
+          # Set deployment directory
+          DEPLOY_DIR="/var/www/cloutware-videoeditor"
+          REPO_URL="https://github.com/SeifEldin15/cloutware-videoeditor.git"
+          
+          # Create deployment directory if it doesn't exist
+          sudo mkdir -p $DEPLOY_DIR
+          sudo chown $USER:$USER $DEPLOY_DIR
+          
+          # Navigate to deployment directory
+          cd $DEPLOY_DIR
+          
+          # Check if it's a git repository, if not initialize
+          if [ ! -d ".git" ]; then
+            echo "📥 Cloning repository for the first time..."
+            git clone $REPO_URL .
+          else
+            echo "📥 Pulling latest changes..."
+            git fetch origin
+            git reset --hard origin/main
+            git clean -fd
+          fi
+          
+          # Install Node.js if not installed
+          if ! command -v node &> /dev/null; then
+            echo "📦 Installing Node.js..."
+            curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+          fi
+          
+          # Install PM2 globally if not installed
+          if ! command -v pm2 &> /dev/null; then
+            echo "📦 Installing PM2..."
+            sudo npm install -g pm2
+          fi
+          
+          # Install dependencies
+          echo "📦 Installing dependencies..."
+          npm install
+          
+          # Stop existing PM2 process if running
+          echo "🛑 Stopping existing application..."
+          pm2 stop video-processing || true
+          pm2 delete video-processing || true
+          
+          # Start the application with PM2
+          echo "🚀 Starting application..."
+          pm2 start npm --name "video-processing" -- run dev -- --host 0.0.0.0 --port 3000
+          
+          # Save PM2 process list
+          pm2 save
+          
+          # Setup PM2 to start on system boot
+          pm2 startup || true
+          
+          echo "✅ Deployment completed successfully!"
+          echo "🌐 Application is running on http://18.144.88.135:3000"
+          
+          # Show PM2 status
+          pm2 status
