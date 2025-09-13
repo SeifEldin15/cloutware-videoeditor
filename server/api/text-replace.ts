@@ -11,6 +11,7 @@ export default eventHandler(async (event) => {
     console.log(`Processing video for text replacement: ${url}`)
     console.log(`Text replacements requested: ${textReplacements.length}`)
     
+    
     await validateVideoUrl(url)
     
     const videoStream = await TextReplacementProcessor.process(
