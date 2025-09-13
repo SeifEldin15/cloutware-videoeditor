@@ -869,6 +869,7 @@ Complex filters caused segmentation fault`
       const escapedSrtPath = simpleSrtPath.replace(/\\/g, '/').replace(/:/g, '\\:')
       
       fallbackCommand
+        .format('mpegts')  // Set format BEFORE output options
         .outputOptions([
           '-vf', `subtitles='${escapedSrtPath}'`,
           '-c:v', 'libx264',
@@ -906,8 +907,8 @@ Complex filters caused segmentation fault`
           resolve()
         })
       
-      // Use pipe() method with proper format
-      fallbackCommand.format('mpegts').pipe(outputStream, { end: true })
+      // Use pipe() method 
+      fallbackCommand.pipe(outputStream, { end: true })
     })
   }
 
