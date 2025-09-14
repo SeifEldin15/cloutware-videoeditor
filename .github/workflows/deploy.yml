@@ -38,23 +38,42 @@ jobs:
         username: ${{ secrets.SSH_USERNAME }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         port: ${{ secrets.SSH_PORT || '22' }}
+        timeout: 60s
+        command_timeout: 10m
         script_stop: true
         script: |
-          set -e  # Exit on any error
           echo "🚀 Starting deployment process..."
           
+          # Show environment info for debugging
+          echo "🔍 Environment Info:"
+          echo "User: $USER"
+          echo "Home: $HOME"
+          echo "Working directory: $(pwd)"
+          echo "Available space: $(df -h $HOME | tail -1 | awk '{print $4}')"
+          
           # Set deployment directory
-          DEPLOY_DIR="/var/www/cloutware-videoeditor"
+          DEPLOY_DIR="$HOME/cloutware-videoeditor"
           REPO_URL="https://github.com/SeifEldin15/cloutware-videoeditor.git"
           
           # Create deployment directory if it doesn't exist
           echo "📁 Setting up deployment directory..."
-          sudo mkdir -p $DEPLOY_DIR
-          sudo chown $USER:$USER $DEPLOY_DIR
+          mkdir -p $DEPLOY_DIR || { echo "❌ Failed to create directory $DEPLOY_DIR"; exit 1; }
+          
+          # Check if directory exists and is accessible
+          if [ ! -d "$DEPLOY_DIR" ]; then
+            echo "❌ Directory $DEPLOY_DIR does not exist after creation"
+            exit 1
+          fi
+          
+          if [ ! -w "$DEPLOY_DIR" ]; then
+            echo "❌ Directory $DEPLOY_DIR is not writable"
+            exit 1
+          fi
           
           # Navigate to deployment directory
           echo "📂 Navigating to $DEPLOY_DIR..."
-          cd $DEPLOY_DIR
+          cd $DEPLOY_DIR || { echo "❌ Failed to navigate to $DEPLOY_DIR"; exit 1; }
+          echo "✅ Successfully navigated to deployment directory"
           
           # Check if it's a git repository, if not initialize
           if [ ! -d ".git" ]; then
@@ -118,7 +137,12 @@ jobs:
           
           # Start the application with PM2 in production mode
           echo "🚀 Starting application in production..."
-          pm2 start pnpm --name "video-processing" -- start || { echo "❌ Failed to start application"; exit 1; }
+          pm2 start pnpm --name "video-processing" -- start || { 
+            echo "❌ Failed to start with pnpm, trying direct node command..."
+            pm2 start .output/server/index.mjs --name "video-processing" || { 
+              echo "❌ Failed to start application"; exit 1; 
+            }
+          }
           echo "✅ Application started successfully"
           
           # Save PM2 process list
