@@ -40,6 +40,7 @@ jobs:
         port: ${{ secrets.SSH_PORT || '22' }}
         script_stop: true
         script: |
+          set -e  # Exit on any error
           echo "🚀 Starting deployment process..."
           
           # Set deployment directory
@@ -47,57 +48,90 @@ jobs:
           REPO_URL="https://github.com/SeifEldin15/cloutware-videoeditor.git"
           
           # Create deployment directory if it doesn't exist
+          echo "📁 Setting up deployment directory..."
           sudo mkdir -p $DEPLOY_DIR
           sudo chown $USER:$USER $DEPLOY_DIR
           
           # Navigate to deployment directory
+          echo "📂 Navigating to $DEPLOY_DIR..."
           cd $DEPLOY_DIR
           
           # Check if it's a git repository, if not initialize
           if [ ! -d ".git" ]; then
             echo "📥 Cloning repository for the first time..."
-            git clone $REPO_URL .
+            git clone $REPO_URL . || { echo "❌ Failed to clone repository"; exit 1; }
           else
             echo "📥 Pulling latest changes..."
-            git fetch origin
-            git reset --hard origin/main
-            git clean -fd
+            git fetch origin || { echo "❌ Failed to fetch from origin"; exit 1; }
+            git reset --hard origin/main || { echo "❌ Failed to reset to origin/main"; exit 1; }
+            git clean -fd || { echo "❌ Failed to clean repository"; exit 1; }
           fi
           
-          # Install Node.js if not installed
-          if ! command -v node &> /dev/null; then
-            echo "📦 Installing Node.js..."
-            curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-            sudo apt-get install -y nodejs
+          echo "✅ Repository updated successfully"
+          
+          # Install Node.js if not installed or check version
+          echo "🔍 Checking Node.js version..."
+          NODE_VERSION=$(node --version 2>/dev/null | cut -c2- | cut -d'.' -f1 || echo "0")
+          if [ "$NODE_VERSION" -lt 22 ]; then
+            echo "📦 Installing Node.js 22..."
+            curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - || { echo "❌ Failed to add Node.js repository"; exit 1; }
+            sudo apt-get install -y nodejs || { echo "❌ Failed to install Node.js"; exit 1; }
+            echo "✅ Node.js version: $(node --version)"
+          else
+            echo "✅ Node.js $(node --version) already installed"
+          fi
+          
+          # Install pnpm if not installed
+          echo "🔍 Checking pnpm..."
+          if ! command -v pnpm &> /dev/null; then
+            echo "📦 Installing pnpm..."
+            npm install -g pnpm || { echo "❌ Failed to install pnpm"; exit 1; }
+            echo "✅ pnpm version: $(pnpm --version)"
+          else
+            echo "✅ pnpm $(pnpm --version) already installed"
           fi
           
           # Install PM2 globally if not installed
+          echo "🔍 Checking PM2..."
           if ! command -v pm2 &> /dev/null; then
             echo "📦 Installing PM2..."
-            sudo npm install -g pm2
+            npm install -g pm2 || { echo "❌ Failed to install PM2"; exit 1; }
+            echo "✅ PM2 installed"
+          else
+            echo "✅ PM2 already installed"
           fi
           
           # Install dependencies
-          echo "📦 Installing dependencies..."
-          npm install
+          echo "📦 Installing dependencies with pnpm..."
+          pnpm install --frozen-lockfile || { echo "❌ Failed to install dependencies"; exit 1; }
+          echo "✅ Dependencies installed successfully"
+          
+          # Build the application for production
+          echo "🔨 Building application for production..."
+          pnpm run build || { echo "❌ Failed to build application"; exit 1; }
+          echo "✅ Application built successfully"
           
           # Stop existing PM2 process if running
           echo "🛑 Stopping existing application..."
-          pm2 stop video-processing || true
-          pm2 delete video-processing || true
+          pm2 stop video-processing 2>/dev/null || echo "ℹ️ No existing process to stop"
+          pm2 delete video-processing 2>/dev/null || echo "ℹ️ No existing process to delete"
           
-          # Start the application with PM2
-          echo "🚀 Starting application..."
-          pm2 start npm --name "video-processing" -- run dev -- --host 0.0.0.0 --port 3000
+          # Start the application with PM2 in production mode
+          echo "🚀 Starting application in production..."
+          pm2 start pnpm --name "video-processing" -- start || { echo "❌ Failed to start application"; exit 1; }
+          echo "✅ Application started successfully"
           
           # Save PM2 process list
-          pm2 save
+          echo "💾 Saving PM2 process list..."
+          pm2 save || { echo "❌ Failed to save PM2 process list"; exit 1; }
           
           # Setup PM2 to start on system boot
-          pm2 startup || true
+          echo "🔄 Setting up PM2 startup..."
+          pm2 startup || echo "ℹ️ PM2 startup may need manual configuration"
           
           echo "✅ Deployment completed successfully!"
-          echo "🌐 Application is running on http://18.144.88.135:3000"
+          echo "🌐 Application should be running on http://18.144.88.135:3000"
           
           # Show PM2 status
-          pm2 status
+          echo "📊 PM2 Status:"
+          pm2 status || { echo "❌ Failed to get PM2 status"; exit 1; }
