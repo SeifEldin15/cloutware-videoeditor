@@ -606,7 +606,7 @@ export class SubtitleProcessor {
     }
     
     if (options?.antiDetection?.noiseAddition) {
-      videoFilters.push('noise=all=1:allf=t')
+      videoFilters.push('noise=alls=1:allf=t')
     }
     
     if (options?.antiDetection?.subtleRotation) {
