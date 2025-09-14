@@ -38,8 +38,8 @@ jobs:
         username: ${{ secrets.SSH_USERNAME }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         port: ${{ secrets.SSH_PORT || '22' }}
-        timeout: 60s
-        command_timeout: 10m
+        timeout: 120s
+        command_timeout: 15m
         script_stop: true
         script: |
           echo "🚀 Starting deployment process..."
@@ -90,14 +90,30 @@ jobs:
           
           # Install Node.js if not installed or check version
           echo "🔍 Checking Node.js version..."
-          NODE_VERSION=$(node --version 2>/dev/null | cut -c2- | cut -d'.' -f1 || echo "0")
+          if command -v node &> /dev/null; then
+            NODE_VERSION=$(node --version 2>/dev/null | sed 's/v//' | cut -d'.' -f1 || echo "0")
+            echo "📊 Current Node.js version: v$(node --version 2>/dev/null || echo 'unknown')"
+          else
+            NODE_VERSION=0
+            echo "📊 Node.js not found"
+          fi
+          
           if [ "$NODE_VERSION" -lt 22 ]; then
             echo "📦 Installing Node.js 22..."
-            curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - || { echo "❌ Failed to add Node.js repository"; exit 1; }
-            sudo apt-get install -y nodejs || { echo "❌ Failed to install Node.js"; exit 1; }
+            echo "📥 Downloading Node.js repository setup..."
+            curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - || { 
+              echo "❌ Failed to add Node.js repository"
+              echo "🔍 Trying alternative installation method..."
+              curl -sL https://deb.nodesource.com/setup_22.x | sudo -E bash - || {
+                echo "❌ All Node.js repository setup methods failed"
+                exit 1
+              }
+            }
+            echo "📦 Installing Node.js package..."
+            sudo apt-get update && sudo apt-get install -y nodejs || { echo "❌ Failed to install Node.js"; exit 1; }
             echo "✅ Node.js version: $(node --version)"
           else
-            echo "✅ Node.js $(node --version) already installed"
+            echo "✅ Node.js $(node --version) already installed and meets requirements"
           fi
           
           # Install pnpm if not installed
@@ -122,13 +138,37 @@ jobs:
           
           # Install dependencies
           echo "📦 Installing dependencies with pnpm..."
-          pnpm install --frozen-lockfile || { echo "❌ Failed to install dependencies"; exit 1; }
+          echo "📊 Package.json info:"
+          ls -la package.json || echo "❌ package.json not found"
+          ls -la pnpm-lock.yaml || echo "ℹ️ pnpm-lock.yaml not found, will create new one"
+          echo "💾 Available disk space before install:"
+          df -h . | tail -1
+          
+          pnpm install --frozen-lockfile || { 
+            echo "❌ Failed with frozen lockfile, trying without..."
+            pnpm install || { echo "❌ Failed to install dependencies"; exit 1; }
+          }
           echo "✅ Dependencies installed successfully"
+          echo "💾 Available disk space after install:"
+          df -h . | tail -1
           
           # Build the application for production
           echo "🔨 Building application for production..."
+          echo "📊 Node.js and npm versions:"
+          node --version
+          npm --version
+          pnpm --version
+          echo "💾 Available disk space before build:"
+          df -h . | tail -1
+          
           pnpm run build || { echo "❌ Failed to build application"; exit 1; }
           echo "✅ Application built successfully"
+          
+          echo "📁 Checking build output:"
+          ls -la .output/ || echo "❌ .output directory not found"
+          ls -la .output/server/ || echo "❌ .output/server directory not found"
+          echo "💾 Available disk space after build:"
+          df -h . | tail -1
           
           # Stop existing PM2 process if running
           echo "🛑 Stopping existing application..."
