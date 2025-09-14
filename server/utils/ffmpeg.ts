@@ -26,9 +26,12 @@ if (isUbuntu) {
   }
 } else {
   // Use ffmpeg-installer for other platforms
-  const { path, version } = await import('@ffmpeg-installer/ffmpeg')
-  ffmpeg.setFfmpegPath(path)
-  console.info(`Installed FFmpeg ${version}`)
+  import('@ffmpeg-installer/ffmpeg').then(({ path, version }) => {
+    ffmpeg.setFfmpegPath(path)
+    console.info(`Installed FFmpeg ${version}`)
+  }).catch(err => {
+    console.error('Failed to load ffmpeg-installer:', err)
+  })
 }
 
 export const encoders = new Promise<Encoders>((resolve, reject) => ffmpeg.availableEncoders((err, res) => err ? reject(err) : resolve(res))).then(Object.keys)
