@@ -44,25 +44,41 @@ jobs:
         script: |
           echo "🚀 Starting simple deployment..."
           
-          # Set deployment directory
-          DEPLOY_DIR="$HOME/cloutware-videoeditor"
-          REPO_URL="https://github.com/SeifEldin15/cloutware-videoeditor.git"
+          # Check and clean up disk space first
+          echo "💾 Checking disk space..."
+          df -h $HOME
+          
+          # Clean up npm cache and temporary files
+          echo "🧹 Cleaning up to free disk space..."
+          npm cache clean --force || true
+          rm -rf ~/.npm/_cacache || true
+          rm -rf /tmp/npm-* || true
+          sudo apt-get autoremove -y || true
+          sudo apt-get autoclean || true
           
           # Navigate to home and clean up if exists
           cd $HOME
           rm -rf cloutware-videoeditor
           
+          echo "💾 Disk space after cleanup:"
+          df -h $HOME
+          
           # Clone repository
           echo "📥 Cloning repository..."
-          git clone $REPO_URL
+          git clone https://github.com/SeifEldin15/cloutware-videoeditor.git
           cd cloutware-videoeditor
           
-          # Install dependencies and build
+          # Install dependencies with optimizations
           echo "📦 Installing dependencies..."
-          npm install
+          npm ci --only=production --no-audit --no-fund || npm install --only=production --no-audit --no-fund
           
           echo "🔨 Building application..."
           npm run build
+          
+          # Clean up after build to save space
+          echo "🧹 Cleaning up after build..."
+          npm cache clean --force || true
+          rm -rf node_modules/.cache || true
           
           # Stop existing PM2 process
           echo "🛑 Stopping existing processes..."
