@@ -1,20 +1,11 @@
 import { formatTime, calculateNextPosition, type SubtitleSegment, type GirlbossStyle } from '../subtitleUtils';
 import { convertColorToASS } from '../colorUtils';
+import { type Position, type AnimationResult } from './types';
 
 export interface RevealEnlargeStyle extends GirlbossStyle {
   textOutlineWidth?: number;
   alternateColors?: string[];
   textOutlineColor?: string;
-}
-
-export interface Position {
-  x: number;
-  y: number;
-}
-
-export interface AnimationResult {
-  events: string;
-  lastPosition: Position;
 }
 
 /**
