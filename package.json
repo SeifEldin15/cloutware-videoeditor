@@ -19,6 +19,7 @@
     "@antfu/eslint-config": "^4.6.0",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@nuxt/eslint": "^1.1.0",
+    "@tailwindcss/postcss": "^4.1.13",
     "archiver": "^7.0.1",
     "assemblyai": "^4.9.0",
     "eslint": "^9.21.0",

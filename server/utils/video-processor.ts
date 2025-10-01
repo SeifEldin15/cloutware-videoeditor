@@ -1,5 +1,5 @@
 import { PassThrough } from 'stream'
-import ffmpeg from './ffmpeg'
+import { getInitializedFfmpeg } from './ffmpeg'
 import os from 'os'
 import type { VideoProcessingOptions } from './validation-schemas'
 
@@ -34,11 +34,12 @@ export class VideoProcessor {
   ): Promise<PassThrough> {
     console.log(`Processing ${options.name}...`)
 
-    return new Promise<PassThrough>((resolve, reject) => {
+    return new Promise<PassThrough>(async (resolve, reject) => {
       try {
         const outputStream = new PassThrough({ highWaterMark: 4 * 1024 * 1024 })
 
         let commandOutput = ''
+        const ffmpeg = await getInitializedFfmpeg()
         let ffmpegCommand = ffmpeg(inputUrl)
 
         ffmpegCommand.inputOptions([
@@ -211,16 +212,18 @@ export class VideoProcessor {
     }
 
     outputOptions.push('-c:v', 'libx264')
-    outputOptions.push('-preset', 'veryfast')
-    outputOptions.push('-crf', '28')
+    outputOptions.push('-preset', 'medium')                 // Better quality than veryfast
+    outputOptions.push('-crf', '20')                        // Higher quality (lower CRF)
+    outputOptions.push('-profile:v', 'high')                // H.264 high profile
+    outputOptions.push('-level', '4.1')                     // H.264 compatibility level
     outputOptions.push('-threads', optimalThreads)
     outputOptions.push('-pix_fmt', 'yuv420p')
     outputOptions.push('-r', '29.97')
     outputOptions.push('-c:a', 'aac')
-    outputOptions.push('-b:a', '128k')
+    outputOptions.push('-b:a', '192k')                      // Higher audio quality
+    outputOptions.push('-ar', '48000')                      // High sample rate
     outputOptions.push('-max_muxing_queue_size', '4096')
     outputOptions.push('-movflags', '+faststart')
-    outputOptions.push('-tune', 'zerolatency')
     outputOptions.push('-f', 'mp4')
 
     return outputOptions

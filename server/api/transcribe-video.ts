@@ -87,11 +87,19 @@ function convertToSRT(words: any[]) {
 
 export default eventHandler(async (event) => {
   try {
+    console.log('🔍 Transcribe API called')
+    console.log('🔑 API Key available:', !!apiKey)
+    console.log('🔑 API Key preview:', apiKey ? `${apiKey.substring(0, 8)}...` : 'NOT SET')
+    
     const body = await readBody(event);
+    console.log('📦 Request body received:', body)
+    
     const { url, outputFormat, language, speakerLabels, punctuate, formatText } = requestSchema.parse(body);
 
-    console.log(`Transcribing video from URL: ${url}`);
+    console.log(`🎬 Transcribing video from URL: ${url}`)
+    console.log('⚙️ Transcription settings:', { outputFormat, language, speakerLabels, punctuate, formatText })
 
+    console.log('🚀 Making AssemblyAI API request...')
     const response = await fetch('https://api.assemblyai.com/v2/transcript', {
       method: 'POST',
       headers: {
@@ -107,15 +115,20 @@ export default eventHandler(async (event) => {
       })
     });
 
+    console.log('📡 AssemblyAI response status:', response.status)
+
     if (!response.ok) {
       const error = await response.json();
+      console.error('❌ AssemblyAI API error:', error)
       throw new Error(`AssemblyAI API error: ${error.message || 'Unknown error'}`);
     }
 
     const transcriptionRequest = await response.json();
     const transcriptId = transcriptionRequest.id;
+    console.log('📝 Transcription job started with ID:', transcriptId)
 
     while (true) {
+      console.log('🔄 Checking transcription status...')
       const statusResponse = await fetch(`https://api.assemblyai.com/v2/transcript/${transcriptId}`, {
         headers: {
           'Authorization': apiKey
@@ -124,22 +137,34 @@ export default eventHandler(async (event) => {
 
       if (!statusResponse.ok) {
         const error = await statusResponse.json();
+        console.error('❌ Status check error:', error)
         throw new Error(`AssemblyAI API error: ${error.message || 'Unknown error'}`);
       }
 
       const transcript = await statusResponse.json();
+      console.log('📊 Transcription status:', transcript.status)
 
       if (transcript.status === 'completed') {
+        console.log('✅ Transcription completed!')
+        console.log('📄 Output format requested:', outputFormat)
+        
         switch (outputFormat) {
           case 'text':
-            return transcript.text;
+            console.log('📝 Returning text format')
+            return { transcription: transcript.text };
           case 'srt':
-            return convertToSRT(transcript.words);
+            console.log('📝 Converting to SRT format')
+            const srtContent = convertToSRT(transcript.words);
+            console.log('📝 SRT content length:', srtContent.length)
+            return { transcription: srtContent };
           case 'vtt':
-            return transcript.text;
+            console.log('📝 Returning VTT format')
+            return { transcription: transcript.text };
           case 'json':
           default:
+            console.log('📝 Returning JSON format')
             return {
+              transcription: transcript.text,
               text: transcript.text,
               words: transcript.words,
               confidence: transcript.confidence,
@@ -148,20 +173,24 @@ export default eventHandler(async (event) => {
             };
         }
       } else if (transcript.status === 'error') {
+        console.error('❌ Transcription failed:', transcript.error)
         throw new Error(`Transcription failed: ${transcript.error}`);
+      } else {
+        console.log('⏱️ Transcription still processing, waiting 3 seconds...')
       }
 
       await new Promise(resolve => setTimeout(resolve, 3000));
     }
 
   } catch (error) {
-    console.error('Error transcribing video:', error);
+    console.error('💥 Error transcribing video:', error);
     event.node.res.statusCode = 500;
     
     const errorMessage = error instanceof Error 
       ? error.message 
       : 'Unknown error occurred';
-      
+    
+    console.error('🚨 Returning error to client:', errorMessage);
     return { error: 'Failed to transcribe video: ' + errorMessage };
   }
 }); 

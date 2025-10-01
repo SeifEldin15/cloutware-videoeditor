@@ -8,6 +8,7 @@ import { processVideoWithSubtitlesFile } from './captioning'
 import { generateAdvancedASSFile, parseSRT, getStyleFont, getFontFilePath, type SubtitleSegment, type GirlbossStyle, processWordModeSegments, formatTimeForSRT } from './subtitleUtils'
 import type { CaptionOptions, VideoProcessingOptions } from './validation-schemas'
 import { resolve, join as pathJoin } from 'path'
+import { getQualityConfig, configToOutputOptions, type QualityLevel } from './quality-config'
 
 const availableCpuCores = os.cpus().length
 // Keep filtergraph single-threaded for stability
@@ -78,7 +79,7 @@ interface StyleOptions {
 }
 
 export class SubtitleProcessor {
-  static async processBasic(url: string, caption: CaptionOptions): Promise<PassThrough> {
+  static async processBasic(url: string, caption: CaptionOptions, quality: QualityLevel = 'high'): Promise<PassThrough> {
     if (!caption?.srtContent) {
       throw new Error('SRT content is required for basic subtitle processing')
     }
@@ -125,7 +126,8 @@ export class SubtitleProcessor {
   static async processAdvanced(
     url: string,
     caption: CaptionOptions,
-    videoOptions?: VideoProcessingOptions
+    videoOptions?: VideoProcessingOptions,
+    quality: QualityLevel = 'premium'  // Default to premium quality
   ): Promise<PassThrough> {
     if (!caption?.srtContent) {
       throw new Error('SRT content is required for advanced subtitle processing')
@@ -137,7 +139,8 @@ export class SubtitleProcessor {
       url,
       caption.srtContent,
       styleOptions,
-      videoOptions
+      videoOptions,
+      quality
     )
   }
 
@@ -184,7 +187,8 @@ export class SubtitleProcessor {
     inputUrl: string,
     srtContent: string,
     styleOptions: StyleOptions,
-    videoOptions?: VideoProcessingOptions
+    videoOptions?: VideoProcessingOptions,
+    quality: QualityLevel = 'premium'
   ): Promise<PassThrough> {
     console.log(`Processing video with ${styleOptions.subtitleStyle} style subtitles...`)
 
@@ -216,8 +220,8 @@ export class SubtitleProcessor {
         let fontsDir: string | null = null
         
         if (fontFilePath && existsSync(fontFilePath)) {
-          // Create a temporary fonts directory
-          fontsDir = pathJoin(tmpdir(), 'fonts_' + Date.now())
+          // Create a fonts directory in the current working directory to avoid drive path issues
+          fontsDir = pathJoin(process.cwd(), 'temp_fonts_' + Date.now())
           try {
             mkdirSync(fontsDir, { recursive: true })
           } catch (error) {
@@ -463,7 +467,7 @@ export class SubtitleProcessor {
           '-filter_threads', '1'           // important for filtergraph stability
         ])
 
-        const advancedOptions = videoOptions ? this.buildAdvancedProcessingOptions(videoOptions) : []
+        const advancedOptions = videoOptions ? this.buildAdvancedProcessingOptions(videoOptions, quality) : []
 
         let baseVideoFilter = ''
         const vfIndex = advancedOptions.findIndex(opt => opt === '-vf')
@@ -473,11 +477,21 @@ export class SubtitleProcessor {
 
         const escapedPath = tempAssFile.replace(/\\/g, '/').replace(/:/g, '\\:')
         
-        // Use ass filter with fontsdir for better stability
+        // Use ass filter with temp fonts directory only (if available)
         const vf = [
-          "scale=trunc(iw/2)*2:trunc(ih/2)*2",
-          `ass='${escapedPath}':fontsdir=/usr/share/fonts:/home/ubuntu/codes/cloutware-videoeditor/public/fonts`
+          "scale=trunc(iw/2)*2:trunc(ih/2)*2"
         ]
+        
+        if (fontsDir && existsSync(fontsDir)) {
+          // Use relative path to avoid Windows drive path issues
+          const relativeFontsPath = fontsDir.replace(process.cwd(), '.').replace(/\\/g, '/')
+          vf.push(`ass='${escapedPath}':fontsdir=${relativeFontsPath}`)
+          console.log(`🎨 Using fonts from: ${relativeFontsPath}`)
+        } else {
+          // Fallback without fontsdir - rely on system fonts
+          vf.push(`ass='${escapedPath}'`)
+          console.log(`🎨 Using system fonts only`)
+        }
         
         // Add any existing video filters from advanced options
         if (baseVideoFilter) {
@@ -522,7 +536,10 @@ export class SubtitleProcessor {
         if (codecOptions.length > 0) {
           outputOptions.push(...codecOptions)
         } else {
-          outputOptions.push('-c:v', 'libx264', '-crf', '23', '-c:a', 'aac', '-b:a', '128k')
+          // Apply quality settings as fallback
+          const qualityConfig = getQualityConfig(quality || 'premium')
+          const qualityOptions = configToOutputOptions(qualityConfig)
+          outputOptions.push(...qualityOptions)
         }
 
         outputOptions.push('-threads', '1', '-pix_fmt', 'yuv420p', '-f', 'mpegts')
@@ -566,7 +583,7 @@ export class SubtitleProcessor {
     })
   }
 
-  private static buildAdvancedProcessingOptions(options: VideoProcessingOptions): string[] {
+  private static buildAdvancedProcessingOptions(options: VideoProcessingOptions, quality: QualityLevel = 'premium'): string[] {
     const outputOptions = []
     const timestamp = new Date().getTime().toString()
 
@@ -634,16 +651,13 @@ export class SubtitleProcessor {
       outputOptions.push('-af', audioFilters.join(','))
     }
 
-    // Standard encoding options
-    outputOptions.push('-c:v', 'libx264')
-    outputOptions.push('-preset', 'veryfast')
-    outputOptions.push('-crf', '23')
-    outputOptions.push('-threads', '1')
-    outputOptions.push('-pix_fmt', 'yuv420p')
-    outputOptions.push('-c:a', 'aac')
-    outputOptions.push('-b:a', '128k')
-    outputOptions.push('-max_muxing_queue_size', '4096')
-    outputOptions.push('-movflags', '+faststart')
+    // Apply quality settings from centralized config
+    const qualityConfig = getQualityConfig(quality)
+    const qualityOptions = configToOutputOptions(qualityConfig)
+    outputOptions.push(...qualityOptions)
+    outputOptions.push('-threads', '1')  // Override threads for subtitle processing
+    
+    console.log(`🎥 Using ${quality} quality settings: CRF ${qualityConfig.crf}, preset ${qualityConfig.preset}`)
 
     return outputOptions
   }

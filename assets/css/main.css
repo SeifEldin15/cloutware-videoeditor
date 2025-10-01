@@ -1,6 +1,4 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 /* Custom scrollbar for textarea */
 textarea::-webkit-scrollbar {
@@ -23,7 +21,8 @@ textarea::-webkit-scrollbar-thumb:hover {
 
 /* Custom focus ring */
 .focus-ring:focus {
-  @apply ring-2 ring-pink-500 ring-opacity-50;
+  outline: 2px solid rgba(236, 72, 153, 0.5);
+  outline-offset: 2px;
 }
 
 /* Gradient animation */

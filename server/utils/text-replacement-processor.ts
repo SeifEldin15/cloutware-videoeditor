@@ -1,5 +1,5 @@
 import { PassThrough } from 'stream'
-import ffmpeg from './ffmpeg'
+import { getInitializedFfmpeg } from './ffmpeg'
 import os from 'os'
 import type { TextReplacementOptions } from './validation-schemas'
 import { getFontFilePath } from './subtitleUtils'
@@ -36,11 +36,12 @@ export class TextReplacementProcessor {
   ): Promise<PassThrough> {
     console.log(`Processing ${config.name}...`)
 
-    return new Promise<PassThrough>((resolve, reject) => {
+    return new Promise<PassThrough>(async (resolve, reject) => {
       try {
         const outputStream = new PassThrough({ highWaterMark: 4 * 1024 * 1024 })
 
         let commandOutput = ''
+        const ffmpeg = await getInitializedFfmpeg()
         let ffmpegCommand = ffmpeg(inputUrl)
 
         ffmpegCommand.inputOptions([
@@ -61,12 +62,15 @@ export class TextReplacementProcessor {
           .outputOptions([
             '-vf', videoFilters,
             '-c:v', 'libx264',
-            '-preset', 'veryfast',
-            '-crf', '23',
+            '-preset', 'slow',                    // Higher quality preset
+            '-crf', '18',                        // Higher quality (lower CRF)
+            '-profile:v', 'high',                // H.264 high profile
+            '-level', '4.1',                     // H.264 compatibility level
             '-threads', optimalThreads,
             '-pix_fmt', 'yuv420p',
             '-c:a', 'aac',
-            '-b:a', '128k',
+            '-b:a', '192k',                      // Higher audio quality
+            '-ar', '48000',                      // High sample rate
             '-max_muxing_queue_size', '4096',
             '-f', 'mpegts'
           ])

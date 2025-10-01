@@ -1,4 +1,4 @@
-import ffmpeg from './ffmpeg'
+import { getInitializedFfmpeg } from './ffmpeg'
 import { PassThrough } from 'stream'
 
 export function groupWordsIntoSegments(words: any[]) {
@@ -46,7 +46,7 @@ export function groupWordsIntoSegments(words: any[]) {
 }
 
 export async function processVideoWithTimedSubtitles(inputUrl: string, transcript: any, options: any) {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     try {
       const outputStream = new PassThrough();
       
@@ -126,8 +126,10 @@ export async function processVideoWithTimedSubtitles(inputUrl: string, transcrip
       
       command.outputOptions([
         '-c:v', 'libx264',      
-        '-preset', 'ultrafast', 
-        '-crf', '18',           
+        '-preset', 'medium',                              // Better quality than ultrafast
+        '-crf', '12',                                     // Highest quality (very low CRF)
+        '-profile:v', 'high',                             // H.264 high profile
+        '-level', '4.1',                                  // H.264 compatibility level
         '-c:a', 'copy',         
         '-map_metadata', '0',   
         '-movflags', 'frag_keyframe+empty_moov+faststart', 
@@ -150,7 +152,7 @@ export async function processVideoWithTimedSubtitles(inputUrl: string, transcrip
 }
 
 export async function processVideoWithSubtitlesFile(inputUrl: string, srtContent: string, options: any) {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     try {
       const outputStream = new PassThrough({highWaterMark: 4 * 1024 * 1024});
       
@@ -210,6 +212,7 @@ export async function processVideoWithSubtitlesFile(inputUrl: string, srtContent
         return `drawtext=text='${escapedText}':font='${fontString}':fontsize=${options.fontSize}:fontcolor=${options.fontColor}:x=${xPosition}:y=${yPosition}${boxSettings}${outlineSettings}:enable='${enableExpr}'`;
       });
       
+      const ffmpeg = await getInitializedFfmpeg()
       const command = ffmpeg(inputUrl)
         .inputOptions([
           '-protocol_whitelist', 'file,http,https,tcp,tls',
@@ -228,10 +231,14 @@ export async function processVideoWithSubtitlesFile(inputUrl: string, srtContent
       
       command.outputOptions([
         '-c:v', 'libx264',      
-        '-preset', 'ultrafast', 
-        '-crf', '23',           
+        '-preset', 'medium',                              // Better quality encoding
+        '-crf', '15',                                     // High quality (lower CRF)
+        '-profile:v', 'high',                             // H.264 high profile  
+        '-level', '4.1',                                  // H.264 compatibility level
         '-c:a', 'aac',
-        '-b:a', '128k',         
+        '-b:a', '256k',                                   // Higher audio quality
+        '-ac', '2',                                       // Stereo audio
+        '-ar', '48000',                                   // High sample rate
         '-map_metadata', '-1',   
         '-movflags', 'frag_keyframe+empty_moov+faststart', 
         '-pix_fmt', 'yuv420p',

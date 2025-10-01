@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { readBody, setResponseHeader } from 'h3'
-import ffmpeg from '../utils/ffmpeg'
+import { getInitializedFfmpeg } from '../utils/ffmpeg'
 import { PassThrough } from 'stream'
 
 const requestSchema = z.object({
@@ -65,10 +65,11 @@ async function generateSpeech(text: string, voice: string, speed: number) {
 }
 
 async function combineVideoWithAudio(videoUrl: string, audioStream: ReadableStream<Uint8Array>) {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     try {
       const outputStream = new PassThrough();
       
+      const ffmpeg = await getInitializedFfmpeg()
       const command = ffmpeg(videoUrl, { timeout: 240 })
         .inputOptions([
           '-protocol_whitelist', 'file,http,https,tcp,tls',

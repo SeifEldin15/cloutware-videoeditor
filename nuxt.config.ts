@@ -1,5 +1,5 @@
 export default defineNuxtConfig({
-  modules: ['@nuxt/eslint', '@nuxtjs/tailwindcss'],
+  modules: ['@nuxt/eslint'],
   eslint: { config: { stylistic: true } },
 
   devServer: {
@@ -12,6 +12,13 @@ export default defineNuxtConfig({
   },
 
   css: ['~/assets/css/main.css'],
+
+  postcss: {
+    plugins: {
+      '@tailwindcss/postcss': {},
+      autoprefixer: {},
+    },
+  },
 
   compatibilityDate: '2025-03-25',
 })

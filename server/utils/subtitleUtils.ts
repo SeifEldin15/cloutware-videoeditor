@@ -228,7 +228,20 @@ export const generateAdvancedASSFile = (
   const fontSize = style.fontSize || 50;
   const fontFamily = getStyleFont(styleType, style.fontFamily);
   const alignment = style.textAlign === 'left' ? '1' : style.textAlign === 'right' ? '3' : '2';
-  const marginV = Math.round((720 * (100 - (style.verticalPosition || 50))) / 100);
+  
+  // Proper vertical position mapping for ASS subtitles
+  let marginV;
+  const verticalPos = style.verticalPosition || 15;
+  if (verticalPos >= 80) {
+    // Top position (80-90 range)
+    marginV = Math.round(720 * 0.85); // Near top
+  } else if (verticalPos >= 45 && verticalPos <= 55) {
+    // Center position (45-55 range)
+    marginV = Math.round(720 * 0.5); // Middle
+  } else {
+    // Bottom position (10-25 range)
+    marginV = Math.round(720 * 0.15); // Near bottom
+  }
 
   const fontColorASS = convertColorToASS(style.color || '#FFFFFF');
   const boldValue = (fontFamily.includes('Arial Black') || fontFamily.includes('Luckiest Guy') || fontFamily.toLowerCase().includes('black')) ? 1 : 0;
