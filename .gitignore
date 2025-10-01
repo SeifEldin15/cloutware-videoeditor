@@ -24,3 +24,6 @@ logs
 !.env.example
 .vercel
 .env*.local
+
+# FFmpeg configuration (Windows-specific)
+server/utils/ffmpeg.ts
