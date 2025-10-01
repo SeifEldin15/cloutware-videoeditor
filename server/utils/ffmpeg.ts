@@ -1,5 +1,14 @@
-import type { Codecs, Encoders } from 'fluent-ffmpeg'
+// @ts-ignore - fluent-ffmpeg types may not be available
 import ffmpeg from 'fluent-ffmpeg'
+
+// Define types locally if not available from fluent-ffmpeg
+interface Encoders {
+  [key: string]: any
+}
+
+interface Codecs {
+  [key: string]: any
+}
 import { execFileSync } from 'node:child_process'
 import { platform } from 'node:os'
 
@@ -34,7 +43,13 @@ if (isUbuntu) {
   })
 }
 
-export const encoders = new Promise<Encoders>((resolve, reject) => ffmpeg.availableEncoders((err, res) => err ? reject(err) : resolve(res))).then(Object.keys)
-export const codecs = new Promise<Codecs>((resolve, reject) => ffmpeg.availableCodecs((err, res) => err ? reject(err) : resolve(res))).then(Object.keys)
+// Export function that captioning.ts expects
+export async function getInitializedFfmpeg() {
+  // Since ffmpeg is already initialized above, just return it
+  return ffmpeg
+}
+
+export const encoders = new Promise<Encoders>((resolve, reject) => ffmpeg.availableEncoders((err: any, res: Encoders) => err ? reject(err) : resolve(res))).then(Object.keys)
+export const codecs = new Promise<Codecs>((resolve, reject) => ffmpeg.availableCodecs((err: any, res: Codecs) => err ? reject(err) : resolve(res))).then(Object.keys)
 export default ffmpeg
 
