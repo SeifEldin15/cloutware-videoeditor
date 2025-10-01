@@ -1,6 +1,7 @@
 // Utility functions for subtitle processing
 import { join } from 'path';
 import { convertColorToASS } from './colorUtils';
+
 import { RevealEnlarge } from './animations/revealEnlarge';
 import { shrinkingColorsPairAnimation } from './animations/shrinkingPairs';
 import { Girlboss } from './animations/girlboss';
@@ -414,12 +415,4 @@ export const processWordModeSegments = (
   }
 
   return wordSegments;
-};
-
-export { Girlboss } from './animations/girlboss';
-export { alternatingColorsAnimation } from './animations/hormozi';
-export { tiktokStyleAnimation } from './animations/tiktokstyle';
-export { ThinToBold } from './animations/thinToBold';
-export { Wavycolors } from './animations/wavyColors';
-export { shrinkingColorsPairAnimation } from './animations/shrinkingPairs';
-export { RevealEnlarge } from './animations/revealEnlarge'; 
+}; 
