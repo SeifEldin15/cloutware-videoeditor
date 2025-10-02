@@ -35,6 +35,7 @@ jobs:
       uses: appleboy/ssh-action@v1.0.3
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        ASSEMBLYAI_API_KEY: ${{ secrets.ASSEMBLYAI_API_KEY }}
       with:
         host: 18.144.88.135
         username: ${{ secrets.SSH_USERNAME }}
@@ -43,7 +44,7 @@ jobs:
         timeout: 120s
         command_timeout: 15m
         script_stop: true
-        envs: GITHUB_TOKEN
+        envs: GITHUB_TOKEN,ASSEMBLYAI_API_KEY
         script: |
           echo "🚀 Starting simple deployment..."
           
@@ -90,6 +91,14 @@ jobs:
           fi
           
           cd cloutware-videoeditor
+          
+          # Create environment file with secrets
+          echo "🔐 Setting up environment variables..."
+          cat > .env << EOF
+          ASSEMBLYAI_API_KEY=$ASSEMBLYAI_API_KEY
+          PORT=3000
+          NODE_ENV=production
+          EOF
           
           # Install dependencies with optimizations
           echo "📦 Installing dependencies..."
