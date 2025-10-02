@@ -1,14 +1,5 @@
-// @ts-ignore - fluent-ffmpeg types may not be available
+import type { Codecs, Encoders } from 'fluent-ffmpeg'
 import ffmpeg from 'fluent-ffmpeg'
-
-// Define types locally if not available from fluent-ffmpeg
-interface Encoders {
-  [key: string]: any
-}
-
-interface Codecs {
-  [key: string]: any
-}
 import { execFileSync } from 'node:child_process'
 import { platform } from 'node:os'
 
