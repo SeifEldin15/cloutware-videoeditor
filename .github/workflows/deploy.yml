@@ -94,11 +94,20 @@ jobs:
           
           # Create environment file with secrets
           echo "🔐 Setting up environment variables..."
+          if [ -z "$ASSEMBLYAI_API_KEY" ]; then
+            echo "⚠️ Warning: ASSEMBLYAI_API_KEY is empty or not set"
+          else
+            echo "✅ ASSEMBLYAI_API_KEY is available (length: ${#ASSEMBLYAI_API_KEY})"
+          fi
+          
           cat > .env << EOF
           ASSEMBLYAI_API_KEY=$ASSEMBLYAI_API_KEY
           PORT=3000
           NODE_ENV=production
           EOF
+          
+          echo "📄 Environment file created:"
+          cat .env | sed 's/ASSEMBLYAI_API_KEY=.*/ASSEMBLYAI_API_KEY=***HIDDEN***/'
           
           # Install dependencies with optimizations
           echo "📦 Installing dependencies..."
@@ -161,3 +170,4 @@ jobs:
           echo "✅ Deployment completed successfully!"
           echo "🌐 Application should be running on http://18.144.88.135:3000"
           echo "📝 Check logs with: pm2 logs video-processing"
+          echo "🔐 Environment variables should now be configured"
