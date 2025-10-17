@@ -5,6 +5,7 @@ import { platform } from 'node:os'
 
 // Check if we're running on Ubuntu
 const isUbuntu = platform() === 'linux' && process.env.UBUNTU_CODENAME !== undefined
+const isWindows = platform() === 'win32'
 
 if (isUbuntu) {
   // Force the modern system binary (Ubuntu 6.1.1 in your shell)
@@ -24,8 +25,26 @@ if (isUbuntu) {
   } catch { 
     /* ignore */ 
   }
+} else if (isWindows) {
+  // Use ffmpeg-installer for Windows (synchronous import)
+  try {
+    const { path, version } = require('@ffmpeg-installer/ffmpeg')
+    ffmpeg.setFfmpegPath(path)
+    console.info(`[Windows] Installed FFmpeg ${version} at: ${path}`)
+    
+    // Also set ffprobe if available
+    try {
+      const ffprobeInstaller = require('@ffprobe-installer/ffprobe')
+      ffmpeg.setFfprobePath(ffprobeInstaller.path)
+      console.info(`[Windows] Installed FFprobe at: ${ffprobeInstaller.path}`)
+    } catch {
+      console.warn('[Windows] FFprobe installer not found, skipping')
+    }
+  } catch (err) {
+    console.error('[Windows] Failed to load ffmpeg-installer:', err)
+  }
 } else {
-  // Use ffmpeg-installer for other platforms
+  // Use ffmpeg-installer for other platforms (Mac, etc.)
   import('@ffmpeg-installer/ffmpeg').then(({ path, version }) => {
     ffmpeg.setFfmpegPath(path)
     console.info(`Installed FFmpeg ${version}`)
