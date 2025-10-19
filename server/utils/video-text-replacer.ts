@@ -2,6 +2,9 @@ import { getInitializedFfmpeg } from './ffmpeg'
 import { PassThrough } from 'stream'
 import type { DetectedText } from './text-detection-coords'
 import { getFontFilePath } from './subtitleUtils'
+import { createReadStream, unlink } from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
 
 export interface TextReplacement {
   originalText: string
@@ -23,6 +26,7 @@ export interface ReplaceTextOptions {
   fontColor?: string
   backgroundColor?: string
   backgroundOpacity?: number
+  videoWidth?: number  // Video width for horizontal alignment
 }
 
 /**
@@ -39,7 +43,8 @@ export async function replaceTextInVideo(
     fontSize = 24,
     fontColor = '#000000',
     backgroundColor = '#FFFFFF',
-    backgroundOpacity = 1.0
+    backgroundOpacity = 1.0,
+    videoWidth
   } = options
 
   console.log(`🎨 Replacing ${textReplacements.length} text region(s) in video`)
@@ -47,6 +52,10 @@ export async function replaceTextInVideo(
   return new Promise<PassThrough>(async (resolve, reject) => {
     try {
       const outputStream = new PassThrough({ highWaterMark: 4 * 1024 * 1024 })
+      
+      // Use temp file approach for Windows compatibility
+      const tempFile = join(tmpdir(), `video_text_replace_${Date.now()}.mp4`)
+      console.log(`📁 Using temp file: ${tempFile}`)
       
       const ffmpeg = await getInitializedFfmpeg()
       let command = ffmpeg(videoUrl)
@@ -59,47 +68,95 @@ export async function replaceTextInVideo(
         '-reconnect_delay_max', '5'
       ])
 
-      // Build video filter for all replacements
-      const videoFilter = buildTextReplacementFilter(textReplacements, {
+      // Build video filters as a single complex filter string
+      const filterComplex = buildTextReplacementFilterComplex(textReplacements, {
         fontFamily,
         fontSize,
         fontColor,
         backgroundColor,
         backgroundOpacity
-      })
+      }, videoWidth)
 
       console.log('📝 Applying text replacements...')
-      console.log(`📐 Video filter: ${videoFilter}`)
-      console.log(`📊 Replacements:`, textReplacements)
+      console.log(`📐 Filter complex:`, filterComplex)
+      console.log(`📊 Replacements:`, JSON.stringify(textReplacements, null, 2))
+
+      let hasStarted = false
+      let hasError = false
 
       command
+        .complexFilter(filterComplex)  
         .outputOptions([
-          '-vf', videoFilter,
+          '-map', '[out]',  // Map the filtered video stream
+          '-map', '0:a?',   // Map audio stream if exists (? means optional)
           '-c:v', 'libx264',
-          '-preset', 'medium',
+          '-preset', 'ultrafast',
           '-crf', '23',
           '-c:a', 'copy',
-          '-movflags', 'frag_keyframe+empty_moov+faststart',
-          '-f', 'mp4'
+          '-movflags', 'frag_keyframe+empty_moov+faststart'
         ])
         .on('start', (commandLine: string) => {
-          console.log(`${outputName} FFmpeg started`)
+          hasStarted = true
+          console.log(`🎬 ${outputName} FFmpeg started`)
+          console.log(`📋 Command: ${commandLine}`)
+        })
+        .on('stderr', (stderrLine: string) => {
+          console.log(`[FFmpeg stderr]: ${stderrLine}`)
         })
         .on('progress', (progress: any) => {
           if (progress.percent) {
             console.log(`${outputName} Processing: ${progress.percent.toFixed(2)}%`)
           }
+          if (progress.targetSize) {
+            console.log(`${outputName} Current size: ${progress.targetSize}kB`)
+          }
         })
         .on('end', () => {
-          console.log(`✅ ${outputName} completed successfully`)
-          outputStream.end()
+          console.log(`✅ ${outputName} FFmpeg completed, reading temp file...`)
+          
+          // Stream the temp file to output
+          const fileStream = createReadStream(tempFile)
+          let bytesRead = 0
+          
+          fileStream.on('data', (chunk) => {
+            bytesRead += chunk.length
+            outputStream.write(chunk)
+          })
+          
+          fileStream.on('end', () => {
+            console.log(`� Streamed ${bytesRead} bytes from temp file`)
+            outputStream.end()
+            
+            // Clean up temp file
+            unlink(tempFile, (err) => {
+              if (err) console.error('Failed to delete temp file:', err)
+              else console.log(`🗑️  Deleted temp file: ${tempFile}`)
+            })
+          })
+          
+          fileStream.on('error', (err) => {
+            console.error('Error reading temp file:', err)
+            reject(err)
+          })
         })
         .on('error', (error: any) => {
-          console.error(`❌ ${outputName} error:`, error)
+          hasError = true
+          console.error(`❌ ${outputName} FFmpeg error:`, error.message)
+          console.error(`📊 Error details:`, error)
+          if (!hasStarted) {
+            console.error('⚠️ FFmpeg never started!')
+          }
+          
+          // Clean up temp file on error
+          unlink(tempFile, () => {})
+          
           reject(new Error(`Video processing failed: ${error.message}`))
         })
 
-      command.pipe(outputStream, { end: true })
+      // Save to temp file instead of piping
+      command.save(tempFile)
+      
+      console.log('🔄 FFmpeg processing to temp file, will stream when complete...')
       resolve(outputStream)
 
     } catch (error) {
@@ -110,9 +167,100 @@ export async function replaceTextInVideo(
 }
 
 /**
- * Build FFmpeg filter string for text replacements
+ * Build FFmpeg filter complex string for text replacements
+ * Uses a single filter chain with symmetric overlays and text
  */
-function buildTextReplacementFilter(
+function buildTextReplacementFilterComplex(
+  replacements: TextReplacement[],
+  style: {
+    fontFamily: string
+    fontSize: number
+    fontColor: string
+    backgroundColor: string
+    backgroundOpacity: number
+  },
+  videoWidth?: number  // Add video width parameter for centering
+): string {
+  console.log(`🎨 Building filter complex for ${replacements.length} replacement(s)`)
+
+  // Calculate the maximum width for all overlays (make them symmetric)
+  const padding = 10
+  let maxWidth = 0
+  
+  for (const replacement of replacements) {
+    const width = replacement.boundingBox.width + (padding * 2)
+    if (width > maxWidth) {
+      maxWidth = width
+    }
+  }
+  
+  console.log(`📏 Maximum overlay width: ${maxWidth}px`)
+  
+  // Calculate horizontal center position for ALL overlays
+  // If videoWidth is not provided, use detected position of first text
+  const centerX = videoWidth ? Math.floor((videoWidth - maxWidth) / 2) : null
+  
+  // Start with scale filter
+  let filterChain = '[0:v]scale=trunc(iw/2)*2:trunc(ih/2)*2'
+  
+  const bgColor = hexToRgb(style.backgroundColor)
+  
+  // Add each replacement with horizontally aligned overlays
+  for (let i = 0; i < replacements.length; i++) {
+    const replacement = replacements[i]
+    const { boundingBox, newText } = replacement
+    
+    console.log(`📝 Processing replacement ${i + 1}: "${replacement.originalText}" -> "${newText}"`)
+    
+    // Use centered X position for ALL overlays (horizontally aligned)
+    // Keep original Y position for each text
+    const x = centerX !== null ? centerX : Math.max(0, boundingBox.x - padding)
+    const y = Math.max(0, boundingBox.y - padding)
+    const width = maxWidth
+    const height = boundingBox.height + (padding * 2)
+
+    // Draw white rectangle overlay
+    filterChain += `,drawbox=x=${x}:y=${y}:w=${width}:h=${height}:color=${bgColor}@${style.backgroundOpacity}:t=fill`
+    
+    // Clean text: Remove ALL special characters, keep only letters, numbers, and basic spaces
+    // This ensures no dashes, underscores, or weird symbols appear
+    const safeText = newText
+      .replace(/[^a-zA-Z0-9\s]/g, ' ')  // Replace ALL non-alphanumeric with spaces
+      .replace(/\s+/g, ' ')              // Normalize multiple spaces to single space
+      .trim()                             // Remove leading/trailing spaces
+    
+    // Skip if text is empty after cleaning
+    if (!safeText || safeText.length === 0) {
+      console.log(`   ⚠️ Skipping empty text after cleaning: "${newText}"`)
+      continue
+    }
+    
+    // Calculate text position (centered horizontally in overlay)
+    // For vertical centering, we use (y + h/2 - th/2) which in FFmpeg is: y + (h-text_h)/2
+    const textX = `(${x}+${width}/2-tw/2)`  // Center horizontally: x + (width - text_width) / 2
+    const textY = `(${y}+${height}/2-th/2)` // Center vertically: y + (height - text_height) / 2
+    
+    // Draw text using system font name (avoid Windows path issues)
+    // x and y expressions will be evaluated by FFmpeg at render time
+    filterChain += `,drawtext=text='${safeText}':font=${style.fontFamily}:fontsize=${style.fontSize}:fontcolor=${style.fontColor}:x=${textX}:y=${textY}`
+    
+    console.log(`   📦 Overlay at (${x},${y}) size ${width}x${height} - HORIZONTALLY CENTERED`)
+    console.log(`   ✍️  Text "${safeText}" centered in overlay`)
+  }
+
+  // Close the filter chain
+  filterChain += '[out]'
+  
+  console.log(`🎬 Built filter complex with ${replacements.length} horizontally aligned overlays + text`)
+  console.log(`Filter: ${filterChain}`)
+  
+  return filterChain
+}
+
+/**
+ * Build FFmpeg filter array for text replacements (simple string format)
+ */
+function buildTextReplacementFiltersSimple(
   replacements: TextReplacement[],
   style: {
     fontFamily: string
@@ -121,15 +269,23 @@ function buildTextReplacementFilter(
     backgroundColor: string
     backgroundOpacity: number
   }
-): string {
+): string[] {
   const filters: string[] = []
 
   // Ensure even dimensions
   filters.push('scale=trunc(iw/2)*2:trunc(ih/2)*2')
 
+  console.log(`🎨 Building filters for ${replacements.length} replacement(s)`)
+
+  const fontFilePath = getFontFilePath(style.fontFamily)
+  // For Windows paths: convert backslashes AND escape colons for FFmpeg filter syntax
+  const cleanFontPath = fontFilePath ? fontFilePath.replace(/\\/g, '/').replace(/:/g, '\\:') : null
+
   // For each replacement, draw white rectangle then text
   for (const replacement of replacements) {
-    const { boundingBox, newText, timestamp } = replacement
+    const { boundingBox, newText } = replacement
+    
+    console.log(`📝 Processing replacement: "${replacement.originalText}" -> "${newText}"`)
     
     // Add padding to bounding box
     const padding = 10
@@ -138,26 +294,110 @@ function buildTextReplacementFilter(
     const width = boundingBox.width + (padding * 2)
     const height = boundingBox.height + (padding * 2)
 
+    // Draw white rectangle
+    const bgColor = hexToRgb(style.backgroundColor)
+    filters.push(`drawbox=x=${x}:y=${y}:w=${width}:h=${height}:color=${bgColor}@${style.backgroundOpacity}:t=fill`)
+
+    // Draw text - minimal escaping for array format (fluent-ffmpeg handles most of it)
+    const escapedText = newText.replace(/'/g, "'\\''")  // Only escape single quotes
+    
+    if (cleanFontPath) {
+      // Quote the fontfile path to protect the escaped colon
+      filters.push(`drawtext=text='${escapedText}':fontfile='${cleanFontPath}':fontsize=${style.fontSize}:fontcolor=${style.fontColor}:x=${x + padding}:y=${y + (height / 2)}`)
+    } else {
+      filters.push(`drawtext=text='${escapedText}':font=${style.fontFamily}:fontsize=${style.fontSize}:fontcolor=${style.fontColor}:x=${x + padding}:y=${y + (height / 2)}`)
+    }
+  }
+
+  console.log(`🎬 Built ${filters.length} filters`)
+  
+  return filters
+}
+
+/**
+ * Build FFmpeg filter array for text replacements
+ * Returns array of filter objects for videoFilters() method
+ */
+function buildTextReplacementFilters(
+  replacements: TextReplacement[],
+  style: {
+    fontFamily: string
+    fontSize: number
+    fontColor: string
+    backgroundColor: string
+    backgroundOpacity: number
+  }
+): any[] {
+  const filters: any[] = []
+
+  // Ensure even dimensions
+  filters.push({
+    filter: 'scale',
+    options: 'trunc(iw/2)*2:trunc(ih/2)*2'
+  })
+
+  console.log(`🎨 Building filters for ${replacements.length} replacement(s)`)
+
+  // For each replacement, draw white rectangle then text
+  for (const replacement of replacements) {
+    const { boundingBox, newText, timestamp } = replacement
+    
+    console.log(`📝 Processing replacement: "${replacement.originalText}" -> "${newText}"`)
+    console.log(`📐 Bounding box:`, boundingBox)
+    
+    // Add padding to bounding box
+    const padding = 10
+    const x = Math.max(0, boundingBox.x - padding)
+    const y = Math.max(0, boundingBox.y - padding)
+    const width = boundingBox.width + (padding * 2)
+    const height = boundingBox.height + (padding * 2)
+
+    console.log(`📏 After padding: x=${x}, y=${y}, w=${width}, h=${height}`)
+
     // Convert hex color to RGB for drawbox
     const bgColor = hexToRgb(style.backgroundColor)
     const opacity = style.backgroundOpacity
 
     // Draw white/colored rectangle (background)
-    const boxFilter = `drawbox=x=${x}:y=${y}:w=${width}:h=${height}:color=${bgColor}@${opacity}:t=fill`
-    filters.push(boxFilter)
+    filters.push({
+      filter: 'drawbox',
+      options: {
+        x,
+        y,
+        w: width,
+        h: height,
+        color: `${bgColor}@${opacity}`,
+        t: 'fill'
+      }
+    })
 
     // Draw text on top
-    const textFilter = buildTextOverlay(newText, {
+    const fontFilePath = getFontFilePath(style.fontFamily)
+    const escapedFontPath = fontFilePath ? fontFilePath.replace(/\\/g, '/') : null
+    
+    const textOptions: any = {
+      text: newText,
+      fontsize: style.fontSize,
+      fontcolor: style.fontColor,
       x: x + padding,
-      y: y + (height / 2),
-      fontFamily: style.fontFamily,
-      fontSize: style.fontSize,
-      fontColor: style.fontColor
+      y: y + (height / 2)
+    }
+    
+    if (escapedFontPath) {
+      textOptions.fontfile = escapedFontPath
+    } else {
+      textOptions.font = style.fontFamily
+    }
+    
+    filters.push({
+      filter: 'drawtext',
+      options: textOptions
     })
-    filters.push(textFilter)
   }
 
-  return filters.join(',')
+  console.log(`🎬 Built ${filters.length} filter objects`)
+  
+  return filters
 }
 
 /**
@@ -173,18 +413,22 @@ function buildTextOverlay(
     fontColor: string
   }
 ): string {
+  // Escape text properly for FFmpeg drawtext filter
   const escapedText = text
-    .replace(/'/g, "\\'")
-    .replace(/"/g, '\\"')
-    .replace(/:/g, '\\:')
-    .replace(/\n/g, ' ')
+    .replace(/\\/g, '\\\\')  // Escape backslashes first
+    .replace(/'/g, "'\\\\\\''")  // Escape single quotes for shell
+    .replace(/:/g, '\\:')     // Escape colons
+    .replace(/\n/g, ' ')      // Replace newlines with spaces
 
   const fontFilePath = getFontFilePath(options.fontFamily)
   
+  // Use different quoting strategy - escape the fontfile path properly
+  const escapedFontPath = fontFilePath ? fontFilePath.replace(/\\/g, '/').replace(/:/g, '\\:') : ''
+  
   let filter = `drawtext=text='${escapedText}'`
   
-  if (fontFilePath) {
-    filter += `:fontfile='${fontFilePath}'`
+  if (escapedFontPath) {
+    filter += `:fontfile='${escapedFontPath}'`
   } else {
     filter += `:font='${options.fontFamily}'`
   }

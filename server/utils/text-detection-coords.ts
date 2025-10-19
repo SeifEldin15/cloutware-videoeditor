@@ -5,6 +5,108 @@ import path from 'path'
 import os from 'os'
 import sharp from 'sharp'
 
+/**
+ * Check if text is meaningful (not gibberish or special characters only)
+ */
+function isMeaningfulText(text: string): boolean {
+  // Remove all non-alphanumeric characters to check content
+  const alphanumericOnly = text.replace(/[^a-zA-Z0-9]/g, '')
+  
+  // Must have at least 1 letter (not just numbers/symbols)
+  const hasLetters = /[a-zA-Z]/.test(text)
+  if (!hasLetters) {
+    return false
+  }
+  
+  // Must have at least 2 alphanumeric characters
+  if (alphanumericOnly.length < 2) {
+    return false
+  }
+  
+  // Calculate ratio of letters to total length
+  const letterCount = (text.match(/[a-zA-Z]/g) || []).length
+  const letterRatio = letterCount / text.length
+  
+  // If more than 70% is special characters/numbers, probably gibberish
+  if (letterRatio < 0.3) {
+    return false
+  }
+  
+  // Exclude lines that are only symbols, dashes, underscores
+  if (/^[_\-~=+*#@$%^&()[\]{}|\\/<>.,;:!?'"` ]+$/.test(text)) {
+    return false
+  }
+  
+  // Common gibberish patterns to exclude
+  const gibberishPatterns = [
+    /^[=\-_~`]+$/,           // Only symbols
+    /^[\d\s]+$/,              // Only numbers and spaces
+    /^[^\w\s]+$/,             // Only special characters
+    /^[()[\]{}]+$/,           // Only brackets
+    /^[.,:;!?]+$/,            // Only punctuation
+  ]
+  
+  for (const pattern of gibberishPatterns) {
+    if (pattern.test(text)) {
+      return false
+    }
+  }
+  
+  // Extract actual words (sequences of letters)
+  const words = text.match(/[a-zA-Z]+/g) || []
+  
+  if (words.length === 0) {
+    return false
+  }
+  
+  // Check if at least one word is meaningful (common English words or longer than 2 chars)
+  const commonWords = new Set([
+    'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i', 'it', 'for', 'not',
+    'on', 'with', 'he', 'as', 'you', 'do', 'at', 'this', 'but', 'his', 'by', 'from',
+    'they', 'we', 'say', 'her', 'she', 'or', 'an', 'will', 'my', 'one', 'all', 'would',
+    'there', 'their', 'what', 'so', 'up', 'out', 'if', 'about', 'who', 'get', 'which',
+    'go', 'me', 'when', 'make', 'can', 'like', 'time', 'no', 'just', 'him', 'know',
+    'take', 'people', 'into', 'year', 'your', 'good', 'some', 'could', 'them', 'see',
+    'other', 'than', 'then', 'now', 'look', 'only', 'come', 'its', 'over', 'think',
+    'also', 'back', 'after', 'use', 'two', 'how', 'our', 'work', 'first', 'well',
+    'way', 'even', 'new', 'want', 'because', 'any', 'these', 'give', 'day', 'most', 'us',
+    // Common verbs and nouns
+    'change', 'doesnt', 'doesn', 'posture', 'anything', 'nothing', 'everything', 'something'
+  ])
+  
+  let hasMeaningfulWord = false
+  
+  for (const word of words) {
+    const lowerWord = word.toLowerCase()
+    
+    // Accept if it's a common word
+    if (commonWords.has(lowerWord)) {
+      hasMeaningfulWord = true
+      break
+    }
+    
+    // Accept if it's longer than 3 characters (likely a real word)
+    if (word.length > 3) {
+      hasMeaningfulWord = true
+      break
+    }
+  }
+  
+  // Reject patterns like "il Ti", "v", "A A", etc.
+  // If no meaningful words found, reject it
+  if (!hasMeaningfulWord) {
+    return false
+  }
+  
+  // Reject if it has more than 50% single-character "words"
+  const singleCharWords = words.filter(w => w.length === 1).length
+  if (singleCharWords / words.length > 0.5) {
+    return false
+  }
+  
+  return true
+}
+
 export interface TextDetectionOptions {
   numberOfFrames?: number
   language?: string
@@ -170,29 +272,40 @@ export async function detectTextWithCoordinates(
         }))
       }
       
-      if (data.confidence >= confidenceThreshold && allWords.length > 0) {
-        console.log(`   ✓ Frame passes threshold, grouping words into lines...`)
+      if (allWords.length > 0) {
+        console.log(`   ✓ Frame has ${allWords.length} words, grouping into lines...`)
         // Group words into lines
         const lines = groupWordsIntoLines(allWords, width, height)
         console.log(`   ✓ Grouped into ${lines.length} lines`)
         
+        // Filter lines by confidence threshold and meaningful text
         for (const line of lines) {
-          console.log(`   Line text: "${line.text.trim()}" (length: ${line.text.trim().length})`)
-          if (line.text.trim().length > 0) {
-            detectedTexts.push({
-              text: line.text.trim(),
-              confidence: line.confidence,
-              boundingBox: line.boundingBox,
-              frameNumber: i + 1,
-              timestamp: frames[i].timestamp
-            })
-            console.log(`   ✓ Added text: "${line.text.trim()}" at (${line.boundingBox.x}, ${line.boundingBox.y})`)
+          const cleanedText = line.text.trim()
+          console.log(`   Line: "${cleanedText}" (confidence: ${line.confidence.toFixed(2)}%)`)
+          
+          // Check if line passes confidence threshold
+          if (cleanedText.length > 0 && line.confidence >= confidenceThreshold) {
+            // Check if text is meaningful (not gibberish)
+            if (isMeaningfulText(cleanedText)) {
+              detectedTexts.push({
+                text: cleanedText,
+                confidence: line.confidence,
+                boundingBox: line.boundingBox,
+                frameNumber: i + 1,
+                timestamp: frames[i].timestamp
+              })
+              console.log(`   ✓ Added text: "${cleanedText}" (${line.confidence.toFixed(2)}%)`)
+            } else {
+              console.log(`   ✗ Skipped: gibberish or special characters only`)
+            }
+          } else if (cleanedText.length > 0) {
+            console.log(`   ✗ Skipped: confidence ${line.confidence.toFixed(2)}% < ${confidenceThreshold}%`)
           } else {
-            console.log(`   ✗ Skipped (empty)`)
+            console.log(`   ✗ Skipped: empty`)
           }
         }
       } else {
-        console.log(`   ✗ Skipped (confidence ${data.confidence.toFixed(2)}% < ${confidenceThreshold}% or no words)`)
+        console.log(`   ✗ No words extracted from frame`)
       }
     }
 
