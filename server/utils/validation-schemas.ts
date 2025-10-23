@@ -148,6 +148,38 @@ export const TextReplacementSchemas = {
   })
 }
 
+export const OCRSchemas = {
+  extractTextSchema: z.object({
+    url: z.string().url('Invalid video URL'),
+    numberOfFrames: z.number().min(1).max(20).optional().default(5),
+    language: z.string().optional().default('eng'),
+    confidenceThreshold: z.number().min(0).max(100).optional().default(50)
+  })
+}
+
+export const VideoTextReplacementSchemas = {
+  replaceVideoTextSchema: z.object({
+    url: z.string().url('Invalid video URL'),
+    outputName: z.string().regex(/^[a-zA-Z0-9_-]+$/, 'Output name can only contain letters, numbers, underscores and hyphens').optional().default('replaced_text_video'),
+    replacements: z.record(z.string(), z.string()).refine(
+      (data) => Object.keys(data).length > 0,
+      { message: 'At least one text replacement is required' }
+    ),
+    detectionOptions: z.object({
+      numberOfFrames: z.number().min(1).max(20).optional().default(10),
+      language: z.string().optional().default('eng'),
+      confidenceThreshold: z.number().min(0).max(100).optional().default(70)
+    }).optional().default({}),
+    styleOptions: z.object({
+      fontFamily: z.string().optional().default('Arial'),
+      fontSize: z.number().min(12).max(72).optional().default(24),
+      fontColor: z.string().optional().default('#000000'),
+      backgroundColor: z.string().optional().default('#FFFFFF'),
+      backgroundOpacity: z.number().min(0).max(1).optional().default(1.0)
+    }).optional().default({})
+  })
+}
+
 export type VideoProcessingOptions = z.infer<typeof ValidationSchemas.bodySchema>['options']
 export type CaptionOptions = z.infer<typeof ValidationSchemas.bodySchema>['caption']
 export type TextReplacementOptions = z.infer<typeof TextReplacementSchemas.textReplacementSchema>

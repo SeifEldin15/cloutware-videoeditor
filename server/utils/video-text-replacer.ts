@@ -222,10 +222,10 @@ function buildTextReplacementFilterComplex(
     // Draw white rectangle overlay
     filterChain += `,drawbox=x=${x}:y=${y}:w=${width}:h=${height}:color=${bgColor}@${style.backgroundOpacity}:t=fill`
     
-    // Clean text: Remove ALL special characters, keep only letters, numbers, and basic spaces
-    // This ensures no dashes, underscores, or weird symbols appear
+    // Clean text: Remove special characters, keep letters, numbers, spaces
+    // Note: Apostrophes cause FFmpeg escaping issues, so we remove them
     const safeText = newText
-      .replace(/[^a-zA-Z0-9\s]/g, ' ')  // Replace ALL non-alphanumeric with spaces
+      .replace(/[^a-zA-Z0-9\s]/g, ' ')  // Keep only alphanumeric and spaces
       .replace(/\s+/g, ' ')              // Normalize multiple spaces to single space
       .trim()                             // Remove leading/trailing spaces
     
