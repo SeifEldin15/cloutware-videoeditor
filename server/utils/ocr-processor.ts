@@ -54,7 +54,7 @@ export async function extractTextFromVideo(
   const {
     numberOfFrames = 10,
     language = 'eng',
-    confidenceThreshold = 70
+    confidenceThreshold = 30  // Lowered from 70 to 30 for better text detection
   } = options
 
   console.log(`🔍 Starting OCR on video: ${videoUrl}`)
@@ -118,15 +118,14 @@ export async function extractTextFromVideo(
       
       console.log(`   Raw text: "${data.text.trim().substring(0, 100)}..."`)
       console.log(`   Confidence: ${data.confidence.toFixed(2)}%`)
+      console.log(`   Text length: ${data.text.trim().length}`)
       
       if (data.confidence >= confidenceThreshold) {
         const cleanText = data.text
           .trim()
           .replace(/\s+/g, ' ') // Normalize whitespace
-          .replace(/[^\x20-\x7E\n]/g, '') // Remove non-printable characters
-          .replace(/[^\w\s.,!?@#$%&*()-+=[\]{}:;"\'/\\|<>]/g, '') // Keep only valid chars
         
-        if (cleanText && cleanText.length > 3) { // Minimum 3 characters
+        if (cleanText && cleanText.length > 0) { // Accept any non-empty text
           frameResults.push({
             frameNumber: i + 1,
             text: cleanText,
@@ -134,7 +133,10 @@ export async function extractTextFromVideo(
             timestamp: frames[i].timestamp
           })
           
-          allText += cleanText + '\n'
+          allText += cleanText + ' '
+          console.log(`   ✅ Accepted: "${cleanText.substring(0, 50)}..."`)
+        } else {
+          console.log(`   ⚠️ Skipped (empty after cleaning)`)
         }
       } else {
         console.log(`   ⚠️ Skipped (confidence ${data.confidence.toFixed(2)}% < ${confidenceThreshold}%)`)

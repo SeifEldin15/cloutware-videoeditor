@@ -16,6 +16,8 @@ export interface TextReplacement {
     height: number
   }
   timestamp: number
+  startTime?: number  // Start time in seconds when text should appear
+  endTime?: number    // End time in seconds when text should disappear
 }
 
 export interface ReplaceTextOptions {
@@ -219,6 +221,11 @@ function buildTextReplacementFilterComplex(
     const width = maxWidth
     const height = boundingBox.height + (padding * 2)
 
+    // Log time range if detected
+    if (replacement.startTime !== undefined && replacement.endTime !== undefined) {
+      console.log(`   ⏱️  Time range: ${replacement.startTime.toFixed(2)}s - ${replacement.endTime.toFixed(2)}s`)
+    }
+
     // Draw white rectangle overlay
     filterChain += `,drawbox=x=${x}:y=${y}:w=${width}:h=${height}:color=${bgColor}@${style.backgroundOpacity}:t=fill`
     
@@ -241,7 +248,6 @@ function buildTextReplacementFilterComplex(
     const textY = `(${y}+${height}/2-th/2)` // Center vertically: y + (height - text_height) / 2
     
     // Draw text using system font name (avoid Windows path issues)
-    // x and y expressions will be evaluated by FFmpeg at render time
     filterChain += `,drawtext=text='${safeText}':font=${style.fontFamily}:fontsize=${style.fontSize}:fontcolor=${style.fontColor}:x=${textX}:y=${textY}`
     
     console.log(`   📦 Overlay at (${x},${y}) size ${width}x${height} - HORIZONTALLY CENTERED`)
@@ -471,7 +477,9 @@ export function createReplacementsFromDetections(
         originalText: detected.text,
         newText,
         boundingBox: detected.boundingBox,
-        timestamp: detected.timestamp
+        timestamp: detected.timestamp,
+        startTime: detected.startTime,  // Include time range
+        endTime: detected.endTime        // Include time range
       })
     }
   }

@@ -7,7 +7,7 @@ const enhanceVideoTextSchema = z.object({
   url: z.string().url(),
   outputName: z.string().optional().default('enhanced_video'),
   detectionOptions: z.object({
-    numberOfFrames: z.number().min(1).max(30).optional().default(10),
+    numberOfFrames: z.number().min(1).max(200).optional().default(100),  // Scan entire video
     confidenceThreshold: z.number().min(0).max(100).optional().default(70),
     language: z.string().optional().default('eng')
   }).optional().default({}),

@@ -126,6 +126,8 @@ export interface DetectedText {
   boundingBox: TextBoundingBox
   frameNumber: number
   timestamp: number
+  startTime?: number  // Start time in seconds when text appears
+  endTime?: number    // End time in seconds when text disappears
 }
 
 export interface TextDetectionResult {
@@ -159,7 +161,7 @@ export async function detectTextWithCoordinates(
   options: TextDetectionOptions = {}
 ): Promise<TextDetectionResult> {
   const {
-    numberOfFrames = 10,
+    numberOfFrames = 100,  // Scan entire video with more frames
     language = 'eng',
     confidenceThreshold = 70
   } = options
@@ -313,8 +315,12 @@ export async function detectTextWithCoordinates(
 
     console.log(`✅ Detection complete. Found ${detectedTexts.length} text regions`)
 
+    // Group detected texts by time ranges
+    const consolidatedTexts = consolidateTextsByTimeRanges(detectedTexts)
+    console.log(`📊 Consolidated into ${consolidatedTexts.length} unique text regions with time ranges`)
+
     return {
-      detectedTexts,
+      detectedTexts: consolidatedTexts,
       videoWidth: width,
       videoHeight: height,
       totalFrames: numberOfFrames
@@ -400,6 +406,111 @@ function createLineFromWords(words: any[]): {
       height: Math.round(y1 - y0)
     }
   }
+}
+
+/**
+ * Consolidate detected texts by grouping similar texts that appear in consecutive frames
+ * and calculate time ranges for when each text appears
+ */
+function consolidateTextsByTimeRanges(detectedTexts: DetectedText[]): DetectedText[] {
+  if (detectedTexts.length === 0) return []
+
+  // Sort by timestamp
+  const sorted = [...detectedTexts].sort((a, b) => a.timestamp - b.timestamp)
+  
+  const consolidated: DetectedText[] = []
+  const TEXT_SIMILARITY_THRESHOLD = 0.8 // 80% similarity required
+  const TIME_GAP_THRESHOLD = 1.5 // If gap > 1.5 seconds, treat as different occurrence
+  
+  for (const detection of sorted) {
+    // Normalize text for comparison
+    const normalizedText = detection.text.toLowerCase().replace(/\s+/g, ' ').trim()
+    
+    // Find if this text already exists in consolidated list AND is within time gap
+    let found = false
+    for (const existing of consolidated) {
+      const existingNormalized = existing.text.toLowerCase().replace(/\s+/g, ' ').trim()
+      
+      // Check if texts are similar
+      const similarity = calculateSimilarity(normalizedText, existingNormalized)
+      
+      if (similarity >= TEXT_SIMILARITY_THRESHOLD) {
+        // Check if timestamps are close enough (within gap threshold)
+        const timeSinceLastSeen = detection.timestamp - (existing.endTime || existing.timestamp)
+        
+        // Only extend if within time gap, otherwise it's a new occurrence
+        if (timeSinceLastSeen >= 0 && timeSinceLastSeen <= TIME_GAP_THRESHOLD) {
+          // Extend the time range
+          existing.endTime = detection.timestamp
+          found = true
+          break
+        }
+        // If gap is too large, don't mark as found - create new occurrence below
+      }
+    }
+    
+    if (!found) {
+      // Add new text occurrence with initial time range
+      consolidated.push({
+        ...detection,
+        startTime: detection.timestamp,
+        endTime: detection.timestamp
+      })
+    }
+  }
+  
+  // Log time ranges
+  console.log(`\n📊 Consolidated ${detectedTexts.length} detections into ${consolidated.length} text occurrences:`)
+  for (let i = 0; i < consolidated.length; i++) {
+    const text = consolidated[i]
+    console.log(`   ${i + 1}. "${text.text}" from ${text.startTime?.toFixed(2)}s to ${text.endTime?.toFixed(2)}s`)
+  }
+  
+  return consolidated
+}
+
+/**
+ * Calculate similarity between two strings (simple Levenshtein-based)
+ */
+function calculateSimilarity(str1: string, str2: string): number {
+  const longer = str1.length > str2.length ? str1 : str2
+  const shorter = str1.length > str2.length ? str2 : str1
+  
+  if (longer.length === 0) return 1.0
+  
+  const editDistance = levenshteinDistance(longer, shorter)
+  return (longer.length - editDistance) / longer.length
+}
+
+/**
+ * Calculate Levenshtein distance between two strings
+ */
+function levenshteinDistance(str1: string, str2: string): number {
+  const matrix: number[][] = []
+  
+  for (let i = 0; i <= str2.length; i++) {
+    matrix[i] = [i]
+  }
+  
+  for (let j = 0; j <= str1.length; j++) {
+    matrix[0][j] = j
+  }
+  
+  for (let i = 1; i <= str2.length; i++) {
+    for (let j = 1; j <= str1.length; j++) {
+      if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1]
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // substitution
+          matrix[i][j - 1] + 1,     // insertion
+          matrix[i - 1][j] + 1      // deletion
+        )
+      }
+    }
+  }
+  
+  return matrix[str2.length][str1.length]
 }
 
 /**
