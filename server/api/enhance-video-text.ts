@@ -42,28 +42,32 @@ export default eventHandler(async (event) => {
     
     console.log(`✅ Auto-detected ${detectionResult.detectedTexts.length} text region(s):`)
     detectionResult.detectedTexts.forEach((d, i) => {
-      console.log(`   ${i + 1}. "${d.text}" (${d.confidence.toFixed(1)}% confidence)`)
+      const timeRange = d.startTime !== undefined && d.endTime !== undefined 
+        ? ` at ${d.startTime.toFixed(2)}s-${d.endTime.toFixed(2)}s`
+        : ''
+      console.log(`   ${i + 1}. "${d.text}" (${d.confidence.toFixed(1)}% confidence)${timeRange}`)
     })
     
-    // Step 2: Create replacements that use the SAME text (just re-render it)
-    console.log(`\n🎨 Creating white overlays with same text re-rendered in black...`)
-    const replacementMap = new Map<string, string>()
+    // Step 2: Create replacements for EACH detection (even duplicates at different times)
+    console.log(`\n🎨 Creating ${detectionResult.detectedTexts.length} white overlays with text re-rendered in black...`)
     
-    for (const detected of detectionResult.detectedTexts) {
-      // Use the SAME text - we're just enhancing visibility
-      replacementMap.set(detected.text, detected.text)
-      console.log(`   ✅ Will overlay: "${detected.text}"`)
-    }
+    // Create a replacement for EACH detected text occurrence
+    // Don't use a Map because we want to keep duplicates at different times
+    const textReplacements = detectionResult.detectedTexts.map((detected, i) => {
+      console.log(`   ${i + 1}. Will overlay: "${detected.text}" at ${detected.startTime?.toFixed(2)}s-${detected.endTime?.toFixed(2)}s`)
+      return {
+        originalText: detected.text,
+        newText: detected.text,  // Use the SAME text - just enhancing visibility
+        boundingBox: detected.boundingBox,
+        timestamp: detected.timestamp,
+        startTime: detected.startTime,
+        endTime: detected.endTime
+      }
+    })
     
-    // Step 3: Create text replacements (white box + same text in black)
-    const textReplacements = createReplacementsFromDetections(
-      detectionResult.detectedTexts,
-      replacementMap
-    )
+    console.log(`\n🎬 Applying ${textReplacements.length} text enhancement(s) with time-based overlays...`)
     
-    console.log(`\n🎬 Applying ${textReplacements.length} text enhancement(s)...`)
-    
-    // Step 4: Generate video with white overlays and black text (horizontally aligned)
+    // Step 3: Generate video with white overlays and black text (horizontally aligned)
     const videoStream = await replaceTextInVideo(url, {
       textReplacements,
       outputName,

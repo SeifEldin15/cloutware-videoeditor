@@ -171,6 +171,7 @@ export async function replaceTextInVideo(
 /**
  * Build FFmpeg filter complex string for text replacements
  * Uses a single filter chain with symmetric overlays and text
+ * Supports time-based filtering so each overlay only appears when the text is visible
  */
 function buildTextReplacementFilterComplex(
   replacements: TextReplacement[],
@@ -207,10 +208,10 @@ function buildTextReplacementFilterComplex(
   
   const bgColor = hexToRgb(style.backgroundColor)
   
-  // Add each replacement with horizontally aligned overlays
+  // Add each replacement with horizontally aligned overlays AND time-based filtering
   for (let i = 0; i < replacements.length; i++) {
     const replacement = replacements[i]
-    const { boundingBox, newText } = replacement
+    const { boundingBox, newText, startTime, endTime } = replacement
     
     console.log(`📝 Processing replacement ${i + 1}: "${replacement.originalText}" -> "${newText}"`)
     
@@ -221,13 +222,22 @@ function buildTextReplacementFilterComplex(
     const width = maxWidth
     const height = boundingBox.height + (padding * 2)
 
-    // Log time range if detected
-    if (replacement.startTime !== undefined && replacement.endTime !== undefined) {
-      console.log(`   ⏱️  Time range: ${replacement.startTime.toFixed(2)}s - ${replacement.endTime.toFixed(2)}s`)
+    // Build time-based enable expression
+    // Format: enable='between(t,START,END)'
+    let enableExpression = ''
+    if (startTime !== undefined && endTime !== undefined) {
+      // Add small buffer to ensure overlay is visible for the entire duration
+      const bufferSeconds = 0.1
+      const adjustedStart = Math.max(0, startTime - bufferSeconds)
+      const adjustedEnd = endTime + bufferSeconds
+      enableExpression = `:enable='between(t,${adjustedStart.toFixed(3)},${adjustedEnd.toFixed(3)})'`
+      console.log(`   ⏱️  Time range: ${adjustedStart.toFixed(2)}s - ${adjustedEnd.toFixed(2)}s`)
+    } else {
+      console.log(`   ⏱️  No time range - overlay will be visible for entire video`)
     }
 
-    // Draw white rectangle overlay
-    filterChain += `,drawbox=x=${x}:y=${y}:w=${width}:h=${height}:color=${bgColor}@${style.backgroundOpacity}:t=fill`
+    // Draw white rectangle overlay with time-based enable
+    filterChain += `,drawbox=x=${x}:y=${y}:w=${width}:h=${height}:color=${bgColor}@${style.backgroundOpacity}:t=fill${enableExpression}`
     
     // Clean text: Remove special characters, keep letters, numbers, spaces
     // Note: Apostrophes cause FFmpeg escaping issues, so we remove them
@@ -247,8 +257,8 @@ function buildTextReplacementFilterComplex(
     const textX = `(${x}+${width}/2-tw/2)`  // Center horizontally: x + (width - text_width) / 2
     const textY = `(${y}+${height}/2-th/2)` // Center vertically: y + (height - text_height) / 2
     
-    // Draw text using system font name (avoid Windows path issues)
-    filterChain += `,drawtext=text='${safeText}':font=${style.fontFamily}:fontsize=${style.fontSize}:fontcolor=${style.fontColor}:x=${textX}:y=${textY}`
+    // Draw text using system font name with same time-based enable (avoid Windows path issues)
+    filterChain += `,drawtext=text='${safeText}':font=${style.fontFamily}:fontsize=${style.fontSize}:fontcolor=${style.fontColor}:x=${textX}:y=${textY}${enableExpression}`
     
     console.log(`   📦 Overlay at (${x},${y}) size ${width}x${height} - HORIZONTALLY CENTERED`)
     console.log(`   ✍️  Text "${safeText}" centered in overlay`)
@@ -257,7 +267,7 @@ function buildTextReplacementFilterComplex(
   // Close the filter chain
   filterChain += '[out]'
   
-  console.log(`🎬 Built filter complex with ${replacements.length} horizontally aligned overlays + text`)
+  console.log(`🎬 Built filter complex with ${replacements.length} time-based horizontally aligned overlays + text`)
   console.log(`Filter: ${filterChain}`)
   
   return filterChain

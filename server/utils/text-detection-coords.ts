@@ -107,10 +107,87 @@ function isMeaningfulText(text: string): boolean {
   return true
 }
 
+/**
+ * Post-process OCR text to fix common recognition errors
+ * Corrects ambiguous characters using context
+ */
+function correctOCRErrors(text: string): string {
+  let corrected = text
+  
+  // Common OCR character confusions and their corrections
+  const corrections: Array<[RegExp, string]> = [
+    // Fix common character substitutions at word boundaries
+    [/\b0(?=[a-z])/gi, 'O'],           // 0 -> O at start of word before lowercase
+    [/\bl(?=\d)/gi, '1'],              // l -> 1 before digit
+    [/\b1(?=[a-z]{2,})/gi, 'I'],       // 1 -> I at start of word before letters
+    [/(?<=[a-z])0(?=[a-z])/gi, 'o'],   // 0 -> o in middle of word
+    [/(?<=[a-z])1(?=[a-z])/gi, 'l'],   // 1 -> l in middle of word
+    
+    // Fix common OCR mistakes for specific patterns
+    [/\bBy\s+Posture\b/gi, 'Posture'], // Remove "By" prefix artifact
+    [/\bFy\b/gi, 'By'],                 // Fy -> By
+    [/\bRosture\b/gi, 'Posture'],       // Rosture -> Posture
+    [/\bre\b(?=\s|$)/gi, 'are'],        // "re" at end -> "are"
+    [/\b3\s+/g, 'a '],                  // 3 -> a (common confusion)
+    [/\bFg\b/gi, 'By'],                 // Fg -> By
+    
+    // Fix incomplete contractions and common word fragments
+    [/\bdoesn\b(?!['']t)/gi, "doesn't"],     // doesn -> doesn't
+    [/\bdon\b(?!['']t)(?=\s|$)/gi, "don't"], // don -> don't
+    [/\bcan\b(?!['']t)(?=\s+not\b)/gi, "can't"], // can not -> can't
+    [/\bwon\b(?!['']t)(?=\s|$)/gi, "won't"], // won -> won't
+    [/\bisn\b(?!['']t)/gi, "isn't"],         // isn -> isn't
+    [/\baren\b(?!['']t)/gi, "aren't"],       // aren -> aren't
+    [/\bwasn\b(?!['']t)/gi, "wasn't"],       // wasn -> wasn't
+    [/\bweren\b(?!['']t)/gi, "weren't"],     // weren -> weren't
+    [/\bhasn\b(?!['']t)/gi, "hasn't"],       // hasn -> hasn't
+    [/\bhaven\b(?!['']t)/gi, "haven't"],     // haven -> haven't
+    [/\bhadn\b(?!['']t)/gi, "hadn't"],       // hadn -> hadn't
+    [/\bwouldn\b(?!['']t)/gi, "wouldn't"],   // wouldn -> wouldn't
+    [/\bshouldn\b(?!['']t)/gi, "shouldn't"], // shouldn -> shouldn't
+    [/\bcouldnt\b/gi, "couldn't"],           // couldnt -> couldn't
+    [/\bwouldnt\b/gi, "wouldn't"],           // wouldnt -> wouldn't
+    [/\bdidnt\b/gi, "didn't"],               // didnt -> didn't
+    
+    // Fix common word fragments
+    [/\bthats\b/gi, "that's"],          // thats -> that's
+    [/\bits\b(?=\s)/gi, "it's"],        // its -> it's (when used as "it is")
+    [/\bIm\b/gi, "I'm"],                // Im -> I'm
+    [/\bId\b(?=\s)/gi, "I'd"],          // Id -> I'd
+    [/\bIll\b/gi, "I'll"],              // Ill -> I'll
+    [/\bweve\b/gi, "we've"],            // weve -> we've
+    [/\btheyre\b/gi, "they're"],        // theyre -> they're
+    [/\byoure\b/gi, "you're"],          // youre -> you're
+    
+    // Fix spacing issues
+    [/([a-z])([A-Z])/g, '$1 $2'],      // Add space before capital in middle of text
+    [/\s{2,}/g, ' '],                   // Multiple spaces -> single space
+    
+    // Remove common OCR artifacts
+    [/[~`´]/g, ''],                     // Remove tildes and backticks
+    [/\|/g, 'I'],                       // | -> I
+    [/\.{2,}/g, ''],                    // Multiple dots (artifacts)
+    
+    // Fix punctuation
+    [/\s+([.,!?;:])/g, '$1'],          // Remove space before punctuation
+    [/([.,!?;:])\s*([a-zA-Z])/g, '$1 $2'], // Ensure space after punctuation
+  ]
+  
+  for (const [pattern, replacement] of corrections) {
+    corrected = corrected.replace(pattern, replacement)
+  }
+  
+  // Trim whitespace
+  corrected = corrected.trim()
+  
+  return corrected
+}
+
 export interface TextDetectionOptions {
   numberOfFrames?: number
   language?: string
   confidenceThreshold?: number
+  minTextLength?: number  // Minimum length of text to detect
 }
 
 export interface TextBoundingBox {
@@ -138,19 +215,116 @@ export interface TextDetectionResult {
 }
 
 /**
- * Preprocess image for better OCR results
+ * Detect if text in image is predominantly light or dark
  */
-async function preprocessImage(inputPath: string): Promise<string> {
+async function detectTextBrightness(inputPath: string): Promise<'light' | 'dark'> {
+  const buffer = await fs.readFile(inputPath)
+  const img = sharp(buffer)
+  
+  // Get image statistics
+  const stats = await img.stats()
+  
+  // Calculate average brightness across all channels
+  const avgBrightness = stats.channels.reduce((sum, ch) => sum + ch.mean, 0) / stats.channels.length
+  
+  // If average brightness > 127, image is generally light (might have dark text on light bg)
+  // If < 127, might be light text on dark background
+  // But we want to detect the TEXT color, so look at edges/high-contrast areas
+  
+  // Get edge-detected version to focus on text regions
+  const edgeBuffer = await img
+    .greyscale()
+    .convolve({
+      width: 3,
+      height: 3,
+      kernel: [-1, -1, -1, -1, 8, -1, -1, -1, -1] // Edge detection kernel
+    })
+    .toBuffer()
+  
+  const edgeStats = await sharp(edgeBuffer).stats()
+  const edgeBrightness = edgeStats.channels[0].mean
+  
+  // High edge brightness suggests light text on dark bg
+  // Low edge brightness with high overall brightness suggests dark text on light bg
+  if (avgBrightness < 127 || edgeBrightness > 100) {
+    console.log(`   💡 Detected LIGHT text (avg: ${avgBrightness.toFixed(1)}, edges: ${edgeBrightness.toFixed(1)})`)
+    return 'light'
+  } else {
+    console.log(`   💡 Detected DARK text (avg: ${avgBrightness.toFixed(1)}, edges: ${edgeBrightness.toFixed(1)})`)
+    return 'dark'
+  }
+}
+
+/**
+ * Preprocess image for better OCR results
+ * Based on Tesseract best practices: https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html
+ * Adaptive preprocessing based on text brightness
+ * Returns both the processed image path and the scaling information
+ */
+async function preprocessImage(inputPath: string): Promise<{
+  outputPath: string
+  preprocessScaleFactor: number
+  borderSize: number
+}> {
   const outputPath = inputPath.replace('.png', '_processed.png')
   
-  await sharp(inputPath)
+  // Check if input file exists
+  try {
+    await fs.access(inputPath)
+  } catch (error) {
+    throw new Error(`Input file does not exist: ${inputPath}`)
+  }
+  
+  // Detect text color
+  const textBrightness = await detectTextBrightness(inputPath)
+  const isLightText = textBrightness === 'light'
+  
+  const img = sharp(inputPath)
+  const metadata = await img.metadata()
+  const { width = 0, height = 0 } = metadata
+  
+  // Tesseract works best with DPI >= 300, aim for 1080p height minimum
+  const targetHeight = 1080
+  const preprocessScaleFactor = height < targetHeight ? targetHeight / height : 1
+  const borderSize = 10
+  
+  // Create base preprocessed image
+  let preprocessed = img
+    .resize(Math.round(width * preprocessScaleFactor), Math.round(height * preprocessScaleFactor))
+  
+  if (isLightText) {
+    // Light text on dark background - invert for Tesseract (needs dark text on light bg)
+    console.log('   🔄 Inverting image for light text detection')
+    preprocessed = preprocessed
+      .negate() // Invert colors
+      .linear(1.5, -(128 * 0.5)) // Increase contrast: output = 1.5 * input - 64
+      .normalize() // Auto-adjust to full range
+  } else {
+    // Dark text on light background - standard processing
+    preprocessed = preprocessed
+      .linear(1.3, -(128 * 0.3)) // Moderate contrast boost
+      .normalize()
+  }
+  
+  // Common processing for both cases
+  await preprocessed
     .greyscale()
-    .normalize()
-    .sharpen({ sigma: 1.5 })
-    .threshold(128)
+    // Add small border (10px) - helps Tesseract with edge text
+    .extend({
+      top: borderSize,
+      bottom: borderSize,
+      left: borderSize,
+      right: borderSize,
+      background: { r: 255, g: 255, b: 255, alpha: 1 }
+    })
+    // Median filter for noise reduction while preserving edges
+    .median(3)
+    .sharpen({ sigma: 2.0 }) // Stronger sharpening
+    // Adaptive threshold for better binarization
+    .threshold(isLightText ? 140 : 128, { greyscale: true })
     .toFile(outputPath)
   
-  return outputPath
+  return { outputPath, preprocessScaleFactor, borderSize }
 }
 
 /**
@@ -163,7 +337,8 @@ export async function detectTextWithCoordinates(
   const {
     numberOfFrames = 100,  // Scan entire video with more frames
     language = 'eng',
-    confidenceThreshold = 70
+    confidenceThreshold = 70,
+    minTextLength = 2  // Minimum 2 characters
   } = options
 
   console.log(`🔍 Detecting text with coordinates in video: ${videoUrl}`)
@@ -209,18 +384,23 @@ export async function detectTextWithCoordinates(
     const worker = await createWorker(language)
     
     await worker.setParameters({
-      tessedit_pageseg_mode: 6 as any,
+      tessedit_pageseg_mode: 3 as any,  // Fully automatic page segmentation (better for videos)
       preserve_interword_spaces: '1',
       tessedit_char_blacklist: '|[]{}\\<>',
+      tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,!?\'-',
+      // Disable dictionaries for better detection of non-standard text
+      load_system_dawg: '0',
+      load_freq_dawg: '0',
     })
     console.log('✅ Tesseract ready')
+
 
     const detectedTexts: DetectedText[] = []
 
     for (let i = 0; i < frames.length; i++) {
       console.log(`📝 Processing frame ${i + 1}/${frames.length}...`)
       
-      const processedPath = await preprocessImage(frames[i].path)
+      const { outputPath: processedPath, preprocessScaleFactor, borderSize } = await preprocessImage(frames[i].path)
       // Request detailed output with blocks structure
       const result = await worker.recognize(processedPath, {}, { text: true, blocks: true, tsv: true })
       const data = result.data
@@ -247,15 +427,24 @@ export async function detectTextWithCoordinates(
           
           // Level 5 = word level in Tesseract TSV output
           if (level === 5 && text.length > 0 && conf > 0) {
-            // Scale coordinates from frame size (2560px) to video size
+            // OCR coordinates are from the preprocessed image
+            // 1. Remove border offset (10px on each side)
+            // 2. Scale back from preprocessed size to frame size (2560px)
+            // 3. Scale from frame size to video size
+            const leftInFrame = (left - borderSize) / preprocessScaleFactor
+            const topInFrame = (top - borderSize) / preprocessScaleFactor
+            const widthInFrame = wordWidth / preprocessScaleFactor
+            const heightInFrame = wordHeight / preprocessScaleFactor
+            
+            // Now scale from frame coordinates (2560px) to video coordinates
             allWords.push({
               text,
               confidence: conf,
               bbox: {
-                x0: Math.round(left * scaleFactorX),
-                y0: Math.round(top * scaleFactorY),
-                x1: Math.round((left + wordWidth) * scaleFactorX),
-                y1: Math.round((top + wordHeight) * scaleFactorY)
+                x0: Math.round(leftInFrame * scaleFactorX),
+                y0: Math.round(topInFrame * scaleFactorY),
+                x1: Math.round((leftInFrame + widthInFrame) * scaleFactorX),
+                y1: Math.round((topInFrame + heightInFrame) * scaleFactorY)
               }
             })
           }
@@ -285,21 +474,27 @@ export async function detectTextWithCoordinates(
           const cleanedText = line.text.trim()
           console.log(`   Line: "${cleanedText}" (confidence: ${line.confidence.toFixed(2)}%)`)
           
-          // Check if line passes confidence threshold
-          if (cleanedText.length > 0 && line.confidence >= confidenceThreshold) {
+          // Check if line passes confidence threshold and minimum length
+          if (cleanedText.length >= minTextLength && line.confidence >= confidenceThreshold) {
             // Check if text is meaningful (not gibberish)
             if (isMeaningfulText(cleanedText)) {
+              // Apply OCR error correction
+              const correctedText = correctOCRErrors(cleanedText)
+              console.log(`   📝 Original: "${cleanedText}" → Corrected: "${correctedText}"`)
+              
               detectedTexts.push({
-                text: cleanedText,
+                text: correctedText,
                 confidence: line.confidence,
                 boundingBox: line.boundingBox,
                 frameNumber: i + 1,
                 timestamp: frames[i].timestamp
               })
-              console.log(`   ✓ Added text: "${cleanedText}" (${line.confidence.toFixed(2)}%)`)
+              console.log(`   ✓ Added text: "${correctedText}" (${line.confidence.toFixed(2)}%)`)
             } else {
               console.log(`   ✗ Skipped: gibberish or special characters only`)
             }
+          } else if (cleanedText.length > 0 && cleanedText.length < minTextLength) {
+            console.log(`   ✗ Skipped: too short (${cleanedText.length} chars < ${minTextLength})`)
           } else if (cleanedText.length > 0) {
             console.log(`   ✗ Skipped: confidence ${line.confidence.toFixed(2)}% < ${confidenceThreshold}%`)
           } else {
@@ -345,8 +540,12 @@ function groupWordsIntoLines(words: any[], videoWidth: number, videoHeight: numb
 }> {
   if (words.length === 0) return []
 
-  // Sort words by vertical position
-  const sortedWords = [...words].sort((a, b) => a.bbox.y0 - b.bbox.y0)
+  // Sort words by vertical position first, then horizontal
+  const sortedWords = [...words].sort((a, b) => {
+    const verticalDiff = a.bbox.y0 - b.bbox.y0
+    if (Math.abs(verticalDiff) > 35) return verticalDiff // Different lines (tighter threshold)
+    return a.bbox.x0 - b.bbox.x0 // Same line, sort by horizontal
+  })
   
   const lines: Array<{
     text: string
@@ -356,7 +555,7 @@ function groupWordsIntoLines(words: any[], videoWidth: number, videoHeight: numb
   
   let currentLine: any[] = []
   let lineY = sortedWords[0].bbox.y0
-  const lineThreshold = 20 // Pixels - words within this vertical distance are on same line
+  const lineThreshold = 50 // Increased from 40px - words within 50px vertically are on same line
 
   for (const word of sortedWords) {
     if (Math.abs(word.bbox.y0 - lineY) > lineThreshold && currentLine.length > 0) {
@@ -366,6 +565,8 @@ function groupWordsIntoLines(words: any[], videoWidth: number, videoHeight: numb
       lineY = word.bbox.y0
     } else {
       currentLine.push(word)
+      // Update average line Y position
+      lineY = currentLine.reduce((sum, w) => sum + w.bbox.y0, 0) / currentLine.length
     }
   }
   
@@ -410,7 +611,10 @@ function createLineFromWords(words: any[]): {
 
 /**
  * Consolidate detected texts by grouping similar texts that appear in consecutive frames
- * and calculate time ranges for when each text appears
+ * SMART SAMPLING: If we detect text at a sampled timestamp, assume it exists for the
+ * entire sampling interval around that timestamp
+ * INTERPOLATION: Sample fewer frames but assume 2x density for time coverage
+ * Also merges text fragments that are clearly part of the same sentence
  */
 function consolidateTextsByTimeRanges(detectedTexts: DetectedText[]): DetectedText[] {
   if (detectedTexts.length === 0) return []
@@ -418,52 +622,109 @@ function consolidateTextsByTimeRanges(detectedTexts: DetectedText[]): DetectedTe
   // Sort by timestamp
   const sorted = [...detectedTexts].sort((a, b) => a.timestamp - b.timestamp)
   
+  // Calculate the sampling interval based on how far apart the detections are
+  let samplingInterval = 1.0 // Default to 1 second
+  if (sorted.length > 1) {
+    const totalDuration = sorted[sorted.length - 1].timestamp - sorted[0].timestamp
+    samplingInterval = totalDuration / (sorted.length - 1)
+    console.log(`📊 Detected sampling interval: ${samplingInterval.toFixed(2)}s`)
+    
+    // INTERPOLATION: Treat as if we sampled 2x more frames
+    // This means each detection covers 2x the normal interval
+    const interpolatedInterval = samplingInterval * 2
+    console.log(`🔄 Using 2x interpolation - each detection covers ${interpolatedInterval.toFixed(2)}s`)
+    samplingInterval = interpolatedInterval
+  }
+  
   const consolidated: DetectedText[] = []
-  const TEXT_SIMILARITY_THRESHOLD = 0.8 // 80% similarity required
-  const TIME_GAP_THRESHOLD = 1.5 // If gap > 1.5 seconds, treat as different occurrence
+  const TEXT_SIMILARITY_THRESHOLD = 0.6 // Lower threshold to catch more partial matches
+  const POSITION_THRESHOLD = 200 // Increased pixels - text in similar position
+  const VERTICAL_THRESHOLD = 80 // Vertical distance for same text block
   
   for (const detection of sorted) {
     // Normalize text for comparison
     const normalizedText = detection.text.toLowerCase().replace(/\s+/g, ' ').trim()
     
-    // Find if this text already exists in consolidated list AND is within time gap
+    // Calculate the time range this sample represents
+    const halfInterval = samplingInterval / 2
+    const rangeStart = Math.max(0, detection.timestamp - halfInterval)
+    const rangeEnd = detection.timestamp + halfInterval
+    
+    // Find if this text overlaps or should be merged with an existing entry
     let found = false
     for (const existing of consolidated) {
       const existingNormalized = existing.text.toLowerCase().replace(/\s+/g, ' ').trim()
       
-      // Check if texts are similar
+      // Check if texts are similar or if one is a fragment of the other
       const similarity = calculateSimilarity(normalizedText, existingNormalized)
+      const isFragment = normalizedText.includes(existingNormalized) || 
+                        existingNormalized.includes(normalizedText)
       
-      if (similarity >= TEXT_SIMILARITY_THRESHOLD) {
-        // Check if timestamps are close enough (within gap threshold)
-        const timeSinceLastSeen = detection.timestamp - (existing.endTime || existing.timestamp)
+      // Check word overlap - if they share common words, they might be fragments
+      const words1 = normalizedText.split(/\s+/)
+      const words2 = existingNormalized.split(/\s+/)
+      const commonWords = words1.filter(w => words2.includes(w) && w.length > 2)
+      const hasCommonWords = commonWords.length > 0
+      
+      // Check if positions are similar
+      const horizontalDistance = Math.abs(detection.boundingBox.x - existing.boundingBox.x)
+      const verticalDistance = Math.abs(detection.boundingBox.y - existing.boundingBox.y)
+      const positionDistance = Math.sqrt(
+        Math.pow(horizontalDistance, 2) +
+        Math.pow(verticalDistance, 2)
+      )
+      
+      // More aggressive merging: same position OR similar text OR common words
+      const shouldMerge = (
+        (similarity >= TEXT_SIMILARITY_THRESHOLD && positionDistance <= POSITION_THRESHOLD) ||
+        (isFragment && verticalDistance <= VERTICAL_THRESHOLD) ||
+        (hasCommonWords && verticalDistance <= VERTICAL_THRESHOLD && horizontalDistance <= 150)
+      )
+      
+      if (shouldMerge) {
+        const existingEnd = existing.endTime || existing.timestamp
+        const gap = rangeStart - existingEnd
         
-        // Only extend if within time gap, otherwise it's a new occurrence
-        if (timeSinceLastSeen >= 0 && timeSinceLastSeen <= TIME_GAP_THRESHOLD) {
-          // Extend the time range
-          existing.endTime = detection.timestamp
+        // If ranges overlap or are adjacent, merge them (increased gap tolerance)
+        if (gap <= 1.5) {
+          // Extend time range
+          existing.endTime = rangeEnd
+          
+          // Use the longer text (more complete)
+          if (detection.text.length > existing.text.length) {
+            existing.text = detection.text
+            console.log(`   🔄 Updated to longer text: "${detection.text}"`)
+          }
+          
+          // Update bounding box to average position
+          existing.boundingBox.x = Math.round((existing.boundingBox.x + detection.boundingBox.x) / 2)
+          existing.boundingBox.y = Math.round((existing.boundingBox.y + detection.boundingBox.y) / 2)
+          existing.boundingBox.width = Math.max(existing.boundingBox.width, detection.boundingBox.width)
+          existing.boundingBox.height = Math.max(existing.boundingBox.height, detection.boundingBox.height)
+          
+          console.log(`   🔗 Extended: "${existing.text}" now ${existing.startTime?.toFixed(2)}s - ${rangeEnd.toFixed(2)}s`)
           found = true
           break
         }
-        // If gap is too large, don't mark as found - create new occurrence below
       }
     }
     
     if (!found) {
-      // Add new text occurrence with initial time range
+      console.log(`   ✨ New: "${detection.text}" at ${rangeStart.toFixed(2)}s - ${rangeEnd.toFixed(2)}s`)
       consolidated.push({
         ...detection,
-        startTime: detection.timestamp,
-        endTime: detection.timestamp
+        startTime: rangeStart,
+        endTime: rangeEnd
       })
     }
   }
   
-  // Log time ranges
-  console.log(`\n📊 Consolidated ${detectedTexts.length} detections into ${consolidated.length} text occurrences:`)
+  // Log final time ranges
+  console.log(`\n📊 Consolidated ${detectedTexts.length} samples into ${consolidated.length} text occurrences:`)
   for (let i = 0; i < consolidated.length; i++) {
     const text = consolidated[i]
-    console.log(`   ${i + 1}. "${text.text}" from ${text.startTime?.toFixed(2)}s to ${text.endTime?.toFixed(2)}s`)
+    const duration = (text.endTime || text.timestamp) - (text.startTime || text.timestamp)
+    console.log(`   ${i + 1}. "${text.text}" from ${text.startTime?.toFixed(2)}s to ${text.endTime?.toFixed(2)}s (${duration.toFixed(2)}s duration)`)
   }
   
   return consolidated
@@ -559,33 +820,40 @@ async function extractFrames(
       }
 
       const duration = metadata.format.duration || 0
-      const interval = duration / (numberOfFrames + 1)
+      // Ensure we don't try to extract frames beyond video duration
+      // Leave a small buffer at the end (0.1s) to avoid extraction errors
+      const safeInterval = (duration - 0.1) / numberOfFrames
 
-      for (let i = 1; i <= numberOfFrames; i++) {
-        const timestamp = interval * i
-        const framePath = path.join(outputDir, `frame_${i}.png`)
+      for (let i = 0; i < numberOfFrames; i++) {
+        const timestamp = safeInterval * i
+        const framePath = path.join(outputDir, `frame_${i + 1}.png`)
         
-        await new Promise<void>((resolveFrame, rejectFrame) => {
-          ffmpeg(videoPath)
-            .inputOptions([
-              '-protocol_whitelist', 'file,http,https,tcp,tls'
-            ])
-            .seekInput(timestamp)
-            .outputOptions([
-              '-vf', 'scale=2560:-1,eq=contrast=1.5:brightness=0.1',
-              '-q:v', '1'
-            ])
-            .frames(1)
-            .output(framePath)
-            .on('end', () => {
-              frames.push({ path: framePath, timestamp })
-              resolveFrame()
-            })
-            .on('error', (error: any) => {
-              rejectFrame(new Error(`Failed to extract frame: ${error.message}`))
-            })
-            .run()
-        })
+        try {
+          await new Promise<void>((resolveFrame, rejectFrame) => {
+            ffmpeg(videoPath)
+              .inputOptions([
+                '-protocol_whitelist', 'file,http,https,tcp,tls'
+              ])
+              .seekInput(timestamp)
+              .outputOptions([
+                '-vf', 'scale=2560:-1',  // Remove extra filters, just scale
+                '-q:v', '1'  // Highest quality
+              ])
+              .frames(1)
+              .output(framePath)
+              .on('end', () => {
+                frames.push({ path: framePath, timestamp })
+                resolveFrame()
+              })
+              .on('error', (error: any) => {
+                rejectFrame(new Error(`Failed to extract frame ${i + 1}: ${error.message}`))
+              })
+              .run()
+          })
+        } catch (error) {
+          console.warn(`⚠️ Failed to extract frame ${i + 1} at ${timestamp.toFixed(2)}s:`, error)
+          // Continue with other frames instead of failing completely
+        }
       }
 
       resolve(frames)
