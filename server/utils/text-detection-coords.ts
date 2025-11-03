@@ -631,8 +631,9 @@ function consolidateTextsByTimeRanges(detectedTexts: DetectedText[]): DetectedTe
     
     // INTERPOLATION: Treat as if we sampled 2x more frames
     // This means each detection covers 2x the normal interval
-    const interpolatedInterval = samplingInterval * 2
-    console.log(`🔄 Using 2x interpolation - each detection covers ${interpolatedInterval.toFixed(2)}s`)
+    // Add 10% extra overlap to ensure no gaps between frames
+    const interpolatedInterval = samplingInterval * 2 * 1.1
+    console.log(`🔄 Using 2x interpolation + 10% overlap - each detection covers ${interpolatedInterval.toFixed(2)}s`)
     samplingInterval = interpolatedInterval
   }
   
@@ -646,6 +647,7 @@ function consolidateTextsByTimeRanges(detectedTexts: DetectedText[]): DetectedTe
     const normalizedText = detection.text.toLowerCase().replace(/\s+/g, ' ').trim()
     
     // Calculate the time range this sample represents
+    // No extra padding needed - the 10% overlap handles gaps
     const halfInterval = samplingInterval / 2
     const rangeStart = Math.max(0, detection.timestamp - halfInterval)
     const rangeEnd = detection.timestamp + halfInterval
@@ -721,10 +723,68 @@ function consolidateTextsByTimeRanges(detectedTexts: DetectedText[]): DetectedTe
   
   // Log final time ranges
   console.log(`\n📊 Consolidated ${detectedTexts.length} samples into ${consolidated.length} text occurrences:`)
-  for (let i = 0; i < consolidated.length; i++) {
-    const text = consolidated[i]
-    const duration = (text.endTime || text.timestamp) - (text.startTime || text.timestamp)
-    console.log(`   ${i + 1}. "${text.text}" from ${text.startTime?.toFixed(2)}s to ${text.endTime?.toFixed(2)}s (${duration.toFixed(2)}s duration)`)
+  
+  // Sort consolidated texts by start time
+  consolidated.sort((a, b) => (a.startTime || a.timestamp) - (b.startTime || b.timestamp))
+  
+  // Group texts by time blocks - texts that overlap in time are in the same block
+  const timeBlocks: DetectedText[][] = []
+  const TIME_OVERLAP_THRESHOLD = 1.0 // Texts within 1.0s are considered same block
+  
+  for (const text of consolidated) {
+    const textStart = text.startTime || text.timestamp
+    const textEnd = text.endTime || text.timestamp
+    
+    // Find if this text belongs to an existing time block (overlaps with any text in the block)
+    let foundBlock = false
+    for (const block of timeBlocks) {
+      const blockStart = Math.min(...block.map(t => t.startTime || t.timestamp))
+      const blockEnd = Math.max(...block.map(t => t.endTime || t.timestamp))
+      
+      // Check if this text overlaps with the block
+      if (textStart <= blockEnd + TIME_OVERLAP_THRESHOLD && textEnd >= blockStart - TIME_OVERLAP_THRESHOLD) {
+        block.push(text)
+        foundBlock = true
+        break
+      }
+    }
+    
+    if (!foundBlock) {
+      // Create new time block
+      timeBlocks.push([text])
+    }
+  }
+  
+  console.log(`\n🕐 Grouped into ${timeBlocks.length} time blocks:`)
+  
+  // Now extend each time block to end 0.5s before the next block starts to prevent overlap
+  for (let i = 0; i < timeBlocks.length; i++) {
+    const currentBlock = timeBlocks[i]
+    const nextBlock = timeBlocks[i + 1]
+    
+    const blockStart = Math.min(...currentBlock.map(t => t.startTime || t.timestamp))
+    let blockEnd = Math.max(...currentBlock.map(t => t.endTime || t.timestamp))
+    
+    if (nextBlock) {
+      // End this block 0.5s BEFORE next block starts to ensure clean transition
+      const nextBlockStart = Math.min(...nextBlock.map(t => t.startTime || t.timestamp))
+      blockEnd = nextBlockStart - 0.1
+      
+      for (const text of currentBlock) {
+        text.endTime = blockEnd
+      }
+      
+      console.log(`   Block ${i + 1}: ${currentBlock.length} text(s) from ${blockStart.toFixed(2)}s to ${blockEnd.toFixed(2)}s (ends 0.5s before next)`)
+      for (const text of currentBlock) {
+        console.log(`      - "${text.text}"`)
+      }
+    } else {
+      // Last block - keep original end times
+      console.log(`   Block ${i + 1}: ${currentBlock.length} text(s) from ${blockStart.toFixed(2)}s to ${blockEnd.toFixed(2)}s (last block)`)
+      for (const text of currentBlock) {
+        console.log(`      - "${text.text}"`)
+      }
+    }
   }
   
   return consolidated

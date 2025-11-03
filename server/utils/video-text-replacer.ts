@@ -226,12 +226,9 @@ function buildTextReplacementFilterComplex(
     // Format: enable='between(t,START,END)'
     let enableExpression = ''
     if (startTime !== undefined && endTime !== undefined) {
-      // Add small buffer to ensure overlay is visible for the entire duration
-      const bufferSeconds = 0.1
-      const adjustedStart = Math.max(0, startTime - bufferSeconds)
-      const adjustedEnd = endTime + bufferSeconds
-      enableExpression = `:enable='between(t,${adjustedStart.toFixed(3)},${adjustedEnd.toFixed(3)})'`
-      console.log(`   ⏱️  Time range: ${adjustedStart.toFixed(2)}s - ${adjustedEnd.toFixed(2)}s`)
+      // Use exact times without buffer to prevent overlap
+      enableExpression = `:enable='between(t,${startTime.toFixed(3)},${endTime.toFixed(3)})'`
+      console.log(`   ⏱️  Time range: ${startTime.toFixed(2)}s - ${endTime.toFixed(2)}s`)
     } else {
       console.log(`   ⏱️  No time range - overlay will be visible for entire video`)
     }
