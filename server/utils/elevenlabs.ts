@@ -1,153 +1,134 @@
+import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js'
 import { PassThrough } from 'node:stream'
 
 /**
- * ElevenLabs Voice IDs
- * Popular voices from the ElevenLabs voice library
+ * ElevenLabs API configuration
  */
-export const VOICE_IDS = {
-  RACHEL: '21m00Tcm4TlvDq8ikWAM',      // American Female
-  JOSH: 'TxGEqnHWrfWFTfGW9XjX',        // American Male
-  ANTONI: 'ErXwobaYiN019PkySvjV',      // American Male
-  ELLI: 'MF3mGyEYCl7XYWbV9V6O',        // American Female
-  DOMI: 'AZnzlk1XvdvUeBnXmlld',        // American Female
-  BELLA: 'EXAVITQu4vr4xnSDxMaL',       // American Female
-  ARNOLD: 'VR6AewLTigWG4xSOukaG',      // American Male (Arnold Schwarzenegger-like)
-  ADAM: 'pNInz6obpgDQGcFmaJgB',        // American Male (Deep)
-  SAM: 'yoZ06aMxZJJ28mfd3POQ',         // American Male (Young)
-} as const
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY
 
-export interface ElevenLabsOptions {
-  voiceId?: string
-  modelId?: string
-  stability?: number        // 0.0 - 1.0
-  similarityBoost?: number  // 0.0 - 1.0
-  style?: number           // 0.0 - 1.0
-  speed?: number           // 0.25 - 4.0
-  useSpeakerBoost?: boolean
+if (!ELEVENLABS_API_KEY) {
+  console.warn('⚠️  ELEVENLABS_API_KEY not set in environment variables')
 }
 
-export interface Voice {
-  voice_id: string
-  name: string
-  category: string
-  description?: string
-  labels?: Record<string, string>
+/**
+ * Initialize ElevenLabs client
+ */
+const client = new ElevenLabsClient({
+  apiKey: ELEVENLABS_API_KEY
+})
+
+/**
+ * Voice settings for speech generation
+ */
+export interface VoiceSettings {
+  voiceId?: string
+  speed?: number
+  stability?: number
+  similarityBoost?: number
+  style?: number
 }
 
 /**
  * Generate speech from text using ElevenLabs API
- * @param text The text to convert to speech
- * @param options Voice and audio generation options
- * @returns A readable stream of MP3 audio data
+ * 
+ * @param text - The text to convert to speech
+ * @param settings - Voice and generation settings
+ * @returns A readable stream containing the audio data
  */
 export async function generateSpeech(
   text: string,
-  options: ElevenLabsOptions = {}
+  settings: VoiceSettings = {}
 ): Promise<PassThrough> {
-  const apiKey = process.env.ELEVENLABS_API_KEY
-  if (!apiKey) {
-    throw new Error('ELEVENLABS_API_KEY environment variable is not set')
-  }
-
   const {
-    voiceId = VOICE_IDS.RACHEL,
-    modelId = 'eleven_multilingual_v2',
+    voiceId = '21m00Tcm4TlvDq8ikWAM', // Default: Rachel
+    speed = 1.0,
     stability = 0.5,
     similarityBoost = 0.75,
-    style = 0.0,
-    speed = 1.0,
-    useSpeakerBoost = true
-  } = options
+    style = 0.0
+  } = settings
 
-  const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`
+  console.log('[ElevenLabs] Generating speech...')
+  console.log(`[ElevenLabs] Voice ID: ${voiceId}`)
+  console.log(`[ElevenLabs] Text length: ${text.length} characters`)
+  console.log(`[ElevenLabs] Settings: speed=${speed}, stability=${stability}, similarity=${similarityBoost}, style=${style}`)
 
-  const requestBody = {
-    text,
-    model_id: modelId,
-    voice_settings: {
-      stability,
-      similarity_boost: similarityBoost,
-      style,
-      use_speaker_boost: useSpeakerBoost
-    },
-    speed
+  if (!ELEVENLABS_API_KEY) {
+    throw new Error('ELEVENLABS_API_KEY is not configured')
   }
 
-  console.log('[ElevenLabs] Generating speech...', {
-    voiceId,
-    textLength: text.length,
-    speed,
-    stability
-  })
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Accept': 'audio/mpeg',
-      'Content-Type': 'application/json',
-      'xi-api-key': apiKey
-    },
-    body: JSON.stringify(requestBody)
-  })
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`ElevenLabs API error (${response.status}): ${errorText}`)
-  }
-
-  if (!response.body) {
-    throw new Error('No response body from ElevenLabs API')
-  }
-
-  // Convert web ReadableStream to Node.js stream
-  const passThrough = new PassThrough()
-  const reader = response.body.getReader()
-
-  const pump = async () => {
-    try {
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) {
-          passThrough.end()
-          break
-        }
-        if (!passThrough.write(value)) {
-          await new Promise(resolve => passThrough.once('drain', resolve))
-        }
+  try {
+    // Create audio stream from ElevenLabs
+    const audioStream = await client.textToSpeech.convert(voiceId, {
+      text,
+      modelId: 'eleven_multilingual_v2',
+      voiceSettings: {
+        stability,
+        similarityBoost,
+        style,
+        useSpeakerBoost: true
       }
-    } catch (error) {
-      passThrough.destroy(error as Error)
-    }
+    })
+
+    // Convert the ReadableStream to a Node.js stream
+    const outputStream = new PassThrough()
+    
+    // Get reader from the stream
+    ;(async () => {
+      try {
+        const reader = audioStream.getReader()
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          outputStream.write(Buffer.from(value))
+        }
+        outputStream.end()
+        console.log('[ElevenLabs] ✅ Speech generation complete')
+      } catch (error) {
+        console.error('[ElevenLabs] ❌ Error streaming audio:', error)
+        outputStream.destroy(error as Error)
+      }
+    })()
+
+    return outputStream
+  } catch (error: any) {
+    console.error('[ElevenLabs] ❌ Failed to generate speech:', error?.message || error)
+    throw new Error(`ElevenLabs API error: ${error?.message || 'Unknown error'}`)
   }
-
-  pump()
-  console.log('[ElevenLabs] Speech generation started')
-
-  return passThrough
 }
 
 /**
- * Get available voices from ElevenLabs
- * @returns Array of available voices
+ * Get list of available voices
  */
-export async function getAvailableVoices(): Promise<Voice[]> {
-  const apiKey = process.env.ELEVENLABS_API_KEY
-  if (!apiKey) {
-    throw new Error('ELEVENLABS_API_KEY environment variable is not set')
+export async function getAvailableVoices() {
+  if (!ELEVENLABS_API_KEY) {
+    throw new Error('ELEVENLABS_API_KEY is not configured')
   }
 
-  const response = await fetch('https://api.elevenlabs.io/v1/voices', {
-    method: 'GET',
-    headers: {
-      'xi-api-key': apiKey
-    }
-  })
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`ElevenLabs API error (${response.status}): ${errorText}`)
+  try {
+    const voices = await client.voices.getAll()
+    return voices.voices.map(voice => ({
+      voice_id: voice.voiceId,
+      name: voice.name,
+      category: voice.category,
+      labels: voice.labels
+    }))
+  } catch (error: any) {
+    console.error('[ElevenLabs] Failed to fetch voices:', error?.message || error)
+    throw new Error(`Failed to fetch voices: ${error?.message || 'Unknown error'}`)
   }
-
-  const data = await response.json() as { voices: Voice[] }
-  return data.voices
 }
+
+/**
+ * Popular voice IDs for quick reference
+ */
+export const POPULAR_VOICES = {
+  RACHEL: '21m00Tcm4TlvDq8ikWAM', // American Female
+  DOMI: 'AZnzlk1XvdvUeBnXmlld',   // American Female
+  BELLA: 'EXAVITQu4vr4xnSDxMaL',  // American Female
+  ANTONI: 'ErXwobaYiN019PkySvjV', // American Male
+  ELLI: 'MF3mGyEYCl7XYWbV9V6O',  // American Female
+  JOSH: 'TxGEqnHWrfWFTfGW9XjX',  // American Male
+  ARNOLD: 'VR6AewLTigWG4xSOukaG', // American Male
+  ADAM: 'pNInz6obpgDQGcFmaJgB',  // American Male
+  SAM: 'yoZ06aMxZJJ28mfd3POQ'    // American Male
+} as const
