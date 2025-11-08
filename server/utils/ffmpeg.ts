@@ -53,30 +53,25 @@ async function initializeFfmpeg() {
     try {
       console.log('[FFmpeg] Initializing for platform:', platform())
       
-      // Allow forcing installer usage via env (false by default on linux)
-      const allowInstaller = process.env.FFMPEG_ALLOW_INSTALLER === 'true'
+      if (isLinux) {
+        // Use system FFmpeg on Linux (hardcoded for Ubuntu compatibility)
+        const systemFfmpegPath = '/usr/bin/ffmpeg'
+        const systemFfprobePath = '/usr/bin/ffprobe'
 
-      if (isLinux && hasSystemFFmpeg() && !allowInstaller) {
-        // Prefer system FFmpeg on Linux (better compatibility)
-        const systemFfmpegPath = resolveSystemFfmpeg()
-        const systemFfprobePath = process.env.FFPROBE_PATH || (existsSync('/usr/bin/ffprobe') ? '/usr/bin/ffprobe' : null)
+        ffmpeg.setFfmpegPath(systemFfmpegPath)
+        console.log(`[Linux] Using system FFmpeg at: ${systemFfmpegPath}`)
 
-        if (systemFfmpegPath) {
-          ffmpeg.setFfmpegPath(systemFfmpegPath)
-          console.log(`[Linux] Using system FFmpeg at: ${systemFfmpegPath}`)
+        if (existsSync(systemFfprobePath)) {
+          ffmpeg.setFfprobePath(systemFfprobePath)
+          console.log(`[Linux] Using system FFprobe at: ${systemFfprobePath}`)
+        }
 
-          if (systemFfprobePath) {
-            ffmpeg.setFfprobePath(systemFfprobePath)
-            console.log(`[Linux] Using system FFprobe at: ${systemFfprobePath}`)
-          }
-
-          // Print version for debugging
-          try {
-            const v = execFileSync(systemFfmpegPath, ['-version']).toString().split('\n')[0]
-            console.log('[FFmpeg] Version:', v)
-          } catch (e) {
-            console.warn('[FFmpeg] Could not get version from system ffmpeg:', String(e))
-          }
+        // Print version for debugging
+        try {
+          const v = execFileSync(systemFfmpegPath, ['-version']).toString().split('\n')[0]
+          console.log('[FFmpeg] Version:', v)
+        } catch (e) {
+          console.warn('[FFmpeg] Could not get version from system ffmpeg:', String(e))
         }
 
       } else if (isWindows) {
