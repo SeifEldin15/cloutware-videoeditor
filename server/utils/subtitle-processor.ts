@@ -645,6 +645,32 @@ export class SubtitleProcessor {
     if (options?.lightness && options.lightness !== 0) {
       videoFilters.push(`eq=brightness=${options.lightness}`)
     }
+    
+    if (options?.contrast && options.contrast !== 1) {
+      videoFilters.push(`eq=contrast=${options.contrast}`)
+    }
+    
+    if (options?.brightness && options.brightness !== 0) {
+      videoFilters.push(`eq=brightness=${options.brightness}`)
+    }
+    
+    if (options?.rotation && options.rotation !== 0) {
+      // Convert degrees to radians: radians = degrees * PI / 180
+      const radians = options.rotation * Math.PI / 180
+      videoFilters.push(`rotate=${radians}:fillcolor=black:bilinear=1`)
+    }
+    
+    if (options?.blur && options.blur > 0) {
+      // Use boxblur filter: boxblur=luma_radius:luma_power
+      const blurRadius = Math.min(options.blur, 10)
+      videoFilters.push(`boxblur=${blurRadius}:1`)
+    }
+    
+    if (options?.sharpen && options.sharpen > 0) {
+      // Use unsharp filter: unsharp=luma_msize_x:luma_msize_y:luma_amount
+      const sharpenAmount = options.sharpen / 5 // Scale to 0-2 range
+      videoFilters.push(`unsharp=5:5:${sharpenAmount}:5:5:0`)
+    }
 
     // Anti-detection effects (simplified)
     if (options?.antiDetection?.pixelShift) {
