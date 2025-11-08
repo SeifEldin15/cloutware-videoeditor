@@ -6,7 +6,7 @@
 // ============================================================================
 
 async function basicExtraction() {
-  const response = await fetch('http://localhost:3000/api/extract-text', {
+  const response = await fetch('http://localhost:3001/api/extract-text', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -71,7 +71,7 @@ async function batchProcessVideos(videoUrls: string[]) {
   
   for (const url of videoUrls) {
     try {
-      const response = await fetch('http://localhost:3000/api/extract-text', {
+  const response = await fetch('http://localhost:3001/api/extract-text', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url })
