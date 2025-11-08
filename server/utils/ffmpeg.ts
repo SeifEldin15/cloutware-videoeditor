@@ -1,10 +1,21 @@
 import ffmpeg from 'fluent-ffmpeg'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, execSync } from 'node:child_process'
 import { platform } from 'node:os'
+import { existsSync } from 'node:fs'
 
-// Check if we're running on Ubuntu
-const isUbuntu = platform() === 'linux' && process.env.UBUNTU_CODENAME !== undefined
+// Check if we're running on Linux (Ubuntu or any other distro)
+const isLinux = platform() === 'linux'
 const isWindows = platform() === 'win32'
+
+// Check if system FFmpeg is available
+function hasSystemFFmpeg() {
+  try {
+    execSync('which ffmpeg', { stdio: 'ignore' })
+    return true
+  } catch {
+    return false
+  }
+}
 
 let ffmpegInitialized = false
 let ffmpegInitPromise: Promise<void> | null = null
@@ -17,21 +28,23 @@ async function initializeFfmpeg() {
     try {
       console.log('[FFmpeg] Initializing for platform:', platform())
       
-      if (isUbuntu) {
-        // Force the modern system binary (Ubuntu 6.1.1 in your shell)
-        ffmpeg.setFfmpegPath('/usr/bin/ffmpeg')
+      if (isLinux && hasSystemFFmpeg()) {
+        // Use system FFmpeg on Linux (better compatibility, newer version)
+        const systemFfmpegPath = execSync('which ffmpeg').toString().trim()
+        const systemFfprobePath = existsSync('/usr/bin/ffprobe') ? '/usr/bin/ffprobe' : null
+        
+        ffmpeg.setFfmpegPath(systemFfmpegPath)
+        console.log(`[Linux] Using system FFmpeg at: ${systemFfmpegPath}`)
 
-        // If ffprobe is installed (usually at /usr/bin/ffprobe), set it too:
-        try { 
-          ffmpeg.setFfprobePath('/usr/bin/ffprobe') 
-        } catch { 
-          /* ignore */ 
+        if (systemFfprobePath) {
+          ffmpeg.setFfprobePath(systemFfprobePath)
+          console.log(`[Linux] Using system FFprobe at: ${systemFfprobePath}`)
         }
 
-        // Optional: print the actual ffmpeg used (one-time boot log)
+        // Print version for debugging
         try {
-          const v = execFileSync('/usr/bin/ffmpeg', ['-version']).toString().split('\n')[0]
-          console.log('[ffmpeg wrapper] Using:', v)
+          const v = execFileSync(systemFfmpegPath, ['-version']).toString().split('\n')[0]
+          console.log('[FFmpeg] Version:', v)
         } catch { 
           /* ignore */ 
         }
