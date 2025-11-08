@@ -544,6 +544,9 @@ export class SubtitleProcessor {
 
         outputOptions.push('-threads', '1', '-pix_fmt', 'yuv420p', '-f', 'mpegts')
 
+        let ffmpegCompleted = false
+        let streamTimeout: NodeJS.Timeout | null = null
+        
         ffmpegCommand.outputOptions(outputOptions)
           .on('start', (commandLine: string) => {
             console.log('Advanced subtitle FFmpeg started:', commandLine)
@@ -560,17 +563,43 @@ export class SubtitleProcessor {
           .on('error', (err: Error) => {
             console.error('Advanced subtitle FFmpeg error:', err)
             console.error('Command output:', commandOutput)
+            if (streamTimeout) clearTimeout(streamTimeout)
             this.cleanupTempFile(tempAssFile)
             if (fontCleanup) fontCleanup()
+            if (!outputStream.destroyed) {
+              outputStream.destroy(err)
+            }
             reject(new Error(`FFmpeg error: ${err.message}\nCommand output: ${commandOutput}`))
           })
           .on('end', () => {
-            console.log('Advanced subtitle FFmpeg process ended')
+            console.log('Advanced subtitle FFmpeg process ended successfully')
+            ffmpegCompleted = true
+            
+            // Set a timeout ONLY after FFmpeg completes
+            // This catches cases where the stream doesn't properly end
+            streamTimeout = setTimeout(() => {
+              console.warn('⚠️ Stream did not finish naturally after FFmpeg completion - forcing end')
+              if (!outputStream.writableEnded) {
+                outputStream.end()
+              }
+            }, 5000) // 5 seconds after ffmpeg completes should be plenty
+            
             this.cleanupTempFile(tempAssFile)
             if (fontCleanup) fontCleanup()
           })
 
+        // Pipe with explicit error handling
         ffmpegCommand.pipe(outputStream, { end: true })
+        
+        outputStream.on('finish', () => {
+          if (streamTimeout) clearTimeout(streamTimeout)
+          console.log('✅ Output stream finished')
+        })
+        
+        outputStream.on('error', (err) => {
+          if (streamTimeout) clearTimeout(streamTimeout)
+          console.error('❌ Output stream error:', err)
+        })
 
         resolve(outputStream)
 

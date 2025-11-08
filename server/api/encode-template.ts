@@ -73,6 +73,7 @@ export default eventHandler(async (event) => {
     // Handle GET requests - return available templates
     if (method === 'GET') {
       const templates = listAvailableTemplates()
+      // Return full configuration so other server-side APIs can use templates programmatically
       return {
         success: true,
         message: 'Available style templates',
@@ -80,7 +81,8 @@ export default eventHandler(async (event) => {
           name: template.name,
           key: template.name.toLowerCase().replace(/\s+/g, '').replace('&', ''),
           description: template.description,
-          fontFamily: template.fontFamily
+          fontFamily: template.fontFamily,
+          configuration: template.configuration // include the full configuration object
         }))
       }
     }

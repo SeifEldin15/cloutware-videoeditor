@@ -10,12 +10,6 @@ const requestSchema = z.object({
   formatText: z.boolean().optional().default(true)
 });
 
-if (!process.env.ASSEMBLYAI_API_KEY) {
-  throw new Error('ASSEMBLYAI_API_KEY environment variable is not set');
-}
-
-const apiKey = process.env.ASSEMBLYAI_API_KEY;
-
 
 function convertToSRT(words: any[]) {
   if (!words || words.length === 0) {
@@ -88,6 +82,14 @@ function convertToSRT(words: any[]) {
 export default eventHandler(async (event) => {
   try {
     console.log('🔍 Transcribe API called')
+    
+    // Get API key from environment
+    const apiKey = process.env.ASSEMBLYAI_API_KEY
+    
+    if (!apiKey) {
+      throw new Error('ASSEMBLYAI_API_KEY environment variable is not set');
+    }
+    
     console.log('🔑 API Key available:', !!apiKey)
     console.log('🔑 API Key preview:', apiKey ? `${apiKey.substring(0, 8)}...` : 'NOT SET')
     

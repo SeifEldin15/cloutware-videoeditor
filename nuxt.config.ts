@@ -3,7 +3,7 @@ export default defineNuxtConfig({
   eslint: { config: { stylistic: true } },
 
   devServer: {
-  port: 3001,
+  port: 3000,
   },
 
   sourcemap: {
@@ -18,6 +18,27 @@ export default defineNuxtConfig({
       '@tailwindcss/postcss': {},
       autoprefixer: {},
     },
+  },
+
+  nitro: {
+    externals: {
+      external: [
+        'tesseract.js',
+        'sharp',
+        'fluent-ffmpeg',
+        '@ffmpeg-installer/ffmpeg',
+        '@ffprobe-installer/ffprobe',
+      ]
+    },
+    rollupConfig: {
+      external: [
+        'tesseract.js',
+        'sharp',
+        'fluent-ffmpeg',
+        '@ffmpeg-installer/ffmpeg',
+        '@ffprobe-installer/ffprobe',
+      ]
+    }
   },
 
   compatibilityDate: '2025-03-25',
