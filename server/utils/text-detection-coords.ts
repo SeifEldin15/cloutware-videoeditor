@@ -4,6 +4,7 @@ import fs from 'fs/promises'
 import path from 'path'
 import os from 'os'
 import sharp from 'sharp'
+import { correctText } from './spell-checker'
 
 /**
  * Check if text is meaningful (not gibberish or special characters only)
@@ -112,9 +113,11 @@ function isMeaningfulText(text: string): boolean {
  * Corrects ambiguous characters using context
  */
 function correctOCRErrors(text: string): string {
-  let corrected = text
+  // First apply spell checking with dictionary
+  let corrected = correctText(text)
+  console.log(`   🔤 Spell check: "${text}" → "${corrected}"`)
   
-  // Common OCR character confusions and their corrections
+  // Then apply OCR-specific character corrections
   const corrections: Array<[RegExp, string]> = [
     // Fix common character substitutions at word boundaries
     [/\b0(?=[a-z])/gi, 'O'],           // 0 -> O at start of word before lowercase
@@ -367,8 +370,8 @@ export async function detectTextWithCoordinates(
     const { width, height } = await getVideoDimensions(videoPath)
     console.log(`📐 Video dimensions: ${width}x${height}`)
 
-    // Extract frames
-    console.log(`🎬 Extracting ${numberOfFrames} frames...`)
+    // Extract frames at 1 FPS
+    console.log(`🎬 Extracting frames at 1 FPS...`)
     const frames = await extractFrames(videoPath, numberOfFrames, tempDir)
     console.log(`✅ Extracted ${frames.length} frames`)
     
@@ -880,41 +883,62 @@ async function extractFrames(
       }
 
       const duration = metadata.format.duration || 0
-      // Ensure we don't try to extract frames beyond video duration
-      // Leave a small buffer at the end (0.1s) to avoid extraction errors
-      const safeInterval = (duration - 0.1) / numberOfFrames
-
-      for (let i = 0; i < numberOfFrames; i++) {
-        const timestamp = safeInterval * i
-        const framePath = path.join(outputDir, `frame_${i + 1}.png`)
+      
+      // Extract 1 frame per second
+      console.log(`📹 Extracting 1 frame per second from ${duration.toFixed(2)}s video...`)
+      
+      const targetFps = 1 // Fixed at 1 FPS
+      const expectedFrames = Math.ceil(duration)
+      console.log(`📊 Expecting approximately ${expectedFrames} frames`)
+      
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error(`Frame extraction timeout after ${expectedFrames * 2} seconds`))
+        }, expectedFrames * 2000) // 2 seconds per frame timeout
         
-        try {
-          await new Promise<void>((resolveFrame, rejectFrame) => {
-            ffmpeg(videoPath)
-              .inputOptions([
-                '-protocol_whitelist', 'file,http,https,tcp,tls'
-              ])
-              .seekInput(timestamp)
-              .outputOptions([
-                '-vf', 'scale=2560:-1',  // Remove extra filters, just scale
-                '-q:v', '1'  // Highest quality
-              ])
-              .frames(1)
-              .output(framePath)
-              .on('end', () => {
+        ffmpeg(videoPath)
+          .inputOptions([
+            '-protocol_whitelist', 'file,http,https,tcp,tls'
+          ])
+          .outputOptions([
+            '-vf', `fps=1,scale=2560:-1`, // Extract 1 frame per second
+            '-q:v', '1' // Highest quality
+          ])
+          .output(path.join(outputDir, 'frame_%d.png')) // %d will be replaced with frame numbers 0, 1, 2, ...
+          .on('end', async () => {
+            clearTimeout(timeout)
+            
+            // Read all extracted frames from the directory
+            try {
+              const files = await fs.readdir(outputDir)
+              const frameFiles = files
+                .filter(f => f.startsWith('frame_') && f.endsWith('.png'))
+                .sort((a, b) => {
+                  const numA = parseInt(a.match(/frame_(\d+)\.png/)?.[1] || '0')
+                  const numB = parseInt(b.match(/frame_(\d+)\.png/)?.[1] || '0')
+                  return numA - numB
+                })
+              
+              console.log(`✅ Extracted ${frameFiles.length} frames`)
+              
+              // Calculate timestamp for each frame
+              for (let i = 0; i < frameFiles.length; i++) {
+                const framePath = path.join(outputDir, frameFiles[i])
+                const timestamp = (duration / frameFiles.length) * i
                 frames.push({ path: framePath, timestamp })
-                resolveFrame()
-              })
-              .on('error', (error: any) => {
-                rejectFrame(new Error(`Failed to extract frame ${i + 1}: ${error.message}`))
-              })
-              .run()
+              }
+              
+              resolve()
+            } catch (err) {
+              reject(new Error(`Failed to read extracted frames: ${err}`))
+            }
           })
-        } catch (error) {
-          console.warn(`⚠️ Failed to extract frame ${i + 1} at ${timestamp.toFixed(2)}s:`, error)
-          // Continue with other frames instead of failing completely
-        }
-      }
+          .on('error', (error: any) => {
+            clearTimeout(timeout)
+            reject(new Error(`Failed to extract frames: ${error.message}`))
+          })
+          .run()
+      })
 
       resolve(frames)
     })
