@@ -85,7 +85,7 @@ export const ValidationSchemas = {
       // Universal vertical position option
       verticalPosition: z.number().min(0).max(100).optional().default(15),
       // Universal shadow strength option
-      shadowStrength: z.number().min(0.5).max(5).optional().default(1.5),
+      shadowStrength: z.number().min(0).max(5).optional().default(1.5),
       // Universal animation option
       animation: z.enum(['none', 'shake']).optional().default('none'),
       // Advanced subtitle styling options
