@@ -6,6 +6,7 @@ export interface ShrinkingPairsStyle extends GirlbossStyle {
   textOutlineWidth?: number;
   color?: string;
   textOutlineColor?: string;
+  wordsPerGroup?: number;
 }
 
 /**
@@ -45,11 +46,12 @@ export const shrinkingColorsPairAnimation = (
   const totalDuration = end - start;
   const wordPairs: string[] = [];
   
-  // Group words into pairs
-  for (let i = 0; i < words.length; i += 2) {
-    const pair = words[i] + (words[i + 1] ? ' ' + words[i + 1] : '');
-    if (pair.trim()) {
-      wordPairs.push(pair);
+  // Group words based on wordsPerGroup setting (default to 2 for backward compatibility)
+  const groupSize = Math.max(1, style?.wordsPerGroup || 2);
+  for (let i = 0; i < words.length; i += groupSize) {
+    const group = words.slice(i, i + groupSize).join(' ');
+    if (group.trim()) {
+      wordPairs.push(group);
     }
   }
 

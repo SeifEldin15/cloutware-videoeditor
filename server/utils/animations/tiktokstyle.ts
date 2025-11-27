@@ -52,10 +52,11 @@ export const tiktokStyleAnimation = (
 
     const timePerWord = (end - start) / words.length;
     
-    // Shadow strength with bounds checking
-    const shadowStrength = Math.max(0.5, Math.min(5, style.shadowStrength || 3));
-    const shadowAlpha = Math.max(50, Math.min(255, Math.round(150 - (shadowStrength * 20))));
-    const blurAlpha = Math.max(20, Math.min(255, Math.round(120 - (shadowStrength * 20))));
+    // Shadow strength with bounds checking - same calculation as girlboss
+    const shadowStrength = Math.max(0.5, Math.min(5, style.shadowStrength || 4));
+    const effectiveShadowStrength = shadowStrength > 1 ? shadowStrength + 0.2 : 1;
+    const shadowAlpha = Math.max(50, Math.min(255, Math.round(133 - (effectiveShadowStrength * 24))));
+    const blurAlpha = Math.max(20, Math.min(255, Math.round(96 - (effectiveShadowStrength * 28))));
     
     // Single color processing with fallback
     const defaultColor = 'FFFF00'; // Default yellow
@@ -89,8 +90,8 @@ export const tiktokStyleAnimation = (
     
     // Handle single word case
     if (words.length === 1) {
-      const borderWidth = Math.max(0.1, 0.1 * shadowStrength);
-      const blurAmount = Math.max(1, 2 * shadowStrength);
+      const borderWidth = Math.max(0.1, 0.1 * effectiveShadowStrength);
+      const blurAmount = Math.max(1, 4 * effectiveShadowStrength);
 
       let moveTag = '';
       if (style?.animation === 'shake') {
@@ -126,8 +127,8 @@ export const tiktokStyleAnimation = (
       const wordEnd = start + (index + 1) * timePerWord;
       const duration = wordEnd - wordStart;
 
-      const borderWidth = Math.max(0.1, 0.1 * shadowStrength);
-      const blurAmount = Math.max(1, 2 * shadowStrength);
+      const borderWidth = Math.max(0.1, 0.1 * effectiveShadowStrength);
+      const blurAmount = Math.max(1, 4 * effectiveShadowStrength);
 
       let moveTag = '';
       if (style?.animation === 'shake') {
@@ -153,12 +154,15 @@ export const tiktokStyleAnimation = (
         }
       }).join(' ');
 
-      // Build glow text - only current word has glow
+      // Build glow text - current word has color glow, inactive words have white glow
       const glowText = words.map((w, i) => {
         if (i === index) {
           return `{${moveTag}\\c&H${glowColor}&\\bord${borderWidth}\\blur${blurAmount}\\3c&H${glowColor}&\\3a&H${shadowAlpha.toString(16)}&\\4c&H${glowColor}&\\4a&H${blurAlpha.toString(16)}&\\xshad0\\yshad${-1}}${w}`;
+        } else {
+          // Add white glow for inactive (white) words
+          const whiteGlowColor = 'FFFFFF';
+          return `{${moveTag}\\c&H${whiteGlowColor}&\\bord${borderWidth}\\blur${blurAmount}\\3c&H${whiteGlowColor}&\\3a&H${shadowAlpha.toString(16)}&\\4c&H${whiteGlowColor}&\\4a&H${blurAlpha.toString(16)}&\\xshad0\\yshad${-1}}${w}`;
         }
-        return `{\\alpha&HFF&}${w}`; // Hidden for inactive words
       }).join(' ');
 
       events.push(`Dialogue: 0,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${glowText}`);

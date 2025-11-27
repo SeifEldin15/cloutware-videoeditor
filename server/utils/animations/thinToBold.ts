@@ -26,7 +26,8 @@ export const ThinToBold = (
   style: GirlbossStyle & { 
     outlineWidth?: number; 
     outlineColor?: string; 
-    outlineBlur?: number 
+    outlineBlur?: number;
+    wordsPerGroup?: number;
   },
   lastPosition: { x: number; y: number } | null = null
 ): GirlbossResult | string => {
@@ -50,14 +51,12 @@ export const ThinToBold = (
 
     const totalDuration = end - start;
     
-    // Group words into pairs
+    // Group words based on wordsPerGroup setting (default to 2 for backward compatibility)
+    const groupSize = Math.max(1, style.wordsPerGroup || 2);
     const wordPairs: string[] = [];
-    for (let i = 0; i < words.length; i += 2) {
-      if (i + 1 < words.length) {
-        wordPairs.push(words[i] + ' ' + words[i + 1]);
-      } else {
-        wordPairs.push(words[i]); 
-      }
+    for (let i = 0; i < words.length; i += groupSize) {
+      const group = words.slice(i, i + groupSize).join(' ');
+      wordPairs.push(group);
     }
 
     if (wordPairs.length === 0) {

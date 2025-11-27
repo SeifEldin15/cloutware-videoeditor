@@ -221,6 +221,7 @@ export const generateAdvancedASSFile = (
     outlineWidth?: number;
     outlineColor?: string;
     outlineBlur?: number;
+    wordsPerGroup?: number;
   },
   styleType: string
 ): string => {

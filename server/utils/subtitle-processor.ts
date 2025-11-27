@@ -339,7 +339,7 @@ export class SubtitleProcessor {
           assContent = generateAdvancedASSFile(subtitleSegments, tiktokStyleStyle, 'tiktokstyle')
 
         } else if (styleOptions.subtitleStyle === 'thintobold') {
-          console.log(`✨ Setting up ThinToBold with font: ${styleOptions.fontFamily} -> ${styleOptions.fontFamily}`)
+          console.log(`✨ Setting up ThinToBold with font: ${styleOptions.fontFamily} -> ${styleOptions.fontFamily}, wordsPerGroup: ${styleOptions.wordsPerGroup || 4}`)
           const thinToBoldStyle: GirlbossStyle & {
             fontSize?: number
             fontFamily?: string
@@ -348,6 +348,7 @@ export class SubtitleProcessor {
             outlineWidth?: number
             outlineColor?: string
             outlineBlur?: number
+            wordsPerGroup?: number
           } = {
             color: styleOptions.thinToBoldColor || '#FFFFFF',
             shadowStrength: styleOptions.shadowStrength || 1.5,
@@ -359,7 +360,8 @@ export class SubtitleProcessor {
             textAlign: styleOptions.textAlign || 'center',
             outlineWidth: styleOptions.outlineWidth || 2,
             outlineColor: styleOptions.outlineColor || '#000000',
-            outlineBlur: styleOptions.outlineBlur || 0
+            outlineBlur: styleOptions.outlineBlur || 0,
+            wordsPerGroup: styleOptions.wordsPerGroup || 4
           }
           assContent = generateAdvancedASSFile(subtitleSegments, thinToBoldStyle, 'thintobold')
 
@@ -388,7 +390,7 @@ export class SubtitleProcessor {
           assContent = generateAdvancedASSFile(subtitleSegments, wavyStyle, 'wavycolors')
 
         } else if (styleOptions.subtitleStyle === 'shrinkingpairs') {
-          console.log(`📉 Setting up ShrinkingPairs with font: ${styleOptions.fontFamily} -> ${styleOptions.fontFamily}`)
+          console.log(`📉 Setting up ShrinkingPairs with font: ${styleOptions.fontFamily} -> ${styleOptions.fontFamily}, wordsPerGroup: ${styleOptions.wordsPerGroup || 4}`)
           const shrinkingPairsStyle: GirlbossStyle & {
             fontSize?: number
             fontFamily?: string
@@ -399,6 +401,7 @@ export class SubtitleProcessor {
             outlineWidth?: number
             outlineColor?: string
             outlineBlur?: number
+            wordsPerGroup?: number
           } = {
             color: styleOptions.shrinkingPairsColor || '#0BF431',
             shadowStrength: styleOptions.shadowStrength || 1.5,
@@ -411,7 +414,8 @@ export class SubtitleProcessor {
             textOutlineWidth: styleOptions.outlineWidth || 2,
             outlineWidth: styleOptions.outlineWidth || 2,
             outlineColor: styleOptions.outlineColor || '#000000',
-            outlineBlur: styleOptions.outlineBlur || 0
+            outlineBlur: styleOptions.outlineBlur || 0,
+            wordsPerGroup: styleOptions.wordsPerGroup || 4
           }
           assContent = generateAdvancedASSFile(subtitleSegments, shrinkingPairsStyle, 'shrinkingpairs')
 
@@ -457,8 +461,6 @@ export class SubtitleProcessor {
 
         ffmpegCommand.inputOptions([
           '-protocol_whitelist', 'file,http,https,tcp,tls',
-          '-reconnect', '1',
-          '-reconnect_streamed', '1',
           '-analyzeduration', '10000000',
           '-probesize', '10000000',
           '-thread_queue_size', '512',
@@ -629,60 +631,84 @@ export class SubtitleProcessor {
     // Simplified video processing - only apply if specific options are provided
     const videoFilters = []
     
+    // Speed adjustment (setpts must come first)
     if (options?.speedFactor && options.speedFactor !== 1) {
       const ptsValue = 1 / options.speedFactor
       videoFilters.push(`setpts=${ptsValue}*PTS`)
     }
     
+    // Horizontal flip
+    if (options?.visibleChanges?.horizontalFlip) {
+      videoFilters.push('hflip')
+    }
+    
+    // Zoom/Scale
     if (options?.zoomFactor && options.zoomFactor !== 1) {
       videoFilters.push(`scale=iw*${options.zoomFactor}:ih*${options.zoomFactor}`)
     }
     
-    if (options?.saturationFactor && options.saturationFactor !== 1) {
-      videoFilters.push(`hue=s=${options.saturationFactor}`)
-    }
-    
-    if (options?.lightness && options.lightness !== 0) {
-      videoFilters.push(`eq=brightness=${options.lightness}`)
-    }
-    
-    if (options?.contrast && options.contrast !== 1) {
-      videoFilters.push(`eq=contrast=${options.contrast}`)
-    }
-    
-    if (options?.brightness && options.brightness !== 0) {
-      videoFilters.push(`eq=brightness=${options.brightness}`)
-    }
-    
+    // Rotation
     if (options?.rotation && options.rotation !== 0) {
       // Convert degrees to radians: radians = degrees * PI / 180
       const radians = options.rotation * Math.PI / 180
       videoFilters.push(`rotate=${radians}:fillcolor=black:bilinear=1`)
     }
     
+    // Saturation using hue filter
+    if (options?.saturationFactor && options.saturationFactor !== 1) {
+      videoFilters.push(`hue=s=${options.saturationFactor}`)
+    }
+    
+    // Combine eq filters (brightness, contrast, lightness) into one
+    const eqParts = []
+    if (options?.brightness && options.brightness !== 0) {
+      eqParts.push(`brightness=${options.brightness}`)
+    }
+    if (options?.contrast && options.contrast !== 1) {
+      eqParts.push(`contrast=${options.contrast}`)
+    }
+    // Lightness affects gamma - map -0.5 to 0.5 range to 0.5 to 1.5 gamma range
+    if (options?.lightness && options.lightness !== 0) {
+      const gamma = 1 - options.lightness  // lightness -0.5 -> gamma 1.5 (darker), lightness 0.5 -> gamma 0.5 (lighter)
+      eqParts.push(`gamma=${gamma}`)
+    }
+    if (eqParts.length > 0) {
+      videoFilters.push(`eq=${eqParts.join(':')}`)
+    }
+    
+    // Blur
     if (options?.blur && options.blur > 0) {
       // Use boxblur filter: boxblur=luma_radius:luma_power
       const blurRadius = Math.min(options.blur, 10)
       videoFilters.push(`boxblur=${blurRadius}:1`)
     }
     
+    // Sharpen
     if (options?.sharpen && options.sharpen > 0) {
       // Use unsharp filter: unsharp=luma_msize_x:luma_msize_y:luma_amount
       const sharpenAmount = options.sharpen / 5 // Scale to 0-2 range
       videoFilters.push(`unsharp=5:5:${sharpenAmount}:5:5:0`)
     }
 
-    // Anti-detection effects (simplified)
+    // Anti-detection effects
     if (options?.antiDetection?.pixelShift) {
+      // Shift pixels slightly
       videoFilters.push('crop=in_w-2:in_h-2:1:1')
     }
     
+    if (options?.antiDetection?.microCrop) {
+      // Apply subtle cropping from edges
+      videoFilters.push('crop=in_w-4:in_h-4:2:2')
+    }
+    
     if (options?.antiDetection?.noiseAddition) {
+      // Add imperceptible noise
       videoFilters.push('noise=alls=1:allf=t')
     }
     
     if (options?.antiDetection?.subtleRotation) {
-      videoFilters.push('rotate=0.1*PI/180')
+      // Apply very subtle rotation (0.1 degrees)
+      videoFilters.push('rotate=0.1*PI/180:fillcolor=black')
     }
 
     // Apply video filters if any exist
@@ -692,6 +718,11 @@ export class SubtitleProcessor {
 
     // Simplified audio processing
     const audioFilters = []
+    
+    // Speed adjustment for audio (if video speed was changed)
+    if (options?.speedFactor && options.speedFactor !== 1) {
+      audioFilters.push(`atempo=${options.speedFactor}`)
+    }
     
     if (options?.audioPitch && options.audioPitch !== 1) {
       audioFilters.push(`asetrate=44100*${options.audioPitch},aresample=44100`)

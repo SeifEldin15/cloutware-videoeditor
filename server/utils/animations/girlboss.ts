@@ -117,14 +117,18 @@ export const Girlboss = (
         }
       }
 
-      // Build glow effect for active words
+      // Build glow effect for active words and white glow for inactive words
       const glowWords = words.map((w, i) => {
         if (i === index || i < index) {
           const borderWidth = Math.max(0.1, 0.1 * effectiveShadowStrength);
           const blurAmount = Math.max(1, 4 * effectiveShadowStrength);
           return `{${moveTag}\\c${lightGlowColorASS}\\bord${borderWidth}\\blur${blurAmount}\\3c${lightGlowColorASS}\\4c${lightGlowColorASS}\\4a&H${blurAlpha.toString(16)}&\\3a&H${shadowAlpha.toString(16)}&}${w}`;
         } else {
-          return `{\\c&HFFFFFF&\\alpha&HFF&}${w}`; // Hidden for inactive words
+          // Add white glow for inactive (white) words
+          const whiteBorderWidth = Math.max(0.1, 0.1 * effectiveShadowStrength);
+          const whiteBlurAmount = Math.max(1, 4 * effectiveShadowStrength);
+          const whiteGlowColorASS = convertColorToASS('#FFFFFF');
+          return `{${moveTag}\\c${whiteGlowColorASS}\\bord${whiteBorderWidth}\\blur${whiteBlurAmount}\\3c${whiteGlowColorASS}\\4c${whiteGlowColorASS}\\4a&H${blurAlpha.toString(16)}&\\3a&H${shadowAlpha.toString(16)}&}${w}`;
         }
       }).join(' ');
 

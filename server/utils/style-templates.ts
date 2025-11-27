@@ -83,8 +83,8 @@ export const styleTemplates: Record<string, StyleTemplate> = {
       outlineWidth: 0.5,
       outlineColor: '#000000',
       outlineBlur: 1,
-      wordMode: 'normal',
-      wordsPerGroup: 4
+      wordMode: 'multiple',
+      wordsPerGroup: 2
     }
   },
   
