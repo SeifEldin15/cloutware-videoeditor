@@ -2,6 +2,7 @@ import { PassThrough } from 'stream'
 import { getInitializedFfmpeg } from './ffmpeg'
 import os from 'os'
 import type { VideoProcessingOptions } from './validation-schemas'
+import { getAdaptiveQuality, getQualityConfig } from './quality-config'
 
 const availableCpuCores = os.cpus().length
 const optimalThreads = Math.max(2, Math.floor(availableCpuCores * 0.75)).toString()
@@ -166,6 +167,8 @@ export class VideoProcessor {
     const outputOptions = []
     const timestamp = new Date().getTime().toString()
 
+    console.log(`🎬 VideoProcessor building options with:`, JSON.stringify(options, null, 2))
+
     outputOptions.push('-map_metadata', '-1')
     outputOptions.push('-fflags', '+bitexact')
 
@@ -179,21 +182,98 @@ export class VideoProcessor {
       outputOptions.push('-i', 'audio.mp3')
     }
 
-    const videoFilter = [
-      'crop=in_w-10:in_h-10:5:5,scale=708:1260:flags=fast_bilinear',
-      'hue=s=1.05,eq=gamma=1.05:contrast=1.05:brightness=0.05:saturation=1.05',
-      'setpts=0.92*PTS',
-      'rotate=0.25*PI/180:bilinear=0',
-      'pad=iw+2:ih+2:1:1:black@0.8',
-      'noise=alls=1:allf=t'
-    ].join(',')
+    // Build dynamic video filter based on actual options
+    const videoFilters: string[] = []
+
+    // Speed adjustment (setpts must come first)
+    if (options?.speedFactor && options.speedFactor !== 1) {
+      const ptsValue = 1 / options.speedFactor
+      videoFilters.push(`setpts=${ptsValue}*PTS`)
+    }
+    
+    // Horizontal flip
+    if (options?.visibleChanges?.horizontalFlip) {
+      videoFilters.push('hflip')
+    }
+    
+    // Zoom/Scale
+    if (options?.zoomFactor && options.zoomFactor !== 1) {
+      videoFilters.push(`scale=iw*${options.zoomFactor}:ih*${options.zoomFactor}`)
+    }
+    
+    // Rotation
+    if (options?.rotation && options.rotation !== 0) {
+      const radians = options.rotation * Math.PI / 180
+      videoFilters.push(`rotate=${radians}:fillcolor=black:bilinear=1`)
+    }
+    
+    // Saturation using hue filter
+    if (options?.saturationFactor && options.saturationFactor !== 1) {
+      videoFilters.push(`hue=s=${options.saturationFactor}`)
+    }
+    
+    // Combine eq filters (brightness, contrast, lightness)
+    const eqParts: string[] = []
+    if (options?.brightness && options.brightness !== 0) {
+      eqParts.push(`brightness=${options.brightness}`)
+    }
+    if (options?.contrast && options.contrast !== 1) {
+      eqParts.push(`contrast=${options.contrast}`)
+    }
+    if (options?.lightness && options.lightness !== 0) {
+      const gamma = 1 - options.lightness
+      eqParts.push(`gamma=${gamma}`)
+    }
+    if (eqParts.length > 0) {
+      videoFilters.push(`eq=${eqParts.join(':')}`)
+    }
+    
+    // Blur
+    if (options?.blur && options.blur > 0) {
+      const blurRadius = Math.min(options.blur, 10)
+      videoFilters.push(`boxblur=${blurRadius}:1`)
+    }
+    
+    // Sharpen
+    if (options?.sharpen && options.sharpen > 0) {
+      const sharpenAmount = options.sharpen / 5
+      videoFilters.push(`unsharp=5:5:${sharpenAmount}:5:5:0`)
+    }
+
+    // Anti-detection effects
+    if (options?.antiDetection?.pixelShift) {
+      videoFilters.push('crop=in_w-2:in_h-2:1:1')
+    }
+    
+    if (options?.antiDetection?.microCrop) {
+      videoFilters.push('crop=in_w-4:in_h-4:2:2')
+    }
+    
+    if (options?.antiDetection?.noiseAddition) {
+      videoFilters.push('noise=alls=1:allf=t')
+    }
+    
+    if (options?.antiDetection?.subtleRotation) {
+      videoFilters.push('rotate=0.1*PI/180:fillcolor=black')
+    }
+
+    // Scale to even dimensions for codec compatibility
+    videoFilters.push('scale=trunc(iw/2)*2:trunc(ih/2)*2')
+
+    const videoFilter = videoFilters.length > 0 ? videoFilters.join(',') : 'null'
+    console.log(`🎬 VideoProcessor video filter: ${videoFilter}`)
 
     outputOptions.push('-vf', videoFilter)
 
-    let audioFilter = [
-      'volume=0.8,atempo=1.09',
-      'equalizer=f=1000:width=200:g=-1'
-    ].join(',')
+    // Build audio filter
+    const audioFilters: string[] = []
+    
+    // Speed adjustment for audio
+    if (options?.speedFactor && options.speedFactor !== 1) {
+      audioFilters.push(`atempo=${options.speedFactor}`)
+    }
+
+    const audioFilter = audioFilters.length > 0 ? audioFilters.join(',') : 'anull'
 
     if (options?.backgroundAudio) {
       const afIndex = outputOptions.indexOf('-af')
@@ -211,21 +291,27 @@ export class VideoProcessor {
       outputOptions.push('-af', audioFilter)
     }
 
-    outputOptions.push('-c:v', 'libx264')
-    outputOptions.push('-preset', 'medium')                 // Better quality than veryfast
-    outputOptions.push('-crf', '20')                        // Higher quality (lower CRF)
-    outputOptions.push('-profile:v', 'high')                // H.264 high profile
-    outputOptions.push('-level', '4.1')                     // H.264 compatibility level
+    // Use ADAPTIVE quality based on transformation complexity
+    const adaptiveQuality = getAdaptiveQuality(options)
+    const qualityConfig = getQualityConfig(adaptiveQuality)
+    
+    console.log(`🎥 VideoProcessor using ${adaptiveQuality} quality: CRF ${qualityConfig.crf}, preset ${qualityConfig.preset}`)
+
+    outputOptions.push('-c:v', qualityConfig.videoCodec)
+    outputOptions.push('-preset', qualityConfig.preset)
+    outputOptions.push('-crf', qualityConfig.crf.toString())
+    outputOptions.push('-profile:v', qualityConfig.profile)
+    outputOptions.push('-level', qualityConfig.level)
     outputOptions.push('-threads', optimalThreads)
-    outputOptions.push('-pix_fmt', 'yuv420p')
+    outputOptions.push('-pix_fmt', qualityConfig.pixelFormat)
     outputOptions.push('-r', '29.97')
-    outputOptions.push('-c:a', 'aac')
-    outputOptions.push('-b:a', '192k')                      // Higher audio quality
-    outputOptions.push('-ar', '48000')                      // High sample rate
-    outputOptions.push('-max_muxing_queue_size', '4096')
-    outputOptions.push('-movflags', '+faststart')
+    outputOptions.push('-c:a', qualityConfig.audioCodec)
+    outputOptions.push('-b:a', qualityConfig.audioBitrate)
+    outputOptions.push('-ar', qualityConfig.sampleRate.toString())
+    outputOptions.push('-max_muxing_queue_size', qualityConfig.maxMuxingQueueSize.toString())
+    outputOptions.push('-movflags', qualityConfig.movflags)
     outputOptions.push('-f', 'mp4')
 
     return outputOptions
   }
-} 
+}

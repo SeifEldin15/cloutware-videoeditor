@@ -8,7 +8,7 @@ import { processVideoWithSubtitlesFile } from './captioning'
 import { generateAdvancedASSFile, parseSRT, getStyleFont, getFontFilePath, type SubtitleSegment, type GirlbossStyle, processWordModeSegments, formatTimeForSRT } from './subtitleUtils'
 import type { CaptionOptions, VideoProcessingOptions } from './validation-schemas'
 import { resolve, join as pathJoin } from 'path'
-import { getQualityConfig, configToOutputOptions, type QualityLevel } from './quality-config'
+import { getQualityConfig, configToOutputOptions, getAdaptiveQuality, type QualityLevel } from './quality-config'
 
 const availableCpuCores = os.cpus().length
 // Keep filtergraph single-threaded for stability
@@ -469,21 +469,44 @@ export class SubtitleProcessor {
           '-filter_threads', '1'           // important for filtergraph stability
         ])
 
+        console.log(`🔧 Video options received:`, JSON.stringify(videoOptions, null, 2))
         const advancedOptions = videoOptions ? this.buildAdvancedProcessingOptions(videoOptions, quality) : []
+        console.log(`🔧 Advanced options built:`, advancedOptions)
 
         let baseVideoFilter = ''
         const vfIndex = advancedOptions.findIndex(opt => opt === '-vf')
         if (vfIndex !== -1 && vfIndex + 1 < advancedOptions.length) {
           baseVideoFilter = advancedOptions[vfIndex + 1]
+          console.log(`🔧 Found -vf filter at index ${vfIndex}: ${baseVideoFilter}`)
+        } else {
+          console.log(`⚠️ No -vf filter found in advanced options`)
         }
 
         const escapedPath = tempAssFile.replace(/\\/g, '/').replace(/:/g, '\\:')
         
-        // Use ass filter with temp fonts directory only (if available)
-        const vf = [
-          "scale=trunc(iw/2)*2:trunc(ih/2)*2"
-        ]
+        // Build video filter chain: transformations FIRST, then subtitles LAST
+        // This ensures subtitles are not affected by video transformations (blur, rotation, etc.)
+        const vf: string[] = []
         
+        // 1. Add video transformation filters FIRST (before subtitles)
+        if (baseVideoFilter) {
+          // Split carefully - some filters have colons inside, but comma separates them
+          // We need to preserve filters like eq=brightness=0.5:contrast=1.2
+          const existingFilters = baseVideoFilter.split(',').filter(f => 
+            !f.includes('subtitles=') && 
+            !f.includes('ass=') &&
+            f.trim().length > 0
+          )
+          if (existingFilters.length > 0) {
+            vf.push(...existingFilters)
+            console.log(`🎬 Adding video transformations: ${existingFilters.join(', ')}`)
+          }
+        }
+        
+        // 2. Add scale filter for compatibility (avoid odd dimensions)
+        vf.push("scale=trunc(iw/2)*2:trunc(ih/2)*2")
+        
+        // 3. Add subtitle filter LAST (so it's not affected by transformations)
         if (fontsDir && existsSync(fontsDir)) {
           // Use relative path to avoid Windows drive path issues
           const relativeFontsPath = fontsDir.replace(process.cwd(), '.').replace(/\\/g, '/')
@@ -495,18 +518,8 @@ export class SubtitleProcessor {
           console.log(`🎨 Using system fonts only`)
         }
         
-        // Add any existing video filters from advanced options
-        if (baseVideoFilter) {
-          // Parse existing filters and add them after ass filter
-          const existingFilters = baseVideoFilter.split(',')
-          vf.push(...existingFilters.filter(f => 
-            !f.includes('subtitles=') && 
-            !f.includes('scale=') // avoid duplicate scale
-          ))
-        }
-        
         const videoFilter = vf.join(',')
-        console.log(`🎨 Using ass filter: ${videoFilter}`)
+        console.log(`🎨 Final video filter chain: ${videoFilter}`)
 
         const outputOptions = ['-vf', videoFilter]
 
@@ -538,8 +551,9 @@ export class SubtitleProcessor {
         if (codecOptions.length > 0) {
           outputOptions.push(...codecOptions)
         } else {
-          // Apply quality settings as fallback
-          const qualityConfig = getQualityConfig(quality || 'premium')
+          // Apply ADAPTIVE quality based on transformation complexity
+          const adaptiveQuality = getAdaptiveQuality(options)
+          const qualityConfig = getQualityConfig(adaptiveQuality)
           const qualityOptions = configToOutputOptions(qualityConfig)
           outputOptions.push(...qualityOptions)
         }
@@ -615,6 +629,7 @@ export class SubtitleProcessor {
   }
 
   private static buildAdvancedProcessingOptions(options: VideoProcessingOptions, quality: QualityLevel = 'premium'): string[] {
+    console.log(`🔧 buildAdvancedProcessingOptions called with:`, JSON.stringify(options, null, 2))
     const outputOptions = []
     const timestamp = new Date().getTime().toString()
 
@@ -713,7 +728,10 @@ export class SubtitleProcessor {
 
     // Apply video filters if any exist
     if (videoFilters.length > 0) {
+      console.log(`🎬 Video filters generated: ${videoFilters.join(', ')}`)
       outputOptions.push('-vf', videoFilters.join(','))
+    } else {
+      console.log(`⚠️ No video filters generated`)
     }
 
     // Simplified audio processing
@@ -737,13 +755,14 @@ export class SubtitleProcessor {
       outputOptions.push('-af', audioFilters.join(','))
     }
 
-    // Apply quality settings from centralized config
-    const qualityConfig = getQualityConfig(quality)
+    // Apply ADAPTIVE quality settings based on transformation complexity
+    const adaptiveQuality = getAdaptiveQuality(options)
+    const qualityConfig = getQualityConfig(adaptiveQuality)
     const qualityOptions = configToOutputOptions(qualityConfig)
     outputOptions.push(...qualityOptions)
     outputOptions.push('-threads', '1')  // Override threads for subtitle processing
     
-    console.log(`🎥 Using ${quality} quality settings: CRF ${qualityConfig.crf}, preset ${qualityConfig.preset}`)
+    console.log(`🎥 Using ${adaptiveQuality} quality (adaptive): CRF ${qualityConfig.crf}, preset ${qualityConfig.preset}`)
 
     return outputOptions
   }
