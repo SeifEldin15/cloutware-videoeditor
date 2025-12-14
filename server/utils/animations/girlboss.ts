@@ -63,8 +63,9 @@ export const Girlboss = (
     }
     
     // Calculate shadow/glow intensity based on shadowStrength with bounds checking
-    const shadowStrength = Math.max(0.5, Math.min(5, style.shadowStrength || 1.5));
-    const effectiveShadowStrength = shadowStrength > 1 ? shadowStrength + 0.2 : 1;
+    const shadowStrength = Math.max(0, Math.min(5, style.shadowStrength ?? 1.0));
+    const glowEnabled = shadowStrength > 0;
+    const effectiveShadowStrength = shadowStrength > 1 ? shadowStrength + 0.2 : shadowStrength;
     const shadowAlpha = Math.max(50, Math.min(255, Math.round(133 - (effectiveShadowStrength * 24))));
     const blurAlpha = Math.max(20, Math.min(255, Math.round(96 - (effectiveShadowStrength * 28))));
     
@@ -117,20 +118,20 @@ export const Girlboss = (
         }
       }
 
-      // Build glow effect for active words and white glow for inactive words
-      const glowWords = words.map((w, i) => {
+      // Build glow effect for active words and white glow for inactive words (only if glow is enabled)
+      const glowWords = glowEnabled ? words.map((w, i) => {
         if (i === index || i < index) {
           const borderWidth = Math.max(0.1, 0.1 * effectiveShadowStrength);
-          const blurAmount = Math.max(1, 4 * effectiveShadowStrength);
+          const blurAmount = Math.max(1, 3 * effectiveShadowStrength);
           return `{${moveTag}\\c${lightGlowColorASS}\\bord${borderWidth}\\blur${blurAmount}\\3c${lightGlowColorASS}\\4c${lightGlowColorASS}\\4a&H${blurAlpha.toString(16)}&\\3a&H${shadowAlpha.toString(16)}&}${w}`;
         } else {
           // Add white glow for inactive (white) words
           const whiteBorderWidth = Math.max(0.1, 0.1 * effectiveShadowStrength);
-          const whiteBlurAmount = Math.max(1, 4 * effectiveShadowStrength);
+          const whiteBlurAmount = Math.max(1, 3 * effectiveShadowStrength);
           const whiteGlowColorASS = convertColorToASS('#FFFFFF');
           return `{${moveTag}\\c${whiteGlowColorASS}\\bord${whiteBorderWidth}\\blur${whiteBlurAmount}\\3c${whiteGlowColorASS}\\4c${whiteGlowColorASS}\\4a&H${blurAlpha.toString(16)}&\\3a&H${shadowAlpha.toString(16)}&}${w}`;
         }
-      }).join(' ');
+      }).join(' ') : '';
 
       // Apply move tag to colored words if shake animation is enabled
       const finalColoredWords = moveTag
@@ -143,8 +144,10 @@ export const Girlboss = (
           }).join(' ')
         : coloredWords;
 
-      // Add glow and text events
-      events.push(`Dialogue: 1,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${glowWords}`);
+      // Add glow layer only if glow is enabled, always add text layer
+      if (glowEnabled && glowWords) {
+        events.push(`Dialogue: 1,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${glowWords}`);
+      }
       events.push(`Dialogue: 2,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${finalColoredWords}`);
     });
     

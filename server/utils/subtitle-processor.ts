@@ -274,7 +274,7 @@ export class SubtitleProcessor {
             outlineBlur?: number
           } = {
             color: styleOptions.girlbossColor || '#F361D8',
-            shadowStrength: styleOptions.shadowStrength || 1.5,
+            shadowStrength: styleOptions.shadowStrength ?? 1.5,
             animation: styleOptions.animation === 'shake' ? 'shake' : 'none',
             verticalPosition: styleOptions.verticalPosition || 15,
             fontSize: styleOptions.fontSize || 50,
@@ -299,7 +299,7 @@ export class SubtitleProcessor {
             outlineColor?: string
             outlineBlur?: number
           } = {
-            shadowStrength: styleOptions.shadowStrength || 1.5,
+            shadowStrength: styleOptions.shadowStrength ?? 1.5,
             animation: styleOptions.animation === 'shake' ? 'shake' : 'none',
             verticalPosition: styleOptions.verticalPosition || 15,
             fontSize: styleOptions.fontSize || 50,
@@ -325,7 +325,7 @@ export class SubtitleProcessor {
             outlineBlur?: number
           } = {
             color: styleOptions.tiktokstyleColor || '#FFFF00',
-            shadowStrength: styleOptions.shadowStrength || 1.5,
+            shadowStrength: styleOptions.shadowStrength ?? 1.5,
             animation: styleOptions.animation === 'shake' ? 'shake' : 'none',
             verticalPosition: styleOptions.verticalPosition || 15,
             fontSize: styleOptions.fontSize || 50,
@@ -351,7 +351,7 @@ export class SubtitleProcessor {
             wordsPerGroup?: number
           } = {
             color: styleOptions.thinToBoldColor || '#FFFFFF',
-            shadowStrength: styleOptions.shadowStrength || 1.5,
+            shadowStrength: styleOptions.shadowStrength ?? 1.5,
             animation: styleOptions.animation === 'shake' ? 'shake' : 'none',
             verticalPosition: styleOptions.verticalPosition || 15,
             fontSize: styleOptions.fontSize || 50,
@@ -404,7 +404,7 @@ export class SubtitleProcessor {
             wordsPerGroup?: number
           } = {
             color: styleOptions.shrinkingPairsColor || '#0BF431',
-            shadowStrength: styleOptions.shadowStrength || 1.5,
+            shadowStrength: styleOptions.shadowStrength ?? 1.5,
             animation: styleOptions.animation === 'shake' ? 'shake' : 'none',
             verticalPosition: styleOptions.verticalPosition || 15,
             fontSize: styleOptions.fontSize || 50,
@@ -433,7 +433,7 @@ export class SubtitleProcessor {
             outlineColor?: string
             outlineBlur?: number
           } = {
-            shadowStrength: styleOptions.shadowStrength || 1.5,
+            shadowStrength: styleOptions.shadowStrength ?? 1.5,
             animation: styleOptions.animation === 'shake' ? 'shake' : 'none',
             verticalPosition: styleOptions.verticalPosition || 15,
             fontSize: styleOptions.fontSize || 50,
@@ -447,6 +447,56 @@ export class SubtitleProcessor {
             outlineBlur: styleOptions.outlineBlur || 0
           }
           assContent = generateAdvancedASSFile(subtitleSegments, revealEnlargeStyle, 'revealenlarge')
+
+        } else if (styleOptions.subtitleStyle === 'whiteimpact') {
+          console.log(`⚡ Setting up WhiteImpact with font: ${styleOptions.fontFamily} -> ${styleOptions.fontFamily}`)
+          const whiteImpactStyle: GirlbossStyle & {
+            fontSize?: number
+            fontFamily?: string
+            fontFilePath?: string
+            textAlign?: string
+            shadowStrength?: number
+            outlineWidth?: number
+            outlineColor?: string
+            outlineBlur?: number
+          } = {
+            shadowStrength: styleOptions.shadowStrength ?? 1.5,
+            animation: styleOptions.animation === 'shake' ? 'shake' : 'none',
+            verticalPosition: styleOptions.verticalPosition || 20,
+            fontSize: styleOptions.fontSize || 48,
+            fontFamily: styleOptions.fontFamily || 'Impact',
+            fontFilePath: fontFile || styleOptions.fontFamily || 'Impact',
+            textAlign: styleOptions.textAlign || 'center',
+            outlineWidth: styleOptions.outlineWidth || 1,
+            outlineColor: styleOptions.outlineColor || '#000000',
+            outlineBlur: styleOptions.outlineBlur || 0
+          }
+          assContent = generateAdvancedASSFile(subtitleSegments, whiteImpactStyle, 'whiteimpact')
+
+        } else if (styleOptions.subtitleStyle === 'impactfull') {
+          console.log(`💥 Setting up ImpactFull with font: ${styleOptions.fontFamily} -> ${styleOptions.fontFamily}`)
+          const impactFullStyle: GirlbossStyle & {
+            fontSize?: number
+            fontFamily?: string
+            fontFilePath?: string
+            textAlign?: string
+            shadowStrength?: number
+            outlineWidth?: number
+            outlineColor?: string
+            outlineBlur?: number
+          } = {
+            shadowStrength: styleOptions.shadowStrength ?? 1.5,
+            animation: styleOptions.animation === 'shake' ? 'shake' : 'none',
+            verticalPosition: styleOptions.verticalPosition || 25,
+            fontSize: styleOptions.fontSize || 42,
+            fontFamily: styleOptions.fontFamily || 'Impact',
+            fontFilePath: fontFile || styleOptions.fontFamily || 'Impact',
+            textAlign: styleOptions.textAlign || 'center',
+            outlineWidth: styleOptions.outlineWidth || 1,
+            outlineColor: styleOptions.outlineColor || '#000000',
+            outlineBlur: styleOptions.outlineBlur || 0
+          }
+          assContent = generateAdvancedASSFile(subtitleSegments, impactFullStyle, 'impactfull')
         }
 
         tempAssFile = join(tmpdir(), `subtitle_${Date.now()}.ass`)
@@ -666,7 +716,12 @@ export class SubtitleProcessor {
     if (options?.rotation && options.rotation !== 0) {
       // Convert degrees to radians: radians = degrees * PI / 180
       const radians = options.rotation * Math.PI / 180
-      videoFilters.push(`rotate=${radians}:fillcolor=black:bilinear=1`)
+      // Rotate with black fill (standard approach)
+      videoFilters.push(`rotate=${radians}:c=black`)
+      // Crop to remove black edges - crop proportional to rotation
+      const cropPercent = Math.min(Math.abs(options.rotation) * 1.5, 12) // Max 12% crop per side
+      const keepPercent = (100 - cropPercent * 2) / 100
+      videoFilters.push(`crop=iw*${keepPercent}:ih*${keepPercent}`)
     }
     
     // Saturation using hue filter
@@ -722,8 +777,26 @@ export class SubtitleProcessor {
     }
     
     if (options?.antiDetection?.subtleRotation) {
-      // Apply very subtle rotation (0.1 degrees)
-      videoFilters.push('rotate=0.1*PI/180:fillcolor=black')
+      // Apply very subtle rotation (0.1 degrees) with no fill color
+      videoFilters.push('rotate=0.1*PI/180:c=none')
+    }
+
+    // White border - MUST BE LAST (applied after all transformations and anti-detection)
+    // This ensures the border remains clean and unaffected by blur, rotation, noise, etc.
+    // Note: This will be applied to the video BEFORE subtitles are overlaid
+    // @ts-ignore - whiteBorder options may not be in type yet
+    if (options?.enableWhiteBorder) {
+      // @ts-ignore
+      const leftRightPercent = options.whiteBorderLeftRight || 10
+      // @ts-ignore
+      const topBottomPercent = options.whiteBorderTopBottom || 20
+      const visibleWidthPercent = 100 - leftRightPercent
+      const visibleHeightPercent = 100 - topBottomPercent
+      
+      // Scale down the video and pad with white
+      videoFilters.push(`scale=iw*${visibleWidthPercent / 100}:ih*${visibleHeightPercent / 100}`)
+      videoFilters.push(`pad=iw/${visibleWidthPercent / 100}:ih/${visibleHeightPercent / 100}:(ow-iw)/2:(oh-ih)/2:white`)
+      console.log(`🎨 White border (applied last): ${leftRightPercent}% L/R, ${topBottomPercent}% T/B`)
     }
 
     // Apply video filters if any exist

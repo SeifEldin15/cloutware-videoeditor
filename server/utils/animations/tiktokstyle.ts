@@ -53,7 +53,8 @@ export const tiktokStyleAnimation = (
     const timePerWord = (end - start) / words.length;
     
     // Shadow strength with bounds checking - same calculation as girlboss
-    const shadowStrength = Math.max(0.5, Math.min(5, style.shadowStrength || 4));
+    const shadowStrength = Math.max(0, Math.min(5, style.shadowStrength ?? 4));
+    const glowEnabled = shadowStrength > 0;
     const effectiveShadowStrength = shadowStrength > 1 ? shadowStrength + 0.2 : 1;
     const shadowAlpha = Math.max(50, Math.min(255, Math.round(133 - (effectiveShadowStrength * 24))));
     const blurAlpha = Math.max(20, Math.min(255, Math.round(96 - (effectiveShadowStrength * 28))));
@@ -110,9 +111,11 @@ export const tiktokStyleAnimation = (
       }
 
       const coloredText = `{${moveTag}\\c&H${tiktokColor}&\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${words[0]}`;
-      const glowText = `{${moveTag}\\c&H${glowColor}&\\bord${borderWidth}\\blur${blurAmount}\\3c&H${glowColor}&\\3a&H${shadowAlpha.toString(16)}&\\4c&H${glowColor}&\\4a&H${blurAlpha.toString(16)}&\\xshad0\\yshad${-1}}${words[0]}`;
+      const glowText = glowEnabled ? `{${moveTag}\\c&H${glowColor}&\\bord${borderWidth}\\blur${blurAmount}\\3c&H${glowColor}&\\3a&H${shadowAlpha.toString(16)}&\\4c&H${glowColor}&\\4a&H${blurAlpha.toString(16)}&\\xshad0\\yshad${-1}}${words[0]}` : '';
 
-      events.push(`Dialogue: 0,${formatTime(start)},${formatTime(end)},Default,,0,0,0,,${glowText}`);
+      if (glowEnabled && glowText) {
+        events.push(`Dialogue: 0,${formatTime(start)},${formatTime(end)},Default,,0,0,0,,${glowText}`);
+      }
       events.push(`Dialogue: 1,${formatTime(start)},${formatTime(end)},Default,,0,0,0,,${coloredText}`);
 
       return style?.animation === 'shake' ? {
@@ -155,7 +158,7 @@ export const tiktokStyleAnimation = (
       }).join(' ');
 
       // Build glow text - current word has color glow, inactive words have white glow
-      const glowText = words.map((w, i) => {
+      const glowText = glowEnabled ? words.map((w, i) => {
         if (i === index) {
           return `{${moveTag}\\c&H${glowColor}&\\bord${borderWidth}\\blur${blurAmount}\\3c&H${glowColor}&\\3a&H${shadowAlpha.toString(16)}&\\4c&H${glowColor}&\\4a&H${blurAlpha.toString(16)}&\\xshad0\\yshad${-1}}${w}`;
         } else {
@@ -163,9 +166,11 @@ export const tiktokStyleAnimation = (
           const whiteGlowColor = 'FFFFFF';
           return `{${moveTag}\\c&H${whiteGlowColor}&\\bord${borderWidth}\\blur${blurAmount}\\3c&H${whiteGlowColor}&\\3a&H${shadowAlpha.toString(16)}&\\4c&H${whiteGlowColor}&\\4a&H${blurAlpha.toString(16)}&\\xshad0\\yshad${-1}}${w}`;
         }
-      }).join(' ');
+      }).join(' ') : '';
 
-      events.push(`Dialogue: 0,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${glowText}`);
+      if (glowEnabled && glowText) {
+        events.push(`Dialogue: 0,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${glowText}`);
+      }
       events.push(`Dialogue: 1,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${coloredText}`);
     });
 
