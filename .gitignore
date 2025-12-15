@@ -27,3 +27,21 @@ logs
 
 # FFmpeg configuration (Windows-specific)
 server/utils/ffmpeg.ts
+
+
+*.md
+.env
+.env.*
+*.ps1
+*.sh
+*.bat
+*.cmd
+*.exe
+*.dll
+*.lib
+*.obj
+*.o
+*.a
+*.lib
+*.obj
+*.mp4
