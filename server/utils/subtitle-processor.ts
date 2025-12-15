@@ -598,6 +598,7 @@ export class SubtitleProcessor {
           (advancedOptions[idx - 1] === '-crf') || (advancedOptions[idx - 1] === '-b:a')
         )
 
+        
         if (codecOptions.length > 0) {
           outputOptions.push(...codecOptions)
         } else {
