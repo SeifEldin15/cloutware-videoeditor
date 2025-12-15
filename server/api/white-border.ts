@@ -105,14 +105,14 @@ async function processWithWhiteBorder(
       const outputOptions = [
         '-vf', videoFilter,
         '-c:v', 'libx264',
-        '-preset', 'medium',
+        '-preset', 'veryfast',                   // Fast encoding (was medium)
         '-crf', '18',
         '-profile:v', 'high',
         '-level', '4.1',
         '-threads', optimalThreads,
         '-pix_fmt', 'yuv420p',
-        '-c:a', 'aac', // Re-encode audio to AAC for MP4 compatibility
-        '-b:a', '192k',
+        '-c:a', 'aac',                           // Re-encode audio to AAC for MP4 compatibility
+        '-b:a', '160k',                          // Good audio quality (was 192k)
         '-ar', '48000',
         '-max_muxing_queue_size', '4096',
         '-movflags', 'frag_keyframe+empty_moov+faststart',

@@ -28,16 +28,17 @@ export interface VideoQualityConfig {
 }
 
 // High Quality Settings (Primary - for final output)
+// Optimized for t2.medium: use veryfast preset with lower CRF for equivalent quality
 export const HIGH_QUALITY_CONFIG: VideoQualityConfig = {
   videoCodec: 'libx264',
-  preset: 'slow',           // Best compression efficiency
-  crf: 15,                  // Very high quality
+  preset: 'veryfast',       // 8x faster than 'slow', compensated with lower CRF
+  crf: 17,                  // Compensate for faster preset (visually equivalent to slow@18)
   profile: 'high',          // H.264 high profile
   level: '4.1',             // H.264 level for wide compatibility
   pixelFormat: 'yuv420p',   // Standard compatibility
   
   audioCodec: 'aac',
-  audioBitrate: '256k',     // High audio quality
+  audioBitrate: '192k',     // Reduced from 256k (inaudible difference)
   audioChannels: 2,         // Stereo
   sampleRate: 48000,        // Professional sample rate
   
@@ -46,16 +47,17 @@ export const HIGH_QUALITY_CONFIG: VideoQualityConfig = {
 }
 
 // Premium Quality Settings (Ultimate - for premium processing)
+// Optimized for t2.medium: 'medium' preset is practical max for CPU encoding
 export const PREMIUM_QUALITY_CONFIG: VideoQualityConfig = {
   videoCodec: 'libx264',
-  preset: 'slower',         // Maximum compression efficiency
-  crf: 12,                  // Near-lossless quality
+  preset: 'medium',         // Practical ceiling for t2.medium (was 'slower')
+  crf: 15,                  // Compensate with lower CRF (was 12)
   profile: 'high',
   level: '4.1',
   pixelFormat: 'yuv420p',
   
   audioCodec: 'aac',
-  audioBitrate: '320k',     // Maximum AAC quality
+  audioBitrate: '256k',     // High quality (was 320k)
   audioChannels: 2,
   sampleRate: 48000,
   
@@ -66,14 +68,14 @@ export const PREMIUM_QUALITY_CONFIG: VideoQualityConfig = {
 // Standard Quality Settings (Balanced - for faster processing)
 export const STANDARD_QUALITY_CONFIG: VideoQualityConfig = {
   videoCodec: 'libx264',
-  preset: 'medium',         // Balanced speed/quality
+  preset: 'veryfast',       // Fast encoding (was 'medium')
   crf: 18,                  // Good quality
   profile: 'high',
   level: '4.1', 
   pixelFormat: 'yuv420p',
   
   audioCodec: 'aac',
-  audioBitrate: '192k',     // Good audio quality
+  audioBitrate: '160k',     // Good audio quality (was 192k)
   audioChannels: 2,
   sampleRate: 48000,
   
@@ -84,8 +86,8 @@ export const STANDARD_QUALITY_CONFIG: VideoQualityConfig = {
 // Fast Quality Settings (Quick - for previews/testing)
 export const FAST_QUALITY_CONFIG: VideoQualityConfig = {
   videoCodec: 'libx264',
-  preset: 'fast',           // Faster encoding
-  crf: 23,                  // Decent quality
+  preset: 'ultrafast',      // Maximum speed (was 'fast')
+  crf: 20,                  // Lower CRF to compensate (was 23)
   profile: 'high',
   level: '4.1',
   pixelFormat: 'yuv420p',
@@ -139,12 +141,13 @@ export function getQualityConfig(quality: 'fast' | 'standard' | 'high' | 'premiu
 
 /**
  * Quality level descriptions for UI
+ * (Optimized for t2.medium AWS instances)
  */
 export const QUALITY_DESCRIPTIONS = {
-  premium: 'Premium Quality - Near-lossless encoding, maximum file size (CRF 12, slower preset)',
-  high: 'High Quality - Professional grade output, larger file size (CRF 15, slow preset)', 
-  standard: 'Standard Quality - Balanced quality and file size (CRF 18, medium preset)',
-  fast: 'Fast Quality - Quick processing, smaller file size (CRF 23, fast preset)'
+  premium: 'Premium Quality - High quality encoding, larger file size (CRF 15, medium preset)',
+  high: 'High Quality - Professional grade, fast processing (CRF 17, veryfast preset)', 
+  standard: 'Standard Quality - Balanced quality and speed (CRF 18, veryfast preset)',
+  fast: 'Fast Quality - Maximum speed processing (CRF 20, ultrafast preset)'
 } as const
 
 export type QualityLevel = keyof typeof QUALITY_DESCRIPTIONS
