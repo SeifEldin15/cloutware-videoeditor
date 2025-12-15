@@ -87,7 +87,9 @@ export async function processVideoWithTimedSubtitles(inputUrl: string, transcrip
         fontString += `:style=${options.fontStyle}`;
       }
       
-      const videoFilters = segments.map((segment, index) => {
+      const videoFilters: string[] = [];
+      
+      segments.forEach((segment, index) => {
         const escapedText = segment.text
           .replace(/'/g, "")
           .replace(/"/g, "")
@@ -104,12 +106,39 @@ export async function processVideoWithTimedSubtitles(inputUrl: string, transcrip
           ? ':box=1:boxcolor=' + options.backgroundColor + ':boxborderw=5' 
           : '';
         
-        // Add outline settings
-        const outlineSettings = options.outlineWidth && options.outlineWidth > 0 
-          ? `:borderw=${options.outlineWidth}:bordercolor=${options.outlineColor || '#000000'}` 
-          : '';
+        // Create CONSISTENT outline using shadow layers instead of borderw
+        // borderw creates uneven outlines (thicker on top than sides)
+        // Shadow-based outline: draw text multiple times offset in 8 directions
+        const outlineWidth = options.outlineWidth || 0;
+        const outlineColor = options.outlineColor || '#000000';
         
-        return `drawtext=text='${escapedText}':font='${fontString}':fontsize=${options.fontSize}:fontcolor=${options.fontColor}:x=${xPosition}:y=${yPosition}${boxSettings}${outlineSettings}:enable='${enableExpr}'`;
+        if (outlineWidth > 0) {
+          // Draw outline by rendering text 8 times in all directions
+          const offsets = [
+            { x: -outlineWidth, y: 0 },           // left
+            { x: outlineWidth, y: 0 },            // right
+            { x: 0, y: -outlineWidth },           // up
+            { x: 0, y: outlineWidth },            // down
+            { x: -outlineWidth, y: -outlineWidth }, // top-left
+            { x: outlineWidth, y: -outlineWidth },  // top-right
+            { x: -outlineWidth, y: outlineWidth },  // bottom-left
+            { x: outlineWidth, y: outlineWidth }    // bottom-right
+          ];
+          
+          // Add shadow/outline layers first (behind the main text)
+          offsets.forEach(offset => {
+            const offsetX = offset.x >= 0 ? `+${offset.x}` : `${offset.x}`;
+            const offsetY = offset.y >= 0 ? `+${offset.y}` : `${offset.y}`;
+            videoFilters.push(
+              `drawtext=text='${escapedText}':font='${fontString}':fontsize=${options.fontSize}:fontcolor=${outlineColor}:x=${xPosition}${offsetX}:y=${yPosition}${offsetY}:enable='${enableExpr}'`
+            );
+          });
+        }
+        
+        // Main text layer (on top of outline)
+        videoFilters.push(
+          `drawtext=text='${escapedText}':font='${fontString}':fontsize=${options.fontSize}:fontcolor=${options.fontColor}:x=${xPosition}:y=${yPosition}${boxSettings}:enable='${enableExpr}'`
+        );
       });
       
       const command = ffmpeg(inputUrl)
@@ -188,7 +217,9 @@ export async function processVideoWithSubtitlesFile(inputUrl: string, srtContent
         fontString = options.fontFamily || 'Sans';
       }
       
-      const videoFilters = segments.map((segment) => {
+      const videoFilters: string[] = [];
+      
+      segments.forEach((segment) => {
         const escapedText = segment.text
           .replace(/'/g, "")
           .replace(/"/g, "")
@@ -205,12 +236,39 @@ export async function processVideoWithSubtitlesFile(inputUrl: string, srtContent
           ? ':box=1:boxcolor=' + options.backgroundColor + ':boxborderw=5' 
           : '';
         
-        // Add outline settings
-        const outlineSettings = options.outlineWidth && options.outlineWidth > 0 
-          ? `:borderw=${options.outlineWidth}:bordercolor=${options.outlineColor || '#000000'}` 
-          : '';
+        // Create CONSISTENT outline using shadow layers instead of borderw
+        // borderw creates uneven outlines (thicker on top than sides)
+        // Shadow-based outline: draw text multiple times offset in 8 directions
+        const outlineWidth = options.outlineWidth || 0;
+        const outlineColor = options.outlineColor || '#000000';
         
-        return `drawtext=text='${escapedText}':font='${fontString}':fontsize=${options.fontSize}:fontcolor=${options.fontColor}:x=${xPosition}:y=${yPosition}${boxSettings}${outlineSettings}:enable='${enableExpr}'`;
+        if (outlineWidth > 0) {
+          // Draw outline by rendering text 8 times in all directions
+          const offsets = [
+            { x: -outlineWidth, y: 0 },           // left
+            { x: outlineWidth, y: 0 },            // right
+            { x: 0, y: -outlineWidth },           // up
+            { x: 0, y: outlineWidth },            // down
+            { x: -outlineWidth, y: -outlineWidth }, // top-left
+            { x: outlineWidth, y: -outlineWidth },  // top-right
+            { x: -outlineWidth, y: outlineWidth },  // bottom-left
+            { x: outlineWidth, y: outlineWidth }    // bottom-right
+          ];
+          
+          // Add shadow/outline layers first (behind the main text)
+          offsets.forEach(offset => {
+            const offsetX = offset.x >= 0 ? `+${offset.x}` : `${offset.x}`;
+            const offsetY = offset.y >= 0 ? `+${offset.y}` : `${offset.y}`;
+            videoFilters.push(
+              `drawtext=text='${escapedText}':font='${fontString}':fontsize=${options.fontSize}:fontcolor=${outlineColor}:x=${xPosition}${offsetX}:y=${yPosition}${offsetY}:enable='${enableExpr}'`
+            );
+          });
+        }
+        
+        // Main text layer (on top of outline)
+        videoFilters.push(
+          `drawtext=text='${escapedText}':font='${fontString}':fontsize=${options.fontSize}:fontcolor=${options.fontColor}:x=${xPosition}:y=${yPosition}${boxSettings}:enable='${enableExpr}'`
+        );
       });
       
       const ffmpeg = await getInitializedFfmpeg()

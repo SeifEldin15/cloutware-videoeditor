@@ -135,8 +135,8 @@ export class TextReplacementProcessor {
     }
 
     textReplacements.forEach((replacement: TextReplacementOptions['textReplacements'][0], index: number) => {
-      const textFilter = this.buildTextFilter(replacement)
-      filters.push(textFilter)
+      const textFilters = this.buildTextFilters(replacement)
+      filters.push(...textFilters)
     })
 
     return filters.join(',')
@@ -152,9 +152,12 @@ export class TextReplacementProcessor {
     }
   }
 
-    private static buildTextFilter(replacement: TextReplacementOptions['textReplacements'][0]): string {
+    // Returns an array of filters - outline layers + main text layer
+    // This creates CONSISTENT outlines by drawing text multiple times in 8 directions
+    private static buildTextFilters(replacement: TextReplacementOptions['textReplacements'][0]): string[] {
     const { region, text, textStyle } = replacement
     const style = textStyle || {}
+    const filters: string[] = []
     
     let xPosition: string
     let yPosition: string
@@ -201,16 +204,48 @@ export class TextReplacementProcessor {
     let fontSpec = style.fontFamily || 'Arial'
     const fontFilePath = getFontFilePath(fontSpec)  // uses your existing map in subtitle-utils
 
-    let drawTextFilter = `drawtext=text='${escapedText}'`
+    // Build base drawtext parameters (shared by outline and main text)
+    let fontParams = ''
     if (fontFilePath) {
-      drawTextFilter += `:fontfile='${fontFilePath.replace(/'/g, "'\\''")}'`
+      fontParams = `:fontfile='${fontFilePath.replace(/'/g, "'\\''")}'`
     } else {
       // Family fallback (less stable on Linux)
       if (style.fontWeight === 'bold') fontSpec += ' Bold'
       if (style.fontStyle === 'italic') fontSpec += ' Italic'
-      drawTextFilter += `:font='${fontSpec}'`
+      fontParams = `:font='${fontSpec}'`
     }
-    drawTextFilter += `:fontsize=${style.fontSize || 24}`
+    fontParams += `:fontsize=${style.fontSize || 24}`
+
+    // Create CONSISTENT outline using shadow layers instead of borderw
+    // borderw creates uneven outlines (thicker on top than sides)
+    const outlineWidth = style.outlineWidth || 0
+    const outlineColor = style.outlineColor || '#000000'
+    
+    if (outlineWidth > 0) {
+      // Draw outline by rendering text 8 times in all directions
+      const offsets = [
+        { x: -outlineWidth, y: 0 },           // left
+        { x: outlineWidth, y: 0 },            // right
+        { x: 0, y: -outlineWidth },           // up
+        { x: 0, y: outlineWidth },            // down
+        { x: -outlineWidth, y: -outlineWidth }, // top-left
+        { x: outlineWidth, y: -outlineWidth },  // top-right
+        { x: -outlineWidth, y: outlineWidth },  // bottom-left
+        { x: outlineWidth, y: outlineWidth }    // bottom-right
+      ]
+      
+      // Add shadow/outline layers first (behind the main text)
+      offsets.forEach(offset => {
+        const offsetX = offset.x >= 0 ? `+${offset.x}` : `${offset.x}`
+        const offsetY = offset.y >= 0 ? `+${offset.y}` : `${offset.y}`
+        filters.push(
+          `drawtext=text='${escapedText}'${fontParams}:fontcolor=${outlineColor}:x=${xPosition}${offsetX}:y=${yPosition}${offsetY}`
+        )
+      })
+    }
+
+    // Main text layer (on top of outline)
+    let drawTextFilter = `drawtext=text='${escapedText}'${fontParams}`
     drawTextFilter += `:fontcolor=${style.fontColor || '#FFFFFF'}`
     drawTextFilter += `:x=${xPosition}`
     drawTextFilter += `:y=${yPosition}`
@@ -224,17 +259,13 @@ export class TextReplacementProcessor {
       drawTextFilter += `:boxborderw=${padding}`
     }
 
-    if (style.outlineWidth && style.outlineWidth > 0) {
-      drawTextFilter += `:borderw=${style.outlineWidth}`
-      drawTextFilter += `:bordercolor=${style.outlineColor || '#000000'}`
-    }
-
     if (style.shadowOffsetX || style.shadowOffsetY) {
       drawTextFilter += `:shadowx=${style.shadowOffsetX || 0}`
       drawTextFilter += `:shadowy=${style.shadowOffsetY || 0}`
       drawTextFilter += `:shadowcolor=${style.shadowColor || '#000000'}`
     }
 
-    return drawTextFilter
+    filters.push(drawTextFilter)
+    return filters
   }
 } 
