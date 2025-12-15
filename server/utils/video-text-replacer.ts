@@ -91,12 +91,13 @@ export async function replaceTextInVideo(
           '-map', '[out]',  // Map the filtered video stream
           '-map', '0:a?',   // Map audio stream if exists (? means optional)
           '-c:v', 'libx264',
-          '-preset', 'ultrafast',
-          '-crf', '23',
-          '-c:a', 'aac',    // Re-encode audio to AAC
-          '-b:a', '128k',   // Audio bitrate
-          '-max_muxing_queue_size', '1024',  // Increase muxing queue
-          '-movflags', '+faststart'  // Enable fast start
+          '-preset', 'medium',           // Medium for crisp text (fast causes text artifacts)
+          '-crf', '18',                  // Good quality
+          '-tune', 'stillimage',         // Optimize for sharp edges like text
+          '-c:a', 'aac',                 // Re-encode audio to AAC
+          '-b:a', '192k',                // Audio bitrate
+          '-max_muxing_queue_size', '4096',  // Increase muxing queue
+          '-movflags', '+faststart'      // Enable fast start
         ])
         .on('start', (commandLine: string) => {
           hasStarted = true

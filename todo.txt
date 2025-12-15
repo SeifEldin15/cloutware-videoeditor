@@ -1,0 +1,5 @@
+Transcribe the text found within the video & merge to video (test)
+Use text-to-speech to read the transcription (test)
+clean the code for backend use 
+handle transcriptions better exactly like clippergoat
+cut off sqaure 

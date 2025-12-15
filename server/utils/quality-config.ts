@@ -13,6 +13,7 @@ export interface VideoQualityConfig {
   profile: string
   level: string
   pixelFormat: string
+  tune?: string              // Optional tune parameter (e.g., 'stillimage' for text)
   
   // Audio encoding settings
   audioCodec: string
@@ -101,30 +102,60 @@ export const FAST_QUALITY_CONFIG: VideoQualityConfig = {
   movflags: '+faststart'
 }
 
+// TEXT/SUBTITLE Quality Settings - Optimized for crisp text rendering
+// Uses medium preset + stillimage tune to prevent text artifacts
+export const TEXT_QUALITY_CONFIG: VideoQualityConfig = {
+  videoCodec: 'libx264',
+  preset: 'medium',         // Medium preset required for crisp text (fast presets blur text)
+  crf: 18,                  // Good quality
+  profile: 'high',
+  level: '4.1',
+  pixelFormat: 'yuv420p',
+  tune: 'stillimage',       // Optimizes for sharp edges like text/graphics
+  
+  audioCodec: 'aac',
+  audioBitrate: '192k',
+  audioChannels: 2,
+  sampleRate: 48000,
+  
+  maxMuxingQueueSize: 4096,
+  movflags: '+faststart'
+}
+
 /**
  * Convert quality config to FFmpeg output options array
  */
 export function configToOutputOptions(config: VideoQualityConfig): string[] {
-  return [
+  const options = [
     '-c:v', config.videoCodec,
     '-preset', config.preset,
     '-crf', config.crf.toString(),
     '-profile:v', config.profile,
     '-level', config.level,
-    '-pix_fmt', config.pixelFormat,
+    '-pix_fmt', config.pixelFormat
+  ]
+  
+  // Add tune parameter if specified (important for text rendering)
+  if (config.tune) {
+    options.push('-tune', config.tune)
+  }
+  
+  options.push(
     '-c:a', config.audioCodec,
     '-b:a', config.audioBitrate,
     '-ac', config.audioChannels.toString(),
     '-ar', config.sampleRate.toString(),
     '-max_muxing_queue_size', config.maxMuxingQueueSize.toString(),
     '-movflags', config.movflags
-  ]
+  )
+  
+  return options
 }
 
 /**
  * Get quality config based on quality level
  */
-export function getQualityConfig(quality: 'fast' | 'standard' | 'high' | 'premium' = 'high'): VideoQualityConfig {
+export function getQualityConfig(quality: 'fast' | 'standard' | 'high' | 'premium' | 'text' = 'high'): VideoQualityConfig {
   switch (quality) {
     case 'premium':
       return PREMIUM_QUALITY_CONFIG
@@ -134,9 +165,19 @@ export function getQualityConfig(quality: 'fast' | 'standard' | 'high' | 'premiu
       return STANDARD_QUALITY_CONFIG
     case 'fast':
       return FAST_QUALITY_CONFIG
+    case 'text':
+      return TEXT_QUALITY_CONFIG
     default:
       return HIGH_QUALITY_CONFIG
   }
+}
+
+/**
+ * Get quality config specifically optimized for text/subtitle rendering
+ * Always returns TEXT_QUALITY_CONFIG regardless of complexity
+ */
+export function getTextQualityConfig(): VideoQualityConfig {
+  return TEXT_QUALITY_CONFIG
 }
 
 /**
@@ -147,7 +188,8 @@ export const QUALITY_DESCRIPTIONS = {
   premium: 'Premium Quality - High quality encoding, larger file size (CRF 15, medium preset)',
   high: 'High Quality - Professional grade, fast processing (CRF 17, veryfast preset)', 
   standard: 'Standard Quality - Balanced quality and speed (CRF 18, veryfast preset)',
-  fast: 'Fast Quality - Maximum speed processing (CRF 20, ultrafast preset)'
+  fast: 'Fast Quality - Maximum speed processing (CRF 20, ultrafast preset)',
+  text: 'Text Quality - Optimized for crisp subtitles/text (CRF 18, medium preset + stillimage tune)'
 } as const
 
 export type QualityLevel = keyof typeof QUALITY_DESCRIPTIONS

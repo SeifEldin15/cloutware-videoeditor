@@ -126,8 +126,9 @@ export async function processVideoWithTimedSubtitles(inputUrl: string, transcrip
       
       command.outputOptions([
         '-c:v', 'libx264',      
-        '-preset', 'veryfast',                            // Fast encoding (was medium)
-        '-crf', '17',                                     // Good quality with fast preset
+        '-preset', 'medium',                              // Medium for crisp text (fast causes text artifacts)
+        '-crf', '18',                                     // Good quality
+        '-tune', 'stillimage',                            // Optimize for sharp edges like text
         '-profile:v', 'high',                             // H.264 high profile
         '-level', '4.1',                                  // H.264 compatibility level
         '-c:a', 'copy',         
@@ -231,12 +232,13 @@ export async function processVideoWithSubtitlesFile(inputUrl: string, srtContent
       
       command.outputOptions([
         '-c:v', 'libx264',      
-        '-preset', 'veryfast',                            // Fast encoding (was medium)
-        '-crf', '17',                                     // Good quality with fast preset
+        '-preset', 'medium',                              // Medium for crisp text (fast causes text artifacts)
+        '-crf', '18',                                     // Good quality
+        '-tune', 'stillimage',                            // Optimize for sharp edges like text
         '-profile:v', 'high',                             // H.264 high profile  
         '-level', '4.1',                                  // H.264 compatibility level
         '-c:a', 'aac',
-        '-b:a', '192k',                                   // Good audio quality (was 256k)
+        '-b:a', '192k',                                   // Good audio quality
         '-ac', '2',                                       // Stereo audio
         '-ar', '48000',                                   // High sample rate
         '-map_metadata', '-1',   

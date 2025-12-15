@@ -8,7 +8,7 @@ import { processVideoWithSubtitlesFile } from './captioning'
 import { generateAdvancedASSFile, parseSRT, getStyleFont, getFontFilePath, type SubtitleSegment, type GirlbossStyle, processWordModeSegments, formatTimeForSRT } from './subtitleUtils'
 import type { CaptionOptions, VideoProcessingOptions } from './validation-schemas'
 import { resolve, join as pathJoin } from 'path'
-import { getQualityConfig, configToOutputOptions, getAdaptiveQuality, type QualityLevel } from './quality-config'
+import { getQualityConfig, configToOutputOptions, getAdaptiveQuality, getTextQualityConfig, type QualityLevel } from './quality-config'
 
 const availableCpuCores = os.cpus().length
 // Keep filtergraph single-threaded for stability
@@ -601,9 +601,9 @@ export class SubtitleProcessor {
         if (codecOptions.length > 0) {
           outputOptions.push(...codecOptions)
         } else {
-          // Apply ADAPTIVE quality based on transformation complexity
-          const adaptiveQuality = getAdaptiveQuality(options)
-          const qualityConfig = getQualityConfig(adaptiveQuality)
+          // Use TEXT quality config for crisp subtitle rendering
+          // (fast presets cause text to look blurry/blocky)
+          const qualityConfig = getTextQualityConfig()
           const qualityOptions = configToOutputOptions(qualityConfig)
           outputOptions.push(...qualityOptions)
         }
@@ -828,14 +828,14 @@ export class SubtitleProcessor {
       outputOptions.push('-af', audioFilters.join(','))
     }
 
-    // Apply ADAPTIVE quality settings based on transformation complexity
-    const adaptiveQuality = getAdaptiveQuality(options)
-    const qualityConfig = getQualityConfig(adaptiveQuality)
+    // Use TEXT quality config for crisp subtitle rendering
+    // (fast presets cause text to look blurry/blocky)
+    const qualityConfig = getTextQualityConfig()
     const qualityOptions = configToOutputOptions(qualityConfig)
     outputOptions.push(...qualityOptions)
     outputOptions.push('-threads', '1')  // Override threads for subtitle processing
     
-    console.log(`🎥 Using ${adaptiveQuality} quality (adaptive): CRF ${qualityConfig.crf}, preset ${qualityConfig.preset}`)
+    console.log(`🎥 Using TEXT quality for crisp subtitles: CRF ${qualityConfig.crf}, preset ${qualityConfig.preset}, tune ${qualityConfig.tune}`)
 
     return outputOptions
   }
