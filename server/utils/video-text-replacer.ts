@@ -1,10 +1,6 @@
 import { getInitializedFfmpeg } from './ffmpeg'
 import { PassThrough } from 'stream'
 import type { DetectedText } from './text-detection-coords'
-import { getFontFilePath } from './subtitleUtils'
-import { createReadStream, unlink } from 'fs'
-import { tmpdir } from 'os'
-import { join } from 'path'
 
 export interface TextReplacement {
   originalText: string
@@ -53,10 +49,13 @@ export async function replaceTextInVideo(
 
   return new Promise<PassThrough>(async (resolve, reject) => {
     try {
-      const outputStream = new PassThrough({ highWaterMark: 4 * 1024 * 1024 })
+      const outputStream = new PassThrough({ highWaterMark: 8 * 1024 * 1024 })
       
-      // Use temp file approach for Windows compatibility
-      const tempFile = join(tmpdir(), `video_text_replace_${Date.now()}.mp4`)
+      // Use temp file for proper MP4 formatting
+      const fs = await import('fs')
+      const os = await import('os')
+      const path = await import('path')
+      const tempFile = path.join(os.tmpdir(), `video_text_replace_${Date.now()}.mp4`)
       console.log(`📁 Using temp file: ${tempFile}`)
       
       const ffmpeg = await getInitializedFfmpeg()
@@ -94,8 +93,10 @@ export async function replaceTextInVideo(
           '-c:v', 'libx264',
           '-preset', 'ultrafast',
           '-crf', '23',
-          '-c:a', 'copy',
-          '-movflags', 'frag_keyframe+empty_moov+faststart'
+          '-c:a', 'aac',    // Re-encode audio to AAC
+          '-b:a', '128k',   // Audio bitrate
+          '-max_muxing_queue_size', '1024',  // Increase muxing queue
+          '-movflags', '+faststart'  // Enable fast start
         ])
         .on('start', (commandLine: string) => {
           hasStarted = true
@@ -113,35 +114,27 @@ export async function replaceTextInVideo(
             console.log(`${outputName} Current size: ${progress.targetSize}kB`)
           }
         })
-        .on('end', () => {
+        .on('end', async () => {
           console.log(`✅ ${outputName} FFmpeg completed, reading temp file...`)
           
-          // Stream the temp file to output
-          const fileStream = createReadStream(tempFile)
-          let bytesRead = 0
-          
-          fileStream.on('data', (chunk) => {
-            bytesRead += chunk.length
-            outputStream.write(chunk)
-          })
-          
-          fileStream.on('end', () => {
-            console.log(`� Streamed ${bytesRead} bytes from temp file`)
+          try {
+            // Read the complete file
+            const fileBuffer = await fs.promises.readFile(tempFile)
+            console.log(`📊 Read ${fileBuffer.length} bytes from temp file`)
+            
+            // Write to stream
+            outputStream.write(fileBuffer)
             outputStream.end()
             
             // Clean up temp file
-            unlink(tempFile, (err) => {
-              if (err) console.error('Failed to delete temp file:', err)
-              else console.log(`🗑️  Deleted temp file: ${tempFile}`)
-            })
-          })
-          
-          fileStream.on('error', (err) => {
+            await fs.promises.unlink(tempFile)
+            console.log(`🗑️ Deleted temp file: ${tempFile}`)
+          } catch (err) {
             console.error('Error reading temp file:', err)
             reject(err)
-          })
+          }
         })
-        .on('error', (error: any) => {
+        .on('error', async (error: any) => {
           hasError = true
           console.error(`❌ ${outputName} FFmpeg error:`, error.message)
           console.error(`📊 Error details:`, error)
@@ -150,15 +143,22 @@ export async function replaceTextInVideo(
           }
           
           // Clean up temp file on error
-          unlink(tempFile, () => {})
+          try {
+            await fs.promises.unlink(tempFile)
+          } catch (e) {
+            // Ignore cleanup errors
+          }
           
+          if (!outputStream.destroyed) {
+            outputStream.destroy(error)
+          }
           reject(new Error(`Video processing failed: ${error.message}`))
         })
 
-      // Save to temp file instead of piping
+      // Save to temp file to ensure proper MP4 formatting
       command.save(tempFile)
       
-      console.log('🔄 FFmpeg processing to temp file, will stream when complete...')
+      console.log('🔄 FFmpeg processing to temp file...')
       resolve(outputStream)
 
     } catch (error) {
@@ -233,7 +233,7 @@ function buildTextReplacementFilterComplex(
       console.log(`   ⏱️  No time range - overlay will be visible for entire video`)
     }
 
-    // Draw white rectangle overlay with time-based enable
+    // Draw white rectangle overlay with time-based enable (filled)
     filterChain += `,drawbox=x=${x}:y=${y}:w=${width}:h=${height}:color=${bgColor}@${style.backgroundOpacity}:t=fill${enableExpression}`
     
     // Clean text: Remove special characters, keep letters, numbers, spaces
@@ -254,8 +254,11 @@ function buildTextReplacementFilterComplex(
     const textX = `(${x}+${width}/2-tw/2)`  // Center horizontally: x + (width - text_width) / 2
     const textY = `(${y}+${height}/2-th/2)` // Center vertically: y + (height - text_height) / 2
     
+    // Convert font color from hex to FFmpeg format (remove # prefix)
+    const fontColorFFmpeg = style.fontColor.startsWith('#') ? style.fontColor.substring(1) : style.fontColor
+    
     // Draw text using system font name with same time-based enable (avoid Windows path issues)
-    filterChain += `,drawtext=text='${safeText}':font=${style.fontFamily}:fontsize=${style.fontSize}:fontcolor=${style.fontColor}:x=${textX}:y=${textY}${enableExpression}`
+    filterChain += `,drawtext=text='${safeText}':font=${style.fontFamily}:fontsize=${style.fontSize}:fontcolor=0x${fontColorFFmpeg}:x=${textX}:y=${textY}${enableExpression}`
     
     console.log(`   📦 Overlay at (${x},${y}) size ${width}x${height} - HORIZONTALLY CENTERED`)
     console.log(`   ✍️  Text "${safeText}" centered in overlay`)

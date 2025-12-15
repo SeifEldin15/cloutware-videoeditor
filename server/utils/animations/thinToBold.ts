@@ -26,7 +26,8 @@ export const ThinToBold = (
   style: GirlbossStyle & { 
     outlineWidth?: number; 
     outlineColor?: string; 
-    outlineBlur?: number 
+    outlineBlur?: number;
+    wordsPerGroup?: number;
   },
   lastPosition: { x: number; y: number } | null = null
 ): GirlbossResult | string => {
@@ -50,14 +51,12 @@ export const ThinToBold = (
 
     const totalDuration = end - start;
     
-    // Group words into pairs
+    // Group words based on wordsPerGroup setting (default to 2 for backward compatibility)
+    const groupSize = Math.max(1, style.wordsPerGroup || 2);
     const wordPairs: string[] = [];
-    for (let i = 0; i < words.length; i += 2) {
-      if (i + 1 < words.length) {
-        wordPairs.push(words[i] + ' ' + words[i + 1]);
-      } else {
-        wordPairs.push(words[i]); 
-      }
+    for (let i = 0; i < words.length; i += groupSize) {
+      const group = words.slice(i, i + groupSize).join(' ');
+      wordPairs.push(group);
     }
 
     if (wordPairs.length === 0) {
@@ -80,7 +79,8 @@ export const ThinToBold = (
     }
     
     // Shadow strength with bounds checking
-    const shadowStrength = Math.max(0.5, Math.min(5, style.shadowStrength || 1.5));
+    const shadowStrength = Math.max(0, Math.min(5, style.shadowStrength ?? 1.5));
+    const glowEnabled = shadowStrength > 0;
     const effectiveShadowStrength = shadowStrength > 1 ? shadowStrength + 0.2 : shadowStrength;
     
     // Handle outline settings with defaults
@@ -127,7 +127,7 @@ export const ThinToBold = (
       }).join('\\N'); // \\N creates line breaks for vertical display
       
       // Build glow text with shadow effects for current pair
-      const glowText = wordPairs.map((w, i) => {
+      const glowText = glowEnabled ? wordPairs.map((w, i) => {
         if (i === index) {
           const shadowAlpha = Math.max(50, Math.min(255, Math.round(133 - (effectiveShadowStrength * 24))));
           const blurAlpha = Math.max(20, Math.min(255, Math.round(96 - (effectiveShadowStrength * 28))));
@@ -137,10 +137,12 @@ export const ThinToBold = (
           return `{${moveTag}\\c${textShadowColor}\\bord${borderWidth}\\blur${blurAmount}\\3c${textShadowColor}\\3a&H${shadowAlpha.toString(16)}&\\4c${textShadowColor}\\4a&H${blurAlpha.toString(16)}&\\xshad0\\yshad${-1}\\fn@Montserrat\\fscx120\\fscy120}${w}`;
         }
         return `{\\c${textShadowColor}\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0\\fn@Montserrat Thin}${w}`;
-      }).join('\\N');
+      }).join('\\N') : '';
       
       // Add glow and text events
-      events.push(`Dialogue: 0,${formatTime(pairStart)},${formatTime(pairEnd)},Default,,0,0,0,,${glowText}`);
+      if (glowEnabled && glowText) {
+        events.push(`Dialogue: 0,${formatTime(pairStart)},${formatTime(pairEnd)},Default,,0,0,0,,${glowText}`);
+      }
       events.push(`Dialogue: 1,${formatTime(pairStart)},${formatTime(pairEnd)},Default,,0,0,0,,${coloredText}`);
     });
     

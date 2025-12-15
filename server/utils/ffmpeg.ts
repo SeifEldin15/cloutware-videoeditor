@@ -1,10 +1,46 @@
 import ffmpeg from 'fluent-ffmpeg'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, execSync } from 'node:child_process'
 import { platform } from 'node:os'
+import { existsSync } from 'node:fs'
 
-// Check if we're running on Ubuntu
-const isUbuntu = platform() === 'linux' && process.env.UBUNTU_CODENAME !== undefined
+// Check if we're running on Linux (Ubuntu or any other distro)
+const isLinux = platform() === 'linux'
 const isWindows = platform() === 'win32'
+
+// Check if system FFmpeg is available
+function hasSystemFFmpeg() {
+  // Allow explicit override
+  if (process.env.FFMPEG_PATH) return true
+
+  const commonPaths = ['/usr/bin/ffmpeg', '/usr/local/bin/ffmpeg', '/snap/bin/ffmpeg']
+  for (const p of commonPaths) {
+    if (existsSync(p)) return true
+  }
+
+  try {
+    // `command -v` is more portable than `which` on some distros
+    execSync('command -v ffmpeg', { stdio: 'ignore' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+function resolveSystemFfmpeg(): string | null {
+  if (process.env.FFMPEG_PATH) return process.env.FFMPEG_PATH
+
+  const commonPaths = ['/usr/bin/ffmpeg', '/usr/local/bin/ffmpeg', '/snap/bin/ffmpeg']
+  for (const p of commonPaths) {
+    if (existsSync(p)) return p
+  }
+
+  try {
+    const out = execSync('command -v ffmpeg').toString().trim()
+    return out || null
+  } catch {
+    return null
+  }
+}
 
 let ffmpegInitialized = false
 let ffmpegInitPromise: Promise<void> | null = null
@@ -17,24 +53,27 @@ async function initializeFfmpeg() {
     try {
       console.log('[FFmpeg] Initializing for platform:', platform())
       
-      if (isUbuntu) {
-        // Force the modern system binary (Ubuntu 6.1.1 in your shell)
-        ffmpeg.setFfmpegPath('/usr/bin/ffmpeg')
+      if (isLinux) {
+        // Use system FFmpeg on Linux (hardcoded for Ubuntu compatibility)
+        const systemFfmpegPath = '/usr/bin/ffmpeg'
+        const systemFfprobePath = '/usr/bin/ffprobe'
 
-        // If ffprobe is installed (usually at /usr/bin/ffprobe), set it too:
-        try { 
-          ffmpeg.setFfprobePath('/usr/bin/ffprobe') 
-        } catch { 
-          /* ignore */ 
+        ffmpeg.setFfmpegPath(systemFfmpegPath)
+        console.log(`[Linux] Using system FFmpeg at: ${systemFfmpegPath}`)
+
+        if (existsSync(systemFfprobePath)) {
+          ffmpeg.setFfprobePath(systemFfprobePath)
+          console.log(`[Linux] Using system FFprobe at: ${systemFfprobePath}`)
         }
 
-        // Optional: print the actual ffmpeg used (one-time boot log)
+        // Print version for debugging
         try {
-          const v = execFileSync('/usr/bin/ffmpeg', ['-version']).toString().split('\n')[0]
-          console.log('[ffmpeg wrapper] Using:', v)
-        } catch { 
-          /* ignore */ 
+          const v = execFileSync(systemFfmpegPath, ['-version']).toString().split('\n')[0]
+          console.log('[FFmpeg] Version:', v)
+        } catch (e) {
+          console.warn('[FFmpeg] Could not get version from system ffmpeg:', String(e))
         }
+
       } else if (isWindows) {
         // Use ffmpeg-installer for Windows (CommonJS style import)
         try {
@@ -65,18 +104,24 @@ async function initializeFfmpeg() {
           throw error
         }
       } else {
-        // Use ffmpeg-installer for other platforms (Mac, etc.)
-        const ffmpegPkg = await import('@ffmpeg-installer/ffmpeg')
-        const ffprobePkg = await import('@ffprobe-installer/ffprobe')
-        
-        const ffmpegPath = (ffmpegPkg as any).default?.path || (ffmpegPkg as any).path
-        const ffprobePath = (ffprobePkg as any).default?.path || (ffprobePkg as any).path
-        
-        ffmpeg.setFfmpegPath(ffmpegPath)
-        ffmpeg.setFfprobePath(ffprobePath)
-        
-        console.info(`Installed FFmpeg at: ${ffmpegPath}`)
-        console.info(`Installed FFprobe at: ${ffprobePath}`)
+        // Use ffmpeg-installer for other platforms (Mac, etc.) or as fallback
+        // If environment points to explicit paths prefer them
+        const envFfmpeg = process.env.FFMPEG_PATH
+        const envFfprobe = process.env.FFPROBE_PATH
+
+        if (envFfmpeg) {
+          ffmpeg.setFfmpegPath(envFfmpeg)
+          console.info(`[FFmpeg] Using FFMPEG_PATH from env: ${envFfmpeg}`)
+        } else {
+          const ffmpegPkg = await import('@ffmpeg-installer/ffmpeg')
+          const ffprobePkg = await import('@ffprobe-installer/ffprobe')
+          const ffmpegPath = (ffmpegPkg as any).default?.path || (ffmpegPkg as any).path
+          const ffprobePath = (ffprobePkg as any).default?.path || (ffprobePkg as any).path
+          ffmpeg.setFfmpegPath(ffmpegPath)
+          ffmpeg.setFfprobePath(ffprobePath)
+          console.info(`Installed FFmpeg at: ${ffmpegPath}`)
+          console.info(`Installed FFprobe at: ${ffprobePath}`)
+        }
       }
       
       ffmpegInitialized = true
@@ -102,4 +147,3 @@ export default ffmpeg
 initializeFfmpeg().catch(err => {
   console.error('[FFmpeg] Failed to initialize at startup:', err)
 })
-

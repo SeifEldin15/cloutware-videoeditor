@@ -148,3 +148,59 @@ export const QUALITY_DESCRIPTIONS = {
 } as const
 
 export type QualityLevel = keyof typeof QUALITY_DESCRIPTIONS
+
+/**
+ * Calculate transformation complexity score
+ * Higher score = more complex processing
+ */
+export function calculateTransformationComplexity(options?: Record<string, any>): number {
+  if (!options) return 0
+  
+  let complexity = 0
+  
+  // Heavy filters (10 points each)
+  if (options.blur && options.blur > 0) complexity += options.blur * 3  // blur=10 = 30 points
+  if (options.rotation && options.rotation !== 0) complexity += Math.abs(options.rotation) * 2  // rotation=10 = 20 points
+  if (options.sharpen && options.sharpen > 0) complexity += options.sharpen * 2  // sharpen=10 = 20 points
+  
+  // Medium filters (5 points each)
+  if (options.zoomFactor && options.zoomFactor !== 1) complexity += Math.abs(options.zoomFactor - 1) * 20  // zoom=2 = 20 points
+  if (options.speedFactor && options.speedFactor !== 1) complexity += Math.abs(options.speedFactor - 1) * 10  // speed=2 = 10 points
+  if (options.saturationFactor && options.saturationFactor !== 1) complexity += 5
+  if (options.brightness && options.brightness !== 0) complexity += 5
+  if (options.contrast && options.contrast !== 1) complexity += 5
+  if (options.lightness && options.lightness !== 0) complexity += 5
+  
+  // Light filters (2 points each)
+  if (options.visibleChanges?.horizontalFlip) complexity += 2
+  if (options.antiDetection?.pixelShift) complexity += 2
+  if (options.antiDetection?.microCrop) complexity += 2
+  if (options.antiDetection?.noiseAddition) complexity += 5
+  if (options.antiDetection?.subtleRotation) complexity += 3
+  
+  return complexity
+}
+
+/**
+ * Get adaptive quality based on transformation complexity
+ * Heavy transformations get faster encoding to prevent timeouts
+ */
+export function getAdaptiveQuality(options?: Record<string, any>): QualityLevel {
+  const complexity = calculateTransformationComplexity(options)
+  
+  console.log(`📊 Transformation complexity score: ${complexity}`)
+  
+  if (complexity >= 80) {
+    console.log(`⚠️ Very high complexity - using fast quality for stability`)
+    return 'fast'
+  } else if (complexity >= 40) {
+    console.log(`📋 High complexity - using standard quality`)
+    return 'standard'
+  } else if (complexity >= 15) {
+    console.log(`✅ Medium complexity - using high quality`)
+    return 'high'
+  } else {
+    console.log(`✨ Low complexity - using premium quality`)
+    return 'premium'
+  }
+}

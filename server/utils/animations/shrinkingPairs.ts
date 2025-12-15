@@ -6,6 +6,7 @@ export interface ShrinkingPairsStyle extends GirlbossStyle {
   textOutlineWidth?: number;
   color?: string;
   textOutlineColor?: string;
+  wordsPerGroup?: number;
 }
 
 /**
@@ -45,11 +46,12 @@ export const shrinkingColorsPairAnimation = (
   const totalDuration = end - start;
   const wordPairs: string[] = [];
   
-  // Group words into pairs
-  for (let i = 0; i < words.length; i += 2) {
-    const pair = words[i] + (words[i + 1] ? ' ' + words[i + 1] : '');
-    if (pair.trim()) {
-      wordPairs.push(pair);
+  // Group words based on wordsPerGroup setting (default to 2 for backward compatibility)
+  const groupSize = Math.max(1, style?.wordsPerGroup || 2);
+  for (let i = 0; i < words.length; i += groupSize) {
+    const group = words.slice(i, i + groupSize).join(' ');
+    if (group.trim()) {
+      wordPairs.push(group);
     }
   }
 
@@ -67,6 +69,7 @@ export const shrinkingColorsPairAnimation = (
   // Style calculations
   const outlineWidth = getScaledOutlineWidth(style);
   const shadowStrength = style?.shadowStrength ? style.shadowStrength * 0.7 : 1;
+  const glowEnabled = (style?.shadowStrength ?? 1) > 0;
   const shadowAlpha = Math.round(Math.max(0, Math.min(255, 140 - (shadowStrength * 0.5))));
   const blurAlpha = Math.round(Math.max(0, Math.min(255, 120 - (shadowStrength * 0.5))));
 
@@ -115,22 +118,28 @@ export const shrinkingColorsPairAnimation = (
       events.push(`Dialogue: 1,${formatTime(pairStart)},${formatTime(nextPairStart)},Default,,0,0,0,,${coloredText}`);
       
       // Primary glow effect for colored phase
-      const primaryGlow = `{${moveTag}\\alpha&HE0&\\c&H${mainColor}&\\bord3\\blur${10 * shadowStrength}\\3c&H${mainColor}&\\3a&H${shadowAlpha.toString(16)}&\\4c&H${mainColor}&\\4a&H${blurAlpha.toString(16)}&\\fscx${startScale}\\fscy${startScale}\\t(0,${shrinkDuration},\\fscx${endScale}\\fscy${endScale})}${pair}`;
-      events.push(`Dialogue: 0,${formatTime(pairStart)},${formatTime(nextPairStart)},Default,,0,0,0,,${primaryGlow}`);
+      if (glowEnabled) {
+        const primaryGlow = `{${moveTag}\\alpha&HE0&\\c&H${mainColor}&\\bord3\\blur${10 * shadowStrength}\\3c&H${mainColor}&\\3a&H${shadowAlpha.toString(16)}&\\4c&H${mainColor}&\\4a&H${blurAlpha.toString(16)}&\\fscx${startScale}\\fscy${startScale}\\t(0,${shrinkDuration},\\fscx${endScale}\\fscy${endScale})}${pair}`;
+        events.push(`Dialogue: 0,${formatTime(pairStart)},${formatTime(nextPairStart)},Default,,0,0,0,,${primaryGlow}`);
+      }
 
       // White phase - shows from next pair start to end
       events.push(`Dialogue: 1,${formatTime(nextPairStart)},${formatTime(pairEnd)},Default,,0,0,0,,{${moveTag}\\c&HFFFFFF&\\3c${outlineColor}\\bord${outlineWidth}\\fscx${endScale}\\fscy${endScale}}${pair}`);
       
       // White glow effect for white phase
-      const whiteGlow = `{${moveTag}\\alpha&HE0&\\c&HFFFFFF&\\bord3\\blur${10 * shadowStrength}\\3c&HFFFFFF&\\3a&H${shadowAlpha.toString(16)}&\\4c&HFFFFFF&\\4a&H${blurAlpha.toString(16)}&\\fscx${endScale}\\fscy${endScale}}${pair}`;
-      events.push(`Dialogue: 0,${formatTime(nextPairStart)},${formatTime(pairEnd)},Default,,0,0,0,,${whiteGlow}`);
+      if (glowEnabled) {
+        const whiteGlow = `{${moveTag}\\alpha&HE0&\\c&HFFFFFF&\\bord3\\blur${10 * shadowStrength}\\3c&HFFFFFF&\\3a&H${shadowAlpha.toString(16)}&\\4c&HFFFFFF&\\4a&H${blurAlpha.toString(16)}&\\fscx${endScale}\\fscy${endScale}}${pair}`;
+        events.push(`Dialogue: 0,${formatTime(nextPairStart)},${formatTime(pairEnd)},Default,,0,0,0,,${whiteGlow}`);
+      }
     } else {
       // Last pair - only colored phase until end
       events.push(`Dialogue: 1,${formatTime(pairStart)},${formatTime(pairEnd)},Default,,0,0,0,,${coloredText}`);
       
       // Primary glow for last pair
-      const primaryGlow = `{${moveTag}\\alpha&HE0&\\c&H${mainColor}&\\bord3\\blur${10 * shadowStrength}\\3c&H${mainColor}&\\3a&H${shadowAlpha.toString(16)}&\\4c&H${mainColor}&\\4a&H${blurAlpha.toString(16)}&\\fscx${startScale}\\fscy${startScale}\\t(0,${shrinkDuration},\\fscx${endScale}\\fscy${endScale})}${pair}`;
-      events.push(`Dialogue: 0,${formatTime(pairStart)},${formatTime(pairEnd)},Default,,0,0,0,,${primaryGlow}`);
+      if (glowEnabled) {
+        const primaryGlow = `{${moveTag}\\alpha&HE0&\\c&H${mainColor}&\\bord3\\blur${10 * shadowStrength}\\3c&H${mainColor}&\\3a&H${shadowAlpha.toString(16)}&\\4c&H${mainColor}&\\4a&H${blurAlpha.toString(16)}&\\fscx${startScale}\\fscy${startScale}\\t(0,${shrinkDuration},\\fscx${endScale}\\fscy${endScale})}${pair}`;
+        events.push(`Dialogue: 0,${formatTime(pairStart)},${formatTime(pairEnd)},Default,,0,0,0,,${primaryGlow}`);
+      }
     }
   });
 

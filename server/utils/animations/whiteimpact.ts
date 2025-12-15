@@ -39,7 +39,8 @@ export const whiteImpactAnimation = (
 
     const timePerWord = (end - start) / words.length;
     
-    const shadowStrength = Math.max(0.5, Math.min(5, style.shadowStrength || 2.0));
+    const shadowStrength = Math.max(0, Math.min(5, style.shadowStrength ?? 2.0));
+    const glowEnabled = shadowStrength > 0;
     const shadowAlpha = Math.max(50, Math.min(255, Math.round(150 - (shadowStrength * 20))));
     const blurAlpha = Math.max(20, Math.min(255, Math.round(120 - (shadowStrength * 20))));
     
@@ -80,9 +81,11 @@ export const whiteImpactAnimation = (
       }
 
       const coloredText = `{${moveTag}\\c&H${whiteColor}&\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${words[0]}`;
-      const glowText = `{${moveTag}\\c&H${glowColor}&\\bord${borderWidth}\\blur${blurAmount}\\3c&H${outlineColorASS}&\\3a&H${shadowAlpha.toString(16)}&\\4c&H${glowColor}&\\4a&H${blurAlpha.toString(16)}&\\xshad0\\yshad${-1}}${words[0]}`;
+      const glowText = glowEnabled ? `{${moveTag}\\c&H${glowColor}&\\bord${borderWidth}\\blur${blurAmount}\\3c&H${outlineColorASS}&\\3a&H${shadowAlpha.toString(16)}&\\4c&H${glowColor}&\\4a&H${blurAlpha.toString(16)}&\\xshad0\\yshad${-1}}${words[0]}` : '';
 
-      events.push(`Dialogue: 0,${formatTime(start)},${formatTime(end)},Default,,0,0,0,,${glowText}`);
+      if (glowEnabled && glowText) {
+        events.push(`Dialogue: 0,${formatTime(start)},${formatTime(end)},Default,,0,0,0,,${glowText}`);
+      }
       events.push(`Dialogue: 1,${formatTime(start)},${formatTime(end)},Default,,0,0,0,,${coloredText}`);
 
       return style?.animation === 'shake' ? {
@@ -115,9 +118,11 @@ export const whiteImpactAnimation = (
       }
 
       const coloredText = `{${moveTag}\\c&H${whiteColor}&\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${word}`;
-      const glowText = `{${moveTag}\\c&H${glowColor}&\\bord${borderWidth}\\blur${blurAmount}\\3c&H${outlineColorASS}&\\3a&H${shadowAlpha.toString(16)}&\\4c&H${glowColor}&\\4a&H${blurAlpha.toString(16)}&\\xshad0\\yshad${-1}}${word}`;
+      const glowText = glowEnabled ? `{${moveTag}\\c&H${glowColor}&\\bord${borderWidth}\\blur${blurAmount}\\3c&H${outlineColorASS}&\\3a&H${shadowAlpha.toString(16)}&\\4c&H${glowColor}&\\4a&H${blurAlpha.toString(16)}&\\xshad0\\yshad${-1}}${word}` : '';
 
-      events.push(`Dialogue: 0,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${glowText}`);
+      if (glowEnabled && glowText) {
+        events.push(`Dialogue: 0,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${glowText}`);
+      }
       events.push(`Dialogue: 1,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${coloredText}`);
     });
 

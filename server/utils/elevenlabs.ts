@@ -6,16 +6,24 @@ import { PassThrough } from 'node:stream'
  */
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY
 
-if (!ELEVENLABS_API_KEY) {
-  console.warn('⚠️  ELEVENLABS_API_KEY not set in environment variables')
-}
-
 /**
- * Initialize ElevenLabs client
+ * Lazy-loaded ElevenLabs client
  */
-const client = new ElevenLabsClient({
-  apiKey: ELEVENLABS_API_KEY
-})
+let client: ElevenLabsClient | null = null
+
+function getClient(): ElevenLabsClient {
+  if (!ELEVENLABS_API_KEY) {
+    throw new Error('ELEVENLABS_API_KEY is not configured. Please set it in your environment variables.')
+  }
+  
+  if (!client) {
+    client = new ElevenLabsClient({
+      apiKey: ELEVENLABS_API_KEY
+    })
+  }
+  
+  return client
+}
 
 /**
  * Voice settings for speech generation
@@ -52,13 +60,10 @@ export async function generateSpeech(
   console.log(`[ElevenLabs] Text length: ${text.length} characters`)
   console.log(`[ElevenLabs] Settings: speed=${speed}, stability=${stability}, similarity=${similarityBoost}, style=${style}`)
 
-  if (!ELEVENLABS_API_KEY) {
-    throw new Error('ELEVENLABS_API_KEY is not configured')
-  }
-
   try {
     // Create audio stream from ElevenLabs
-    const audioStream = await client.textToSpeech.convert(voiceId, {
+    const elevenLabsClient = getClient()
+    const audioStream = await elevenLabsClient.textToSpeech.convert(voiceId, {
       text,
       modelId: 'eleven_multilingual_v2',
       voiceSettings: {
@@ -100,12 +105,9 @@ export async function generateSpeech(
  * Get list of available voices
  */
 export async function getAvailableVoices() {
-  if (!ELEVENLABS_API_KEY) {
-    throw new Error('ELEVENLABS_API_KEY is not configured')
-  }
-
   try {
-    const voices = await client.voices.getAll()
+    const elevenLabsClient = getClient()
+    const voices = await elevenLabsClient.voices.getAll()
     return voices.voices.map(voice => ({
       voice_id: voice.voiceId,
       name: voice.name,

@@ -8,7 +8,7 @@ import { processVideoWithSubtitlesFile } from './captioning'
 import { generateAdvancedASSFile, parseSRT, getStyleFont, getFontFilePath, type SubtitleSegment, type GirlbossStyle, processWordModeSegments, formatTimeForSRT } from './subtitleUtils'
 import type { CaptionOptions, VideoProcessingOptions } from './validation-schemas'
 import { resolve, join as pathJoin } from 'path'
-import { getQualityConfig, configToOutputOptions, type QualityLevel } from './quality-config'
+import { getQualityConfig, configToOutputOptions, getAdaptiveQuality, type QualityLevel } from './quality-config'
 
 const availableCpuCores = os.cpus().length
 // Keep filtergraph single-threaded for stability
@@ -274,7 +274,7 @@ export class SubtitleProcessor {
             outlineBlur?: number
           } = {
             color: styleOptions.girlbossColor || '#F361D8',
-            shadowStrength: styleOptions.shadowStrength || 1.5,
+            shadowStrength: styleOptions.shadowStrength ?? 1.5,
             animation: styleOptions.animation === 'shake' ? 'shake' : 'none',
             verticalPosition: styleOptions.verticalPosition || 15,
             fontSize: styleOptions.fontSize || 50,
@@ -299,7 +299,7 @@ export class SubtitleProcessor {
             outlineColor?: string
             outlineBlur?: number
           } = {
-            shadowStrength: styleOptions.shadowStrength || 1.5,
+            shadowStrength: styleOptions.shadowStrength ?? 1.5,
             animation: styleOptions.animation === 'shake' ? 'shake' : 'none',
             verticalPosition: styleOptions.verticalPosition || 15,
             fontSize: styleOptions.fontSize || 50,
@@ -325,7 +325,7 @@ export class SubtitleProcessor {
             outlineBlur?: number
           } = {
             color: styleOptions.tiktokstyleColor || '#FFFF00',
-            shadowStrength: styleOptions.shadowStrength || 1.5,
+            shadowStrength: styleOptions.shadowStrength ?? 1.5,
             animation: styleOptions.animation === 'shake' ? 'shake' : 'none',
             verticalPosition: styleOptions.verticalPosition || 15,
             fontSize: styleOptions.fontSize || 50,
@@ -339,7 +339,7 @@ export class SubtitleProcessor {
           assContent = generateAdvancedASSFile(subtitleSegments, tiktokStyleStyle, 'tiktokstyle')
 
         } else if (styleOptions.subtitleStyle === 'thintobold') {
-          console.log(`✨ Setting up ThinToBold with font: ${styleOptions.fontFamily} -> ${styleOptions.fontFamily}`)
+          console.log(`✨ Setting up ThinToBold with font: ${styleOptions.fontFamily} -> ${styleOptions.fontFamily}, wordsPerGroup: ${styleOptions.wordsPerGroup || 4}`)
           const thinToBoldStyle: GirlbossStyle & {
             fontSize?: number
             fontFamily?: string
@@ -348,9 +348,10 @@ export class SubtitleProcessor {
             outlineWidth?: number
             outlineColor?: string
             outlineBlur?: number
+            wordsPerGroup?: number
           } = {
             color: styleOptions.thinToBoldColor || '#FFFFFF',
-            shadowStrength: styleOptions.shadowStrength || 1.5,
+            shadowStrength: styleOptions.shadowStrength ?? 1.5,
             animation: styleOptions.animation === 'shake' ? 'shake' : 'none',
             verticalPosition: styleOptions.verticalPosition || 15,
             fontSize: styleOptions.fontSize || 50,
@@ -359,7 +360,8 @@ export class SubtitleProcessor {
             textAlign: styleOptions.textAlign || 'center',
             outlineWidth: styleOptions.outlineWidth || 2,
             outlineColor: styleOptions.outlineColor || '#000000',
-            outlineBlur: styleOptions.outlineBlur || 0
+            outlineBlur: styleOptions.outlineBlur || 0,
+            wordsPerGroup: styleOptions.wordsPerGroup || 4
           }
           assContent = generateAdvancedASSFile(subtitleSegments, thinToBoldStyle, 'thintobold')
 
@@ -388,7 +390,7 @@ export class SubtitleProcessor {
           assContent = generateAdvancedASSFile(subtitleSegments, wavyStyle, 'wavycolors')
 
         } else if (styleOptions.subtitleStyle === 'shrinkingpairs') {
-          console.log(`📉 Setting up ShrinkingPairs with font: ${styleOptions.fontFamily} -> ${styleOptions.fontFamily}`)
+          console.log(`📉 Setting up ShrinkingPairs with font: ${styleOptions.fontFamily} -> ${styleOptions.fontFamily}, wordsPerGroup: ${styleOptions.wordsPerGroup || 4}`)
           const shrinkingPairsStyle: GirlbossStyle & {
             fontSize?: number
             fontFamily?: string
@@ -399,9 +401,10 @@ export class SubtitleProcessor {
             outlineWidth?: number
             outlineColor?: string
             outlineBlur?: number
+            wordsPerGroup?: number
           } = {
             color: styleOptions.shrinkingPairsColor || '#0BF431',
-            shadowStrength: styleOptions.shadowStrength || 1.5,
+            shadowStrength: styleOptions.shadowStrength ?? 1.5,
             animation: styleOptions.animation === 'shake' ? 'shake' : 'none',
             verticalPosition: styleOptions.verticalPosition || 15,
             fontSize: styleOptions.fontSize || 50,
@@ -411,7 +414,8 @@ export class SubtitleProcessor {
             textOutlineWidth: styleOptions.outlineWidth || 2,
             outlineWidth: styleOptions.outlineWidth || 2,
             outlineColor: styleOptions.outlineColor || '#000000',
-            outlineBlur: styleOptions.outlineBlur || 0
+            outlineBlur: styleOptions.outlineBlur || 0,
+            wordsPerGroup: styleOptions.wordsPerGroup || 4
           }
           assContent = generateAdvancedASSFile(subtitleSegments, shrinkingPairsStyle, 'shrinkingpairs')
 
@@ -429,7 +433,7 @@ export class SubtitleProcessor {
             outlineColor?: string
             outlineBlur?: number
           } = {
-            shadowStrength: styleOptions.shadowStrength || 1.5,
+            shadowStrength: styleOptions.shadowStrength ?? 1.5,
             animation: styleOptions.animation === 'shake' ? 'shake' : 'none',
             verticalPosition: styleOptions.verticalPosition || 15,
             fontSize: styleOptions.fontSize || 50,
@@ -443,6 +447,56 @@ export class SubtitleProcessor {
             outlineBlur: styleOptions.outlineBlur || 0
           }
           assContent = generateAdvancedASSFile(subtitleSegments, revealEnlargeStyle, 'revealenlarge')
+
+        } else if (styleOptions.subtitleStyle === 'whiteimpact') {
+          console.log(`⚡ Setting up WhiteImpact with font: ${styleOptions.fontFamily} -> ${styleOptions.fontFamily}`)
+          const whiteImpactStyle: GirlbossStyle & {
+            fontSize?: number
+            fontFamily?: string
+            fontFilePath?: string
+            textAlign?: string
+            shadowStrength?: number
+            outlineWidth?: number
+            outlineColor?: string
+            outlineBlur?: number
+          } = {
+            shadowStrength: styleOptions.shadowStrength ?? 1.5,
+            animation: styleOptions.animation === 'shake' ? 'shake' : 'none',
+            verticalPosition: styleOptions.verticalPosition || 20,
+            fontSize: styleOptions.fontSize || 48,
+            fontFamily: styleOptions.fontFamily || 'Impact',
+            fontFilePath: fontFile || styleOptions.fontFamily || 'Impact',
+            textAlign: styleOptions.textAlign || 'center',
+            outlineWidth: styleOptions.outlineWidth || 1,
+            outlineColor: styleOptions.outlineColor || '#000000',
+            outlineBlur: styleOptions.outlineBlur || 0
+          }
+          assContent = generateAdvancedASSFile(subtitleSegments, whiteImpactStyle, 'whiteimpact')
+
+        } else if (styleOptions.subtitleStyle === 'impactfull') {
+          console.log(`💥 Setting up ImpactFull with font: ${styleOptions.fontFamily} -> ${styleOptions.fontFamily}`)
+          const impactFullStyle: GirlbossStyle & {
+            fontSize?: number
+            fontFamily?: string
+            fontFilePath?: string
+            textAlign?: string
+            shadowStrength?: number
+            outlineWidth?: number
+            outlineColor?: string
+            outlineBlur?: number
+          } = {
+            shadowStrength: styleOptions.shadowStrength ?? 1.5,
+            animation: styleOptions.animation === 'shake' ? 'shake' : 'none',
+            verticalPosition: styleOptions.verticalPosition || 25,
+            fontSize: styleOptions.fontSize || 42,
+            fontFamily: styleOptions.fontFamily || 'Impact',
+            fontFilePath: fontFile || styleOptions.fontFamily || 'Impact',
+            textAlign: styleOptions.textAlign || 'center',
+            outlineWidth: styleOptions.outlineWidth || 1,
+            outlineColor: styleOptions.outlineColor || '#000000',
+            outlineBlur: styleOptions.outlineBlur || 0
+          }
+          assContent = generateAdvancedASSFile(subtitleSegments, impactFullStyle, 'impactfull')
         }
 
         tempAssFile = join(tmpdir(), `subtitle_${Date.now()}.ass`)
@@ -457,8 +511,6 @@ export class SubtitleProcessor {
 
         ffmpegCommand.inputOptions([
           '-protocol_whitelist', 'file,http,https,tcp,tls',
-          '-reconnect', '1',
-          '-reconnect_streamed', '1',
           '-analyzeduration', '10000000',
           '-probesize', '10000000',
           '-thread_queue_size', '512',
@@ -467,21 +519,44 @@ export class SubtitleProcessor {
           '-filter_threads', '1'           // important for filtergraph stability
         ])
 
+        console.log(`🔧 Video options received:`, JSON.stringify(videoOptions, null, 2))
         const advancedOptions = videoOptions ? this.buildAdvancedProcessingOptions(videoOptions, quality) : []
+        console.log(`🔧 Advanced options built:`, advancedOptions)
 
         let baseVideoFilter = ''
         const vfIndex = advancedOptions.findIndex(opt => opt === '-vf')
         if (vfIndex !== -1 && vfIndex + 1 < advancedOptions.length) {
           baseVideoFilter = advancedOptions[vfIndex + 1]
+          console.log(`🔧 Found -vf filter at index ${vfIndex}: ${baseVideoFilter}`)
+        } else {
+          console.log(`⚠️ No -vf filter found in advanced options`)
         }
 
         const escapedPath = tempAssFile.replace(/\\/g, '/').replace(/:/g, '\\:')
         
-        // Use ass filter with temp fonts directory only (if available)
-        const vf = [
-          "scale=trunc(iw/2)*2:trunc(ih/2)*2"
-        ]
+        // Build video filter chain: transformations FIRST, then subtitles LAST
+        // This ensures subtitles are not affected by video transformations (blur, rotation, etc.)
+        const vf: string[] = []
         
+        // 1. Add video transformation filters FIRST (before subtitles)
+        if (baseVideoFilter) {
+          // Split carefully - some filters have colons inside, but comma separates them
+          // We need to preserve filters like eq=brightness=0.5:contrast=1.2
+          const existingFilters = baseVideoFilter.split(',').filter(f => 
+            !f.includes('subtitles=') && 
+            !f.includes('ass=') &&
+            f.trim().length > 0
+          )
+          if (existingFilters.length > 0) {
+            vf.push(...existingFilters)
+            console.log(`🎬 Adding video transformations: ${existingFilters.join(', ')}`)
+          }
+        }
+        
+        // 2. Add scale filter for compatibility (avoid odd dimensions)
+        vf.push("scale=trunc(iw/2)*2:trunc(ih/2)*2")
+        
+        // 3. Add subtitle filter LAST (so it's not affected by transformations)
         if (fontsDir && existsSync(fontsDir)) {
           // Use relative path to avoid Windows drive path issues
           const relativeFontsPath = fontsDir.replace(process.cwd(), '.').replace(/\\/g, '/')
@@ -493,18 +568,8 @@ export class SubtitleProcessor {
           console.log(`🎨 Using system fonts only`)
         }
         
-        // Add any existing video filters from advanced options
-        if (baseVideoFilter) {
-          // Parse existing filters and add them after ass filter
-          const existingFilters = baseVideoFilter.split(',')
-          vf.push(...existingFilters.filter(f => 
-            !f.includes('subtitles=') && 
-            !f.includes('scale=') // avoid duplicate scale
-          ))
-        }
-        
         const videoFilter = vf.join(',')
-        console.log(`🎨 Using ass filter: ${videoFilter}`)
+        console.log(`🎨 Final video filter chain: ${videoFilter}`)
 
         const outputOptions = ['-vf', videoFilter]
 
@@ -536,14 +601,18 @@ export class SubtitleProcessor {
         if (codecOptions.length > 0) {
           outputOptions.push(...codecOptions)
         } else {
-          // Apply quality settings as fallback
-          const qualityConfig = getQualityConfig(quality || 'premium')
+          // Apply ADAPTIVE quality based on transformation complexity
+          const adaptiveQuality = getAdaptiveQuality(options)
+          const qualityConfig = getQualityConfig(adaptiveQuality)
           const qualityOptions = configToOutputOptions(qualityConfig)
           outputOptions.push(...qualityOptions)
         }
 
         outputOptions.push('-threads', '1', '-pix_fmt', 'yuv420p', '-f', 'mpegts')
 
+        let ffmpegCompleted = false
+        let streamTimeout: NodeJS.Timeout | null = null
+        
         ffmpegCommand.outputOptions(outputOptions)
           .on('start', (commandLine: string) => {
             console.log('Advanced subtitle FFmpeg started:', commandLine)
@@ -560,17 +629,43 @@ export class SubtitleProcessor {
           .on('error', (err: Error) => {
             console.error('Advanced subtitle FFmpeg error:', err)
             console.error('Command output:', commandOutput)
+            if (streamTimeout) clearTimeout(streamTimeout)
             this.cleanupTempFile(tempAssFile)
             if (fontCleanup) fontCleanup()
+            if (!outputStream.destroyed) {
+              outputStream.destroy(err)
+            }
             reject(new Error(`FFmpeg error: ${err.message}\nCommand output: ${commandOutput}`))
           })
           .on('end', () => {
-            console.log('Advanced subtitle FFmpeg process ended')
+            console.log('Advanced subtitle FFmpeg process ended successfully')
+            ffmpegCompleted = true
+            
+            // Set a timeout ONLY after FFmpeg completes
+            // This catches cases where the stream doesn't properly end
+            streamTimeout = setTimeout(() => {
+              console.warn('⚠️ Stream did not finish naturally after FFmpeg completion - forcing end')
+              if (!outputStream.writableEnded) {
+                outputStream.end()
+              }
+            }, 5000) // 5 seconds after ffmpeg completes should be plenty
+            
             this.cleanupTempFile(tempAssFile)
             if (fontCleanup) fontCleanup()
           })
 
+        // Pipe with explicit error handling
         ffmpegCommand.pipe(outputStream, { end: true })
+        
+        outputStream.on('finish', () => {
+          if (streamTimeout) clearTimeout(streamTimeout)
+          console.log('✅ Output stream finished')
+        })
+        
+        outputStream.on('error', (err) => {
+          if (streamTimeout) clearTimeout(streamTimeout)
+          console.error('❌ Output stream error:', err)
+        })
 
         resolve(outputStream)
 
@@ -584,6 +679,7 @@ export class SubtitleProcessor {
   }
 
   private static buildAdvancedProcessingOptions(options: VideoProcessingOptions, quality: QualityLevel = 'premium'): string[] {
+    console.log(`🔧 buildAdvancedProcessingOptions called with:`, JSON.stringify(options, null, 2))
     const outputOptions = []
     const timestamp = new Date().getTime().toString()
 
@@ -600,43 +696,124 @@ export class SubtitleProcessor {
     // Simplified video processing - only apply if specific options are provided
     const videoFilters = []
     
+    // Speed adjustment (setpts must come first)
     if (options?.speedFactor && options.speedFactor !== 1) {
       const ptsValue = 1 / options.speedFactor
       videoFilters.push(`setpts=${ptsValue}*PTS`)
     }
     
+    // Horizontal flip
+    if (options?.visibleChanges?.horizontalFlip) {
+      videoFilters.push('hflip')
+    }
+    
+    // Zoom/Scale
     if (options?.zoomFactor && options.zoomFactor !== 1) {
       videoFilters.push(`scale=iw*${options.zoomFactor}:ih*${options.zoomFactor}`)
     }
     
+    // Rotation
+    if (options?.rotation && options.rotation !== 0) {
+      // Convert degrees to radians: radians = degrees * PI / 180
+      const radians = options.rotation * Math.PI / 180
+      // Rotate with black fill (standard approach)
+      videoFilters.push(`rotate=${radians}:c=black`)
+      // Crop to remove black edges - crop proportional to rotation
+      const cropPercent = Math.min(Math.abs(options.rotation) * 1.5, 12) // Max 12% crop per side
+      const keepPercent = (100 - cropPercent * 2) / 100
+      videoFilters.push(`crop=iw*${keepPercent}:ih*${keepPercent}`)
+    }
+    
+    // Saturation using hue filter
     if (options?.saturationFactor && options.saturationFactor !== 1) {
       videoFilters.push(`hue=s=${options.saturationFactor}`)
     }
     
+    // Combine eq filters (brightness, contrast, lightness) into one
+    const eqParts = []
+    if (options?.brightness && options.brightness !== 0) {
+      eqParts.push(`brightness=${options.brightness}`)
+    }
+    if (options?.contrast && options.contrast !== 1) {
+      eqParts.push(`contrast=${options.contrast}`)
+    }
+    // Lightness affects gamma - map -0.5 to 0.5 range to 0.5 to 1.5 gamma range
     if (options?.lightness && options.lightness !== 0) {
-      videoFilters.push(`eq=brightness=${options.lightness}`)
+      const gamma = 1 - options.lightness  // lightness -0.5 -> gamma 1.5 (darker), lightness 0.5 -> gamma 0.5 (lighter)
+      eqParts.push(`gamma=${gamma}`)
+    }
+    if (eqParts.length > 0) {
+      videoFilters.push(`eq=${eqParts.join(':')}`)
+    }
+    
+    // Blur
+    if (options?.blur && options.blur > 0) {
+      // Use boxblur filter: boxblur=luma_radius:luma_power
+      const blurRadius = Math.min(options.blur, 10)
+      videoFilters.push(`boxblur=${blurRadius}:1`)
+    }
+    
+    // Sharpen
+    if (options?.sharpen && options.sharpen > 0) {
+      // Use unsharp filter: unsharp=luma_msize_x:luma_msize_y:luma_amount
+      const sharpenAmount = options.sharpen / 5 // Scale to 0-2 range
+      videoFilters.push(`unsharp=5:5:${sharpenAmount}:5:5:0`)
     }
 
-    // Anti-detection effects (simplified)
+    // Anti-detection effects
     if (options?.antiDetection?.pixelShift) {
+      // Shift pixels slightly
       videoFilters.push('crop=in_w-2:in_h-2:1:1')
     }
     
+    if (options?.antiDetection?.microCrop) {
+      // Apply subtle cropping from edges
+      videoFilters.push('crop=in_w-4:in_h-4:2:2')
+    }
+    
     if (options?.antiDetection?.noiseAddition) {
+      // Add imperceptible noise
       videoFilters.push('noise=alls=1:allf=t')
     }
     
     if (options?.antiDetection?.subtleRotation) {
-      videoFilters.push('rotate=0.1*PI/180')
+      // Apply very subtle rotation (0.1 degrees) with no fill color
+      videoFilters.push('rotate=0.1*PI/180:c=none')
+    }
+
+    // White border - MUST BE LAST (applied after all transformations and anti-detection)
+    // This ensures the border remains clean and unaffected by blur, rotation, noise, etc.
+    // Note: This will be applied to the video BEFORE subtitles are overlaid
+    // @ts-ignore - whiteBorder options may not be in type yet
+    if (options?.enableWhiteBorder) {
+      // @ts-ignore
+      const leftRightPercent = options.whiteBorderLeftRight || 10
+      // @ts-ignore
+      const topBottomPercent = options.whiteBorderTopBottom || 20
+      const visibleWidthPercent = 100 - leftRightPercent
+      const visibleHeightPercent = 100 - topBottomPercent
+      
+      // Scale down the video and pad with white
+      videoFilters.push(`scale=iw*${visibleWidthPercent / 100}:ih*${visibleHeightPercent / 100}`)
+      videoFilters.push(`pad=iw/${visibleWidthPercent / 100}:ih/${visibleHeightPercent / 100}:(ow-iw)/2:(oh-ih)/2:white`)
+      console.log(`🎨 White border (applied last): ${leftRightPercent}% L/R, ${topBottomPercent}% T/B`)
     }
 
     // Apply video filters if any exist
     if (videoFilters.length > 0) {
+      console.log(`🎬 Video filters generated: ${videoFilters.join(', ')}`)
       outputOptions.push('-vf', videoFilters.join(','))
+    } else {
+      console.log(`⚠️ No video filters generated`)
     }
 
     // Simplified audio processing
     const audioFilters = []
+    
+    // Speed adjustment for audio (if video speed was changed)
+    if (options?.speedFactor && options.speedFactor !== 1) {
+      audioFilters.push(`atempo=${options.speedFactor}`)
+    }
     
     if (options?.audioPitch && options.audioPitch !== 1) {
       audioFilters.push(`asetrate=44100*${options.audioPitch},aresample=44100`)
@@ -651,13 +828,14 @@ export class SubtitleProcessor {
       outputOptions.push('-af', audioFilters.join(','))
     }
 
-    // Apply quality settings from centralized config
-    const qualityConfig = getQualityConfig(quality)
+    // Apply ADAPTIVE quality settings based on transformation complexity
+    const adaptiveQuality = getAdaptiveQuality(options)
+    const qualityConfig = getQualityConfig(adaptiveQuality)
     const qualityOptions = configToOutputOptions(qualityConfig)
     outputOptions.push(...qualityOptions)
     outputOptions.push('-threads', '1')  // Override threads for subtitle processing
     
-    console.log(`🎥 Using ${quality} quality settings: CRF ${qualityConfig.crf}, preset ${qualityConfig.preset}`)
+    console.log(`🎥 Using ${adaptiveQuality} quality (adaptive): CRF ${qualityConfig.crf}, preset ${qualityConfig.preset}`)
 
     return outputOptions
   }

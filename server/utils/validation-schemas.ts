@@ -15,6 +15,11 @@ export const ValidationSchemas = {
       saturationFactor: z.number().min(0.5).max(2).optional(),
       framerate: z.number().optional(),
       lightness: z.number().min(-0.5).max(0.5).optional(),
+      contrast: z.number().min(0.5).max(2).optional(),
+      brightness: z.number().min(-0.5).max(0.5).optional(),
+      rotation: z.number().min(-10).max(10).optional(),
+      blur: z.number().min(0).max(10).optional(),
+      sharpen: z.number().min(0).max(10).optional(),
       subtitleText: z.string().optional(),
       resolution: z.string().optional(),
       audioPitch: z.number().min(0.5).max(1.5).optional(),
@@ -80,7 +85,7 @@ export const ValidationSchemas = {
       // Universal vertical position option
       verticalPosition: z.number().min(0).max(100).optional().default(15),
       // Universal shadow strength option
-      shadowStrength: z.number().min(0.5).max(5).optional().default(1.5),
+      shadowStrength: z.number().min(0).max(5).optional().default(1.5),
       // Universal animation option
       animation: z.enum(['none', 'shake']).optional().default('none'),
       // Advanced subtitle styling options

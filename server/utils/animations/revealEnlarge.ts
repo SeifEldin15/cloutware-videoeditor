@@ -49,8 +49,9 @@ export const RevealEnlarge = (
   // Shadow calculations
   const shadowStrength = style.shadowStrength && style.shadowStrength > 1 
     ? style.shadowStrength * 0.8
-    : (style.shadowStrength || 1) * 0.5;
-
+    : (style.shadowStrength ?? 1) * 0.5;
+  
+  const glowEnabled = (style?.shadowStrength ?? 1) > 0;
   const shadowAlpha = Math.round(Math.max(0, Math.min(255, 150 - (shadowStrength * 20))));
   const blurAlpha = Math.round(Math.max(0, Math.min(255, 120 - (shadowStrength * 20))));
 
@@ -121,7 +122,7 @@ export const RevealEnlarge = (
     }).join(' ');
     
     // Create shadow layer - matches main text but with blur and alpha
-    const shadowText = words.map((w, i) => {
+    const shadowText = glowEnabled ? words.map((w, i) => {
       if (i === index) {
         // Current word shadow - colored with blur
         return `{${moveTag}\\fscx100\\fscy100\\t(0,150,\\fscx120\\fscy120)\\c&H${shadowColors[index % shadowColors.length]}&\\bord${outlineWidth}\\blur${1.5 * shadowStrength}\\3c&H${outlineColor}&\\3a&H${shadowAlpha.toString(16)}&\\4c&H${outlineColor}&\\4a&H${blurAlpha.toString(16)}&\\xshad0\\yshad${-0.5}}${w}`;
@@ -129,10 +130,12 @@ export const RevealEnlarge = (
         // Other words shadow - outline colored with blur
         return `{\\fscx100\\fscy100\\c&H${outlineColor}&\\bord${outlineWidth}\\blur${1.5 * shadowStrength}\\3c&H${outlineColor}&\\3a&H${shadowAlpha.toString(16)}&\\4c&H${outlineColor}&\\4a&H${blurAlpha.toString(16)}&\\xshad0\\yshad${-0.5}}${w}`;
       }
-    }).join(' ');
+    }).join(' ') : '';
     
     // Add shadow layer first (layer 0, behind)
-    events.push(`Dialogue: 0,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${shadowText}`);
+    if (glowEnabled && shadowText) {
+      events.push(`Dialogue: 0,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${shadowText}`);
+    }
     // Add main text layer second (layer 1, in front)
     events.push(`Dialogue: 1,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${coloredText}`);
   });

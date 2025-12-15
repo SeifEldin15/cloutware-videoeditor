@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { readBody, setHeader } from 'h3'
-import { SubtitleProcessor } from '~/server/utils/subtitle-processor'
+import { SubtitleProcessor } from '../utils/subtitle-processor'
 
 const requestSchema = z.object({
   videoUrl: z.string().url('Invalid video URL'),

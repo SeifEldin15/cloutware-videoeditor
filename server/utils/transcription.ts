@@ -1,12 +1,16 @@
 import { z } from 'zod'
 
-if (!process.env.ASSEMBLYAI_API_KEY) {
-  throw new Error('ASSEMBLYAI_API_KEY environment variable is not set');
+function getApiKey(): string {
+  const apiKey = process.env.ASSEMBLYAI_API_KEY;
+  if (!apiKey) {
+    throw new Error('ASSEMBLYAI_API_KEY environment variable is not set. Please configure it to use transcription features.');
+  }
+  return apiKey;
 }
 
-const apiKey = process.env.ASSEMBLYAI_API_KEY;
-
 export async function transcribeVideo(url: string, language: string) {
+  const apiKey = getApiKey();
+  
   try {
     const response = await fetch('https://api.assemblyai.com/v2/transcript', {
       method: 'POST',
