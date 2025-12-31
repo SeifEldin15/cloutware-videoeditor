@@ -1,0 +1,15 @@
+node_modules
+.output
+.nuxt
+.git
+.gitignore
+.env
+dist
+coverage
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+Dockerfile
+docker-compose.yml
+README-DOCKER.md
+AWS_BATCH_GUIDE.md

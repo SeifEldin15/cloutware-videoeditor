@@ -1,0 +1,181 @@
+# name: Deploy to Server
+
+# # Trigger the workflow on push to main branch
+# on:
+#   push:
+#     branches: [ main ]
+#   workflow_dispatch:  # Allow manual trigger
+
+# jobs:
+#   deploy:
+#     runs-on: ubuntu-latest
+    
+#     steps:
+#     - name: Checkout code
+#       uses: actions/checkout@v4
+      
+#     - name: Check SSH Secrets
+#       run: |
+#         if [ -z "${{ secrets.SSH_USERNAME }}" ] || [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+#           echo "❌ SSH secrets are not configured!"
+#           echo ""
+#           echo "Please add these secrets to your GitHub repository:"
+#           echo "1. Go to Settings → Secrets and variables → Actions"
+#           echo "2. Add these secrets:"
+#           echo "   - SSH_USERNAME: Your server username (e.g., ubuntu)"
+#           echo "   - SSH_PRIVATE_KEY: Your SSH private key content"
+#           echo "   - SSH_PORT: 22 (optional)"
+#           echo ""
+#           echo "📚 See SIMPLE-CI-CD-GUIDE.md for detailed instructions"
+#           exit 1
+#         fi
+#         echo "✅ SSH secrets are configured"
+      
+#     - name: Deploy to Server
+#       uses: appleboy/ssh-action@v1.0.3
+#       env:
+#         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#         ASSEMBLYAI_API_KEY: ${{ secrets.ASSEMBLYAI_API_KEY }}
+#       with:
+#         host: 18.144.88.135
+#         username: ${{ secrets.SSH_USERNAME }}
+#         key: ${{ secrets.SSH_PRIVATE_KEY }}
+#         port: ${{ secrets.SSH_PORT || '22' }}
+#         timeout: 120s
+#         command_timeout: 15m
+#         script_stop: true
+#         envs: GITHUB_TOKEN,ASSEMBLYAI_API_KEY
+#         script: |
+#           echo "🚀 Starting simple deployment..."
+          
+#           # Check and clean up disk space first
+#           echo "💾 Checking disk space..."
+#           df -h $HOME
+          
+#           # Clean up npm cache and temporary files
+#           echo "🧹 Cleaning up to free disk space..."
+#           npm cache clean --force || true
+#           rm -rf ~/.npm/_cacache || true
+#           rm -rf /tmp/npm-* || true
+#           sudo apt-get autoremove -y || true
+#           sudo apt-get autoclean || true
+          
+#           # Navigate to home and clean up if exists
+#           cd $HOME
+#           rm -rf cloutware-videoeditor
+          
+#           echo "💾 Disk space after cleanup:"
+#           df -h $HOME
+          
+#           # Clone repository with multiple authentication methods as fallbacks
+#           echo "📥 Cloning repository..."
+          
+#           # Try SSH first (if deploy key is configured)
+#           if git clone git@github.com:SeifEldin15/cloutware-videoeditor.git 2>/dev/null; then
+#             echo "✅ Cloned using SSH"
+#           # Try with GitHub token if available
+#           elif [ ! -z "$GITHUB_TOKEN" ]; then
+#             echo "🔑 Trying with GitHub token..."
+#             git clone https://$GITHUB_TOKEN@github.com/SeifEldin15/cloutware-videoeditor.git
+#             echo "✅ Cloned using GitHub token"
+#           # Try public HTTPS (if repository is public)
+#           elif git clone https://github.com/SeifEldin15/cloutware-videoeditor.git 2>/dev/null; then
+#             echo "✅ Cloned using public HTTPS"
+#           else
+#             echo "❌ Failed to clone repository!"
+#             echo "Please ensure one of the following:"
+#             echo "1. Add a deploy key to the repository and server"
+#             echo "2. Set GITHUB_TOKEN environment variable"
+#             echo "3. Make the repository public"
+#             exit 1
+#           fi
+          
+#           cd cloutware-videoeditor
+          
+#           # Create environment file with secrets
+#           echo "🔐 Setting up environment variables..."
+#           cat > .env << EOF
+# ASSEMBLYAI_API_KEY=$ASSEMBLYAI_API_KEY
+# PORT=3001
+# NODE_ENV=production
+# HOST=0.0.0.0
+# EOF
+          
+#           echo "📄 Environment file created"
+          
+#           # Create restart script for manual use
+#           cat > restart-app.sh << 'SCRIPT_EOF'
+# #!/bin/bash
+# cd /home/ubuntu/cloutware-videoeditor
+# export $(cat .env | grep -v '^#' | xargs)
+# pm2 stop video-processing || true
+# pm2 delete video-processing || true
+# pm2 start npm --name "video-processing" -- start
+# pm2 status
+# SCRIPT_EOF
+#           chmod +x restart-app.sh
+#           echo "✅ Created restart-app.sh for manual restarts"
+          
+#           # Install dependencies with optimizations
+#           echo "📦 Installing dependencies..."
+#           if npm ci --only=production --no-audit --no-fund; then
+#             echo "✅ Dependencies installed with npm ci"
+#           elif npm install --only=production --no-audit --no-fund; then
+#             echo "✅ Dependencies installed with npm install"
+#           else
+#             echo "❌ Failed to install dependencies!"
+#             exit 1
+#           fi
+          
+#           echo "🔨 Building application..."
+#           if npm run build; then
+#             echo "✅ Application built successfully"
+#           else
+#             echo "❌ Build failed!"
+#             exit 1
+#           fi
+          
+#           # Clean up after build to save space
+#           echo "🧹 Cleaning up after build..."
+#           npm cache clean --force || true
+#           rm -rf node_modules/.cache || true
+#           rm -rf .nuxt/analyze || true
+          
+#           # Stop existing PM2 process
+#           echo "🛑 Stopping existing processes..."
+#           pm2 stop video-processing || true
+#           pm2 delete video-processing || true
+          
+#           # Wait a moment for cleanup
+#           sleep 2
+          
+#           # Load environment variables and start application
+#           echo "🚀 Starting application with environment variables..."
+#           export $(cat .env | grep -v '^#' | xargs)
+#           if pm2 start npm --name "video-processing" -- start; then
+#             echo "✅ Application started successfully"
+            
+#             # Wait for startup and check status
+#             sleep 5
+            
+#             # Verify the application is running
+#             if pm2 list | grep -q "video-processing.*online"; then
+#               echo "✅ Application is running and healthy"
+#             else
+#               echo "⚠️ Application started but may not be healthy"
+#               pm2 logs video-processing --lines 10
+#             fi
+#           else
+#             echo "❌ Failed to start application!"
+#             pm2 logs video-processing --lines 20 || true
+#             exit 1
+#           fi
+          
+#           # Show final status
+#           echo "📊 Final PM2 Status:"
+#           pm2 status
+          
+#           echo "✅ Deployment completed successfully!"
+#           echo "🌐 Application should be running on http://18.144.88.135:3001"
+#           echo "📝 Check logs with: pm2 logs video-processing"
+#           echo "🔄 To manually restart: cd ~/cloutware-videoeditor && ./restart-app.sh"

@@ -1,0 +1,93 @@
+{
+  // Disable the default formatter, use eslint instead
+  "editor.formatOnSave": false,
+  "vue.server.hybridMode": false,
+  // Auto fix
+  "editor.codeActionsOnSave": {
+    "source.fixAll.ts": "always",
+    "source.fixAll.eslint": "always",
+    "source.addMissingImports.ts": "explicit",
+    "source.organizeImports": "never",
+    "source.sortImports": "never"
+  },
+  "eslint.useFlatConfig": true,
+  // Silent the stylistic rules in you IDE, but still auto fix them
+  "eslint.rules.customizations": [
+    {
+      "rule": "style/*",
+      "severity": "info",
+      "fixable": true
+    },
+    {
+      "rule": "format/*",
+      "severity": "info",
+      "fixable": true
+    },
+    {
+      "rule": "*-indent",
+      "severity": "info",
+      "fixable": true
+    },
+    {
+      "rule": "*-spacing",
+      "severity": "info",
+      "fixable": true
+    },
+    {
+      "rule": "*-spaces",
+      "severity": "info",
+      "fixable": true
+    },
+    {
+      "rule": "*-order",
+      "severity": "info",
+      "fixable": true
+    },
+    {
+      "rule": "*-dangle",
+      "severity": "info",
+      "fixable": true
+    },
+    {
+      "rule": "*-newline",
+      "severity": "info",
+      "fixable": true
+    },
+    {
+      "rule": "*quotes",
+      "severity": "info",
+      "fixable": true
+    },
+    {
+      "rule": "*semi",
+      "severity": "info",
+      "fixable": true
+    }
+  ], // Enable eslint for all supported languages
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact",
+    "vue",
+    "html",
+    "markdown",
+    "json",
+    "jsonc",
+    "yaml",
+    "toml",
+    "xml",
+    "gql",
+    "graphql",
+    "astro",
+    "svelte",
+    "css",
+    "less",
+    "scss",
+    "pcss",
+    "postcss"
+  ],
+  "sqlfluff.excludeRules": [
+    "AM04"
+  ]
+}

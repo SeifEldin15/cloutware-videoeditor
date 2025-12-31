@@ -1,0 +1,33 @@
+services:
+  video-processing:
+    build: .
+    image: cloutware/video-processing
+    container_name: video-processing
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      # Enable GPU text replacement and processing optimizations
+      - USE_GPU=true
+      - NODE_ENV=production
+
+      # Ensure app uses the Docker system FFmpeg (with NVENC)
+      - FFMPEG_PATH=/usr/bin/ffmpeg
+      - FFPROBE_PATH=/usr/bin/ffprobe
+
+      # Nitro/Nuxt configuration
+      - NITRO_PORT=3000
+
+      # Pass through any AWS credentials if needed (or prefer IAM roles on EC2)
+      # - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      # - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      # - AWS_REGION=${AWS_REGION}
+
+    # CRITICAL: Enable GPU access for the container
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

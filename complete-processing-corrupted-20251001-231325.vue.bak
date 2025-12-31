@@ -1,0 +1,1051 @@
+<template>
+  <div class="min-h-screen bg-gray-900 text-white">
+    <!-- Header -->
+    <header class="bg-gray-800 border-b border-gray-700 p-6">
+      <div class="max-w-7xl mx-auto">
+        <h1 class="text-3xl font-bold text-blue-400">Complete Processing</h1>
+        <p class="text-gray-300 mt-2">Upload, transcribe, add subtitles, and process videos all in one place</p>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto p-6">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        
+        <!-- Left Panel: Input & Configuration -->
+        <div class="space-y-6">
+          
+          <!-- Video Input Section -->
+          <div class="bg-gray-800 rounded-lg p-6">
+            <h2 class="text-xl font-semibold mb-4 text-blue-300">1. Video Input</h2>
+            
+            <!-- Video URL Input -->
+            <div class="mb-4">
+              <label class="block text-sm font-medium mb-2">Video URL</label>
+              <input 
+                v-model="videoUrl" 
+                type="url" 
+                placeholder="https://example.com/video.mp4"
+                class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            <!-- File Upload -->
+            <div class="mb-4">
+              <label class="block text-sm font-medium mb-2">Or Upload Video File</label>
+              <div class="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center hover:border-blue-500 transition-colors">
+                <input 
+                  type="file" 
+                  accept="video/*" 
+                  @change="handleFileUpload"
+                  class="hidden" 
+                  ref="fileInput"
+                />
+                <div @click="$refs.fileInput.click()" class="cursor-pointer">
+                  <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                  <p class="mt-2 text-sm text-gray-400">
+                    <span class="font-medium text-blue-400">Click to upload</span> or drag and drop
+                  </p>
+                  <p class="text-xs text-gray-500">MP4, MOV, AVI up to 500MB</p>
+                </div>
+              </div>
+              
+              <div v-if="uploadedFile" class="mt-2 text-sm text-green-400">
+                ✓ {{ uploadedFile.name }} ({{ Math.round(uploadedFile.size / 1024 / 1024) }}MB)
+              </div>
+            </div>
+          </div>
+
+          <!-- Transcription Settings -->
+          <div class="bg-gray-800 rounded-lg p-6">
+            <h2 class="text-xl font-semibold mb-4 text-blue-300">2. Transcription Settings</h2>
+            
+            <!-- Source Selection -->
+            <div class="mb-4">
+              <label class="block text-sm font-medium mb-2">Transcription Source</label>
+              <div class="space-y-2">
+                <label class="flex items-center">
+                  <input v-model="transcriptionSettings.source" value="video-audio" type="radio" class="text-blue-600 bg-gray-700 border-gray-600 focus:ring-blue-500">
+                  <span class="ml-2 text-sm">Extract from video audio (AI transcription)</span>
+                </label>
+                <label class="flex items-center">
+                  <input v-model="transcriptionSettings.source" value="manual" type="radio" class="text-blue-600 bg-gray-700 border-gray-600 focus:ring-blue-500">
+                  <span class="ml-2 text-sm">Manual text input</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Manual Text Input (when manual is selected) -->
+            <div v-if="transcriptionSettings.source === 'manual'" class="mb-4">
+              <label class="block text-sm font-medium mb-2">Manual Transcription Text</label>
+              <textarea 
+                v-model="transcriptionSettings.manualText"
+                class="w-full h-32 px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"
+                placeholder="Enter your text content here. This will be converted to subtitle format automatically."
+              ></textarea>
+            </div>
+
+            <!-- AI Transcription Settings (when video-audio is selected) -->
+            <div v-if="transcriptionSettings.source === 'video-audio'" class="space-y-4">
+              <!-- Language Selection -->
+              <div>
+                <label class="block text-sm font-medium mb-2">Language</label>
+                <select v-model="transcriptionSettings.language" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500">
+                  <option value="en">English</option>
+                  <option value="es">Spanish</option>
+                  <option value="fr">French</option>
+                  <option value="de">German</option>
+                  <option value="it">Italian</option>
+                  <option value="pt">Portuguese</option>
+                  <option value="zh">Chinese</option>
+                  <option value="ja">Japanese</option>
+                  <option value="ko">Korean</option>
+                  <option value="ar">Arabic</option>
+                </select>
+              </div>
+
+              <!-- Advanced Options -->
+              <div class="space-y-3">
+                <label class="flex items-center">
+                  <input v-model="transcriptionSettings.speakerLabels" type="checkbox" class="rounded bg-gray-700 border-gray-600 text-blue-600 focus:ring-blue-500">
+                  <span class="ml-2 text-sm">Speaker labels</span>
+                </label>
+                <label class="flex items-center">
+                  <input v-model="transcriptionSettings.punctuate" type="checkbox" class="rounded bg-gray-700 border-gray-600 text-blue-600 focus:ring-blue-500">
+                  <span class="ml-2 text-sm">Auto punctuation</span>
+                </label>
+                <label class="flex items-center">
+                  <input v-model="transcriptionSettings.formatText" type="checkbox" class="rounded bg-gray-700 border-gray-600 text-blue-600 focus:ring-blue-500">
+                  <span class="ml-2 text-sm">Format text</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Subtitle Settings -->
+          <div class="bg-gray-800 rounded-lg p-6">
+            <h2 class="text-xl font-semibold mb-4 text-blue-300">3. Subtitle Settings</h2>
+            
+            <!-- Style Selection -->
+            <div class="mb-4">
+              <label class="block text-sm font-medium mb-2">Animation Style Template</label>
+              <select v-model="subtitleSettings.animationStyle" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500">
+                <optgroup label="🔥 Viral Templates">
+                  <option value="girlboss">💅 Girlboss - Bold pink/purple animations</option>
+                  <option value="hormozi">🚀 Hormozi - Business motivational style</option>
+                  <option value="tiktokstyle">📱 TikTok Style - Social media trending</option>
+                </optgroup>
+                <optgroup label="⚡ Impact Templates">
+                  <option value="whiteimpact">⚪ White Impact - Clean white highlights</option>
+                  <option value="impactfull">💥 Impact Full - Maximum visual impact</option>
+                  <option value="thinToBold">📈 Thin to Bold - Progressive emphasis</option>
+                </optgroup>
+                <optgroup label="🎨 Creative Templates">
+                  <option value="wavyColors">🌊 Wavy Colors - Flowing rainbow effects</option>
+                  <option value="revealEnlarge">🔍 Reveal Enlarge - Zoom-in discovery</option>
+                  <option value="shrinkingPairs">📐 Shrinking Pairs - Minimalist pairs</option>
+                </optgroup>
+              </select>
+              
+              <!-- Template Preview/Description -->
+              <div class="mt-2 p-3 bg-gradient-to-r from-gray-700 to-gray-600 rounded-lg border border-gray-500">
+                <div class="flex items-center justify-between mb-2">
+                  <div class="font-medium text-blue-300">{{ getTemplateDescription(subtitleSettings.animationStyle) }}</div>
+                  <div class="text-xs bg-blue-600 px-2 py-1 rounded-full">{{ subtitleSettings.animationStyle.toUpperCase() }}</div>
+                </div>
+                <div class="text-gray-300 text-xs mb-2">{{ getTemplateFeatures(subtitleSettings.animationStyle) }}</div>
+                <div class="flex items-center justify-between">
+                  <div class="text-xs text-gray-400">
+                    🎨 Primary: <span class="inline-block w-3 h-3 rounded-full ml-1" :style="{ backgroundColor: subtitleSettings.primaryColor }"></span>
+                    Secondary: <span class="inline-block w-3 h-3 rounded-full ml-1" :style="{ backgroundColor: subtitleSettings.secondaryColor }"></span>
+                  </div>
+                  <div class="text-xs text-gray-400">{{ subtitleSettings.fontSize }}px</div>
+                </div>
+              </div>
+            </div> <div class="max-w-7xl mx-auto">
+        <h1 class="text-3xl font-bold text-blue-400">Complete Processing</h1>
+        <p class="text-gray-300 mt-2">Upload, transcribe, add subtitles, and process videos all in one place</p>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto p-6">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        
+        <!-- Left Panel: Input & Configuration -->
+        <div class="space-y-6">
+          
+          <!-- Video Input Section -->
+          <div class="bg-gray-800 rounded-lg p-6">
+            <h2 class="text-xl font-semibold mb-4 text-blue-300">1. Video Input</h2>
+            
+            <!-- Video URL Input -->
+            <div class="mb-4">
+              <label class="block text-sm font-medium mb-2">Video URL</label>
+              <input 
+                v-model="videoUrl" 
+                type="url" 
+                placeholder="https://example.com/video.mp4"
+                class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            <!-- File Upload -->
+            <div class="mb-4">
+              <label class="block text-sm font-medium mb-2">Or Upload Video File</label>
+              <div class="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center hover:border-blue-500 transition-colors">
+                <input 
+                  type="file" 
+                  accept="video/*" 
+                  @change="handleFileUpload"
+                  class="hidden" 
+                  ref="fileInput"
+                />
+                <div @click="$refs.fileInput.click()" class="cursor-pointer">
+                  <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                  <p class="mt-2 text-sm text-gray-400">
+                    <span class="font-medium text-blue-400">Click to upload</span> or drag and drop
+                  </p>
+                  <p class="text-xs text-gray-500">MP4, WebM, AVI up to 500MB</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Subtitle Settings -->
+          <div class="bg-gray-800 rounded-lg p-6">
+            <h2 class="text-xl font-semibold mb-4 text-blue-300">3. Subtitle Settings</h2>
+                <option value="thinToBold">Thin to Bold</option>
+                <option value="wavyColors">Wavy Colors</option>
+                <option value="revealEnlarge">Reveal Enlarge</option>
+                <option value="shrinkingPairs">Shrinking Pairs</option>
+              </select>
+            </div>
+
+            <!-- Font Selection -->
+            <div class="mb-4">
+              <label class="block text-sm font-medium mb-2">Font Family</label>
+              <select v-model="subtitleSettings.fontFamily" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500">
+                <option value="Inter-Bold.ttf">Inter Bold</option>
+                <option value="Roboto-Bold.ttf">Roboto Bold</option>
+                <option value="Montserrat-Bold.ttf">Montserrat Bold</option>
+                <option value="OpenSans-Bold.ttf">Open Sans Bold</option>
+                <option value="Poppins-Bold.ttf">Poppins Bold</option>
+                <option value="SourceSansPro-Bold.ttf">Source Sans Pro Bold</option>
+              </select>
+            </div>
+
+            <!-- Colors -->
+            <div class="mb-4">
+              <div class="flex items-center justify-between mb-2">
+                <label class="block text-sm font-medium">Template Colors</label>
+                <button @click="applyTemplateColors" class="text-xs bg-purple-600 hover:bg-purple-700 px-2 py-1 rounded">
+                  🎨 Use Template Colors
+                </button>
+              </div>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-xs font-medium mb-1 text-gray-300">Primary Color</label>
+                  <input v-model="subtitleSettings.primaryColor" type="color" class="w-full h-10 bg-gray-700 border border-gray-600 rounded-md">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium mb-1 text-gray-300">Secondary Color</label>
+                  <input v-model="subtitleSettings.secondaryColor" type="color" class="w-full h-10 bg-gray-700 border border-gray-600 rounded-md">
+                </div>
+              </div>
+              <div class="mt-2 text-xs text-gray-400">
+                💡 Each template works best with specific color combinations. Click "Use Template Colors" for optimal results.
+              </div>
+            </div>
+
+            <!-- Font Size -->
+            <div class="mb-4">
+              <label class="block text-sm font-medium mb-2">Font Size: {{ subtitleSettings.fontSize }}px</label>
+              <input v-model="subtitleSettings.fontSize" type="range" min="20" max="100" class="w-full">
+            </div>
+          </div>
+
+          <!-- Processing Options -->
+          <div class="bg-gray-800 rounded-lg p-6">
+            <h2 class="text-xl font-semibold mb-4 text-blue-300">4. Processing Options</h2>
+            
+            <div class="space-y-3">
+              <label class="flex items-center">
+                <input v-model="processingOptions.generateSubtitles" type="checkbox" class="rounded bg-gray-700 border-gray-600 text-blue-600 focus:ring-blue-500">
+                <span class="ml-2 text-sm">Generate subtitle files</span>
+              </label>
+              <label class="flex items-center">
+                <input v-model="processingOptions.embedSubtitles" type="checkbox" class="rounded bg-gray-700 border-gray-600 text-blue-600 focus:ring-blue-500">
+                <span class="ml-2 text-sm">Embed subtitles in video</span>
+              </label>
+              <label class="flex items-center">
+                <input v-model="processingOptions.optimizeForWeb" type="checkbox" class="rounded bg-gray-700 border-gray-600 text-blue-600 focus:ring-blue-500">
+                <span class="ml-2 text-sm">Optimize for web playback</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="bg-gray-800 rounded-lg p-6">
+            <div class="flex space-x-4">
+              <button 
+                @click="startTranscription"
+                :disabled="!canStartTranscription || isProcessing"
+                class="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed px-4 py-3 rounded-md font-medium transition-colors"
+              >
+                <span v-if="isTranscribing">{{ transcriptionSettings.source === 'video-audio' ? 'Extracting & Transcribing...' : 'Processing...' }}</span>
+                <span v-else>{{ transcriptionSettings.source === 'video-audio' ? 'Extract Audio & Transcribe' : 'Use Manual Transcription' }}</span>
+              </button>
+              
+              <button 
+                @click="processVideo"
+                :disabled="!canProcessVideo || isProcessing"
+                class="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed px-4 py-3 rounded-md font-medium transition-colors"
+              >
+                {{ isProcessingVideo ? 'Processing...' : !results.transcription ? 'Run Transcription First' : 'Process Video' }}
+              </button>
+            </div>
+            
+            <!-- Debug Info -->
+            <div class="mt-4 p-3 bg-gray-700 rounded text-xs">
+              <div><strong>Debug:</strong></div>
+              <div>Has transcription: {{ !!results.transcription }}</div>
+              <div>Transcription length: {{ results.transcription?.length || 0 }}</div>
+              <div>Is transcribing: {{ isTranscribing }}</div>
+              <div>Processing steps completed: {{ processingSteps.filter(s => s.status === 'completed').length }}/{{ processingSteps.length }}</div>
+              <button @click="testTranscription" class="mt-2 px-2 py-1 bg-purple-600 rounded text-xs">Test Set Transcription</button>
+              <button @click="testAPI" class="mt-2 ml-2 px-2 py-1 bg-yellow-600 rounded text-xs">Test API</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Panel: Preview & Results -->
+        <div class="space-y-6">
+          
+          <!-- Video Preview -->
+          <div class="bg-gray-800 rounded-lg p-6">
+            <h2 class="text-xl font-semibold mb-4 text-blue-300">Preview</h2>
+            
+            <div v-if="(videoUrl && videoUrl.length > 0) || uploadedFile" class="aspect-video bg-black rounded-lg overflow-hidden">
+              <video 
+                v-if="previewVideoUrl"
+                :src="previewVideoUrl" 
+                controls 
+                class="w-full h-full object-contain"
+              >
+                Your browser does not support the video tag.
+              </video>
+              <div v-else class="flex items-center justify-center h-full text-gray-400">
+                <svg class="w-16 h-16" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M2 6a2 2 0 012-2h6l2 2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                </svg>
+              </div>
+            </div>
+            
+            <div v-else class="aspect-video bg-gray-700 rounded-lg flex items-center justify-center">
+              <div class="text-center text-gray-400">
+                <svg class="mx-auto h-16 w-16 mb-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M2 6a2 2 0 012-2h6l2 2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                </svg>
+                <p>Video preview will appear here</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Progress Indicator -->
+          <div v-if="isProcessing" class="bg-gray-800 rounded-lg p-6">
+            <h3 class="text-lg font-semibold mb-4">Processing Progress</h3>
+            
+            <div class="space-y-4">
+              <div v-for="step in processingSteps" :key="step.id" class="flex items-center space-x-3">
+                <div class="flex-shrink-0">
+                  <div v-if="step.status === 'completed'" class="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                    <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    </svg>
+                  </div>
+                  <div v-else-if="step.status === 'processing'" class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                  <div v-else class="w-6 h-6 bg-gray-600 rounded-full"></div>
+                </div>
+                <div class="flex-1">
+                  <p class="text-sm font-medium" :class="step.status === 'completed' ? 'text-green-400' : step.status === 'processing' ? 'text-blue-400' : 'text-gray-400'">
+                    {{ step.name }}
+                  </p>
+                  <p v-if="step.description" class="text-xs text-gray-500">{{ step.description }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Results -->
+          <div v-if="results.transcription || results.processedVideo" class="bg-gray-800 rounded-lg p-6">
+            <h3 class="text-lg font-semibold mb-4">Results</h3>
+            
+            <!-- Transcription Result -->
+            <div v-if="results.transcription" class="mb-6">
+              <div class="flex items-center justify-between mb-2">
+                <h4 class="text-md font-medium text-green-400">Generated SRT Subtitles</h4>
+                <span class="text-xs text-gray-400">✏️ Editable - Make changes if needed</span>
+              </div>
+              
+              <!-- Editable SRT Content -->
+              <div class="mb-3">
+                <textarea 
+                  v-model="results.transcription"
+                  class="w-full h-40 px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-sm text-gray-100 font-mono resize-y focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="SRT content will appear here..."
+                  spellcheck="false"
+                ></textarea>
+                <p class="text-xs text-gray-400 mt-1">
+                  💡 You can edit the subtitles above. Format: SRT (Sequence number, timestamps, text)
+                </p>
+              </div>
+              
+              <div class="flex flex-wrap gap-2">
+                <button @click="downloadTranscription" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm">
+                  📥 Download SRT
+                </button>
+                <button @click="copyTranscription" class="px-3 py-1 bg-gray-600 hover:bg-gray-700 rounded text-sm">
+                  📋 Copy to Clipboard
+                </button>
+                <button @click="validateSRT" class="px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded text-sm">
+                  ✅ Validate SRT
+                </button>
+                <button @click="resetTranscription" class="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm">
+                  🔄 Re-generate
+                </button>
+              </div>
+            </div>
+
+            <!-- Processed Video Result -->
+            <div v-if="results.processedVideo" class="mb-6">
+              <h4 class="text-md font-medium mb-2 text-green-400">Video Processing Complete</h4>
+              <div class="aspect-video bg-black rounded-lg overflow-hidden mb-2">
+                <video :src="results.processedVideo" controls class="w-full h-full object-contain">
+                  Your browser does not support the video tag.
+                </video>
+              </div>
+              <div class="flex space-x-2">
+                <button @click="downloadProcessedVideo" class="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm">
+                  Download Video
+                </button>
+                <button v-if="results.subtitleFile" @click="downloadSubtitles" class="px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded text-sm">
+                  Download Subtitles
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Error Display -->
+          <div v-if="error" class="bg-red-900 border border-red-700 rounded-lg p-4">
+            <h4 class="text-red-400 font-medium mb-2">Error</h4>
+            <p class="text-red-300 text-sm">{{ error }}</p>
+            <button @click="clearError" class="mt-2 px-3 py-1 bg-red-700 hover:bg-red-800 rounded text-sm">
+              Dismiss
+            </button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, watch, nextTick, onMounted } from 'vue'
+
+// Set page title
+useHead({
+  title: 'Complete Processing - Video Processing Suite'
+})
+
+// Reactive data - declared first to avoid initialization issues
+const videoUrl = ref('')
+const uploadedFile = ref(null)
+const previewVideoUrl = ref('')
+
+// Debug initialization
+console.log('🚀 Component initializing, videoUrl ref:', videoUrl)
+
+const transcriptionSettings = ref({
+  source: 'video-audio',
+  language: 'en',
+  outputFormat: 'srt',
+  speakerLabels: false,
+  punctuate: true,
+  formatText: true,
+  manualText: ''
+})
+
+const subtitleSettings = ref({
+  animationStyle: 'girlboss',
+  fontFamily: 'Inter-Bold.ttf',
+  primaryColor: '#3b82f6',
+  secondaryColor: '#10b981',
+  fontSize: 48
+})
+
+const processingOptions = ref({
+  generateSubtitles: true,
+  embedSubtitles: true,
+  optimizeForWeb: true
+})
+
+const isTranscribing = ref(false)
+const isProcessingVideo = ref(false)
+const error = ref('')
+
+const results = ref({
+  transcription: '',
+  processedVideo: '',
+  subtitleFile: '',
+  videoBlob: null
+})
+
+const processingSteps = ref([
+  { id: 1, name: 'Preparing video', description: 'Uploading and validating video source', status: 'pending' },
+  { id: 2, name: 'Audio extraction', description: 'Extracting audio track from video', status: 'pending' },
+  { id: 3, name: 'AI transcription', description: 'Converting speech to text using AI', status: 'pending' },
+  { id: 4, name: 'Subtitle styling', description: 'Applying animations and formatting', status: 'pending' },
+  { id: 5, name: 'Video processing', description: 'Embedding subtitles and finalizing', status: 'pending' }
+])
+
+// Computed properties - defined after all reactive variables
+const isProcessing = computed(() => {
+  return isTranscribing.value || isProcessingVideo.value
+})
+
+const canStartTranscription = computed(() => {
+  if (transcriptionSettings.value.source === 'manual') {
+    return transcriptionSettings.value.manualText.trim().length > 0 && !isProcessing.value
+  }
+  return (videoUrl?.value || uploadedFile.value) && !isProcessing.value
+})
+
+const canProcessVideo = computed(() => {
+  const hasVideo = videoUrl?.value || uploadedFile.value
+  const hasTranscription = results.value.transcription && results.value.transcription.trim().length > 0
+  return hasVideo && hasTranscription && !isProcessing.value
+})
+
+// Methods
+const handleFileUpload = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    uploadedFile.value = file
+    previewVideoUrl.value = URL.createObjectURL(file)
+    if (videoUrl && videoUrl.value !== undefined) {
+      videoUrl.value = '' // Clear URL if file is uploaded
+    }
+  }
+}
+
+const updateProcessingStep = (stepId, status, description = null) => {
+  const step = processingSteps.value.find(s => s.id === stepId)
+  if (step) {
+    step.status = status
+    if (description) step.description = description
+  }
+}
+
+const resetProcessingSteps = () => {
+  processingSteps.value.forEach(step => {
+    step.status = 'pending'
+  })
+}
+
+const startTranscription = async () => {
+  if (!canStartTranscription.value) return
+
+  console.log('✅ Starting transcription process...')
+  isTranscribing.value = true
+  error.value = ''
+  resetProcessingSteps()
+
+  try {
+    updateProcessingStep(1, 'processing')
+    console.log('🎬 Video URL:', videoUrl?.value || 'Not set')
+    
+    // Handle manual transcription
+    if (transcriptionSettings.value.source === 'manual') {
+      updateProcessingStep(1, 'completed', 'Manual transcription selected')
+      updateProcessingStep(2, 'completed', 'Skipping audio extraction')
+      updateProcessingStep(3, 'processing', 'Processing manual transcription...')
+      
+      // Use manual transcription directly
+      results.value.transcription = transcriptionSettings.value.manualText
+      updateProcessingStep(3, 'completed')
+      updateProcessingStep(4, 'completed', 'Ready for styling')
+      updateProcessingStep(5, 'completed', 'Transcription complete')
+      return
+    }
+
+    // Handle video audio transcription
+    let processVideoUrl = videoUrl?.value || ''
+    if (!processVideoUrl && !uploadedFile.value) {
+      throw new Error('No video URL or file provided')
+    }
+    updateProcessingStep(1, 'completed', 'Video source validated')
+    
+    if (uploadedFile.value) {
+      // For file uploads, we need to process the audio extraction
+      updateProcessingStep(2, 'processing', 'Extracting audio from uploaded video...')
+      
+      // Call audio extraction API
+      const audioResponse = await $fetch('/api/extract-audio', {
+        method: 'POST',
+        body: {
+          videoFile: uploadedFile.value
+        }
+      })
+      
+      processVideoUrl = audioResponse.audioUrl
+      updateProcessingStep(2, 'completed', 'Audio track extracted successfully')
+    } else {
+      updateProcessingStep(2, 'processing', 'Preparing video URL for audio extraction...')
+      updateProcessingStep(2, 'completed', 'Video URL ready for transcription')
+    }
+
+    updateProcessingStep(3, 'processing', 'Transcribing audio with AssemblyAI...')
+
+    // First test basic API connectivity
+    console.log('🔍 Testing basic API connectivity...')
+    try {
+      const testResponse = await $fetch('/api/test', { method: 'GET' })
+      console.log('✅ Basic API connectivity confirmed:', testResponse)
+    } catch (testError) {
+      console.error('❌ Basic API test failed:', testError)
+      error.value = 'API connectivity issue: ' + testError.message
+      return
+    }
+
+    console.log('🤖 Making transcription API call with:', {
+      url: processVideoUrl,
+      language: transcriptionSettings.value.language,
+      outputFormat: transcriptionSettings.value.outputFormat
+    })
+
+    // Call transcription API with explicit error handling
+    const response = await $fetch('/api/transcribe-video', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: {
+        url: processVideoUrl,
+        language: transcriptionSettings.value.language,
+        outputFormat: transcriptionSettings.value.outputFormat,
+        speakerLabels: transcriptionSettings.value.speakerLabels,
+        punctuate: transcriptionSettings.value.punctuate,
+        formatText: transcriptionSettings.value.formatText
+      },
+      timeout: 300000 // 5 minutes timeout for transcription
+    }).catch((fetchError) => {
+      console.error('🚨 API Fetch Error:', fetchError)
+      throw new Error(`API request failed: ${fetchError.message || fetchError}`)
+    })
+
+    console.log('✅ Transcription API response:', response)
+
+    updateProcessingStep(3, 'completed', 'Speech-to-text conversion complete')
+    updateProcessingStep(4, 'completed', 'Ready for subtitle styling')
+    updateProcessingStep(5, 'completed', 'Transcription process finished')
+
+    if (response.transcription) {
+      console.log('📝 Setting transcription in results:', {
+        before: results.value.transcription?.length || 0,
+        after: response.transcription.length
+      })
+      results.value.transcription = response.transcription
+      console.log('📝 Transcription saved successfully')
+      console.log('🎯 Current results state:', {
+        hasTranscription: !!results.value.transcription,
+        transcriptionLength: results.value.transcription?.length || 0,
+        transcriptionPreview: results.value.transcription?.substring(0, 100) || 'EMPTY'
+      })
+    } else {
+      console.warn('⚠️ No transcription in response:', response)
+      error.value = 'No transcription received from API'
+    }
+
+  } catch (err) {
+    console.error('❌ Transcription error:', err)
+    error.value = err.message || err.data?.message || 'Transcription failed'
+    resetProcessingSteps()
+    
+    // Show more detailed error info
+    if (err.data) {
+      console.error('Error details:', err.data)
+    }
+  } finally {
+    isTranscribing.value = false
+  }
+}
+
+const processVideo = async () => {
+  if (!canProcessVideo.value) return
+
+  isProcessingVideo.value = true
+  error.value = ''
+  resetProcessingSteps()
+
+  try {
+    updateProcessingStep(1, 'processing')
+    
+    // Prepare the video URL
+    let processVideoUrl = videoUrl?.value || ''
+    if (uploadedFile.value) {
+      throw new Error('File upload not yet implemented. Please use a video URL.')
+    }
+    
+    if (!processVideoUrl) {
+      throw new Error('No video URL provided')
+    }
+
+    updateProcessingStep(1, 'completed')
+
+    // If no transcription exists, do transcription first
+    if (!results.value.transcription) {
+      updateProcessingStep(2, 'processing')
+      
+      const transcriptionResponse = await $fetch('/api/transcribe-video', {
+        method: 'POST',
+        body: {
+          url: processVideoUrl,
+          outputFormat: 'json',
+          language: transcriptionSettings.value.language
+        }
+      })
+
+      updateProcessingStep(2, 'completed')
+      results.value.transcription = transcriptionResponse.transcription
+    } else {
+      updateProcessingStep(2, 'completed', 'Using existing transcription')
+    }
+
+    updateProcessingStep(3, 'processing', 'Creating styled subtitles...')
+
+    // Debug logging
+    console.log('Processing video with transcription:', {
+      transcriptionLength: results.value.transcription?.length || 0,
+      transcriptionPreview: results.value.transcription?.substring(0, 100) || 'No transcription',
+      template: subtitleSettings.value.animationStyle
+    })
+
+    // Call video processing API and get binary response
+    console.log('🎬 Making video processing request...')
+    const response = await fetch('/api/process-video', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        videoUrl: processVideoUrl,
+        template: subtitleSettings.value.animationStyle,
+        transcription: results.value.transcription,
+        fontFamily: subtitleSettings.value.fontFamily,
+        primaryColor: subtitleSettings.value.primaryColor,
+        secondaryColor: subtitleSettings.value.secondaryColor,
+        fontSize: subtitleSettings.value.fontSize,
+        embedSubtitles: processingOptions.value.embedSubtitles,
+        generateSubtitles: processingOptions.value.generateSubtitles
+      })
+    })
+
+    console.log('📡 Video processing response status:', response.status)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`Video processing failed: ${errorText}`)
+    }
+
+    updateProcessingStep(3, 'completed')
+    updateProcessingStep(4, 'processing', 'Downloading processed video...')
+
+    // Get the video blob
+    const videoBlob = await response.blob()
+    console.log('📹 Video blob received:', {
+      size: videoBlob.size,
+      type: videoBlob.type
+    })
+
+    // Create object URL for the video
+    const processedVideoUrl = URL.createObjectURL(videoBlob)
+    results.value.processedVideo = processedVideoUrl
+    results.value.videoBlob = videoBlob // Store blob for download
+
+    updateProcessingStep(4, 'completed')
+    updateProcessingStep(5, 'completed', 'Ready for download')
+
+  } catch (err) {
+    error.value = err.message || 'Video processing failed'
+    resetProcessingSteps()
+  } finally {
+    isProcessingVideo.value = false
+  }
+}
+
+const downloadTranscription = () => {
+  if (!results.value.transcription) return
+
+  const blob = new Blob([results.value.transcription], { type: 'text/plain' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `transcription.${transcriptionSettings.value.outputFormat}`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+const copyTranscription = async () => {
+  if (!results.value.transcription) return
+
+  try {
+    await navigator.clipboard.writeText(results.value.transcription)
+    // You could show a toast notification here
+  } catch (err) {
+    console.error('Failed to copy transcription:', err)
+  }
+}
+
+const downloadProcessedVideo = () => {
+  if (!results.value.processedVideo || !results.value.videoBlob) return
+
+  console.log('⬇️ Downloading processed video:', {
+    blobSize: results.value.videoBlob.size,
+    blobType: results.value.videoBlob.type
+  })
+
+  const a = document.createElement('a')
+  a.href = results.value.processedVideo // This is the object URL
+  a.download = 'processed-video.mp4'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
+
+const downloadSubtitles = () => {
+  if (!results.value.subtitleFile) return
+
+  const a = document.createElement('a')
+  a.href = results.value.subtitleFile
+  a.download = 'subtitles.srt'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
+
+const clearError = () => {
+  error.value = ''
+}
+
+const validateSRT = () => {
+  if (!results.value.transcription) {
+    alert('No SRT content to validate!')
+    return
+  }
+
+  // Basic SRT validation
+  const lines = results.value.transcription.trim().split('\n')
+  let isValid = true
+  let errorMessage = ''
+
+  try {
+    let currentBlock = 1
+    let i = 0
+    
+    while (i < lines.length) {
+      // Skip empty lines
+      if (!lines[i].trim()) {
+        i++
+        continue
+      }
+      
+      // Check sequence number
+      if (parseInt(lines[i]) !== currentBlock) {
+        isValid = false
+        errorMessage = `Invalid sequence number at line ${i + 1}. Expected ${currentBlock}, got ${lines[i]}`
+        break
+      }
+      
+      i++
+      if (i >= lines.length) break
+      
+      // Check timestamp format
+      const timeRegex = /^\d{2}:\d{2}:\d{2},\d{3} --> \d{2}:\d{2}:\d{2},\d{3}$/
+      if (!timeRegex.test(lines[i])) {
+        isValid = false
+        errorMessage = `Invalid timestamp format at line ${i + 1}: ${lines[i]}`
+        break
+      }
+      
+      i++
+      currentBlock++
+      
+      // Skip text lines until next empty line or end
+      while (i < lines.length && lines[i].trim()) {
+        i++
+      }
+    }
+    
+    if (isValid) {
+      alert(`✅ SRT is valid! Found ${currentBlock - 1} subtitle blocks.`)
+    } else {
+      alert(`❌ SRT validation failed: ${errorMessage}`)
+    }
+    
+  } catch (err) {
+    alert(`❌ SRT validation error: ${err.message}`)
+  }
+}
+
+const resetTranscription = async () => {
+  if (confirm('Are you sure you want to re-generate the transcription? This will overwrite your current edits.')) {
+    results.value.transcription = ''
+    await startTranscription()
+  }
+}
+
+const testTranscription = () => {
+  console.log('🧪 Testing transcription display...')
+  const testSRT = `1
+00:00:00,000 --> 00:00:03,000
+This is a test subtitle
+
+2
+00:00:03,000 --> 00:00:06,000
+To see if the display works
+
+3
+00:00:06,000 --> 00:00:09,000
+The UI should update now!`
+  
+  results.value.transcription = testSRT
+  console.log('🧪 Test transcription set:', testSRT.length, 'characters')
+}
+
+const testAPI = async () => {
+  console.log('🧪 Testing API connectivity...')
+  
+  try {
+    // Test GET request
+    const getResponse = await $fetch('/api/test', {
+      method: 'GET'
+    })
+    console.log('✅ GET test successful:', getResponse)
+    
+    // Test POST request  
+    const postResponse = await $fetch('/api/test', {
+      method: 'POST',
+      body: {
+        test: 'data',
+        videoUrl: videoUrl?.value || '',
+        timestamp: new Date().toISOString()
+      }
+    })
+    console.log('✅ POST test successful:', postResponse)
+    
+    alert('API tests passed! Check console for details.')
+    
+  } catch (error) {
+    console.error('❌ API test failed:', error)
+    alert(`API test failed: ${error.message}`)
+  }
+}
+
+// Template information functions
+const getTemplateDescription = (template) => {
+  const descriptions = {
+    'girlboss': 'Bold pink/purple animations with dramatic emphasis and confidence vibes',
+    'hormozi': 'Business motivational style with professional color schemes and impact',
+    'tiktokstyle': 'Social media trending format with engaging visual effects',
+    'whiteimpact': 'Clean white highlights with sharp contrast and professional look',
+    'impactfull': 'Maximum visual impact with bold animations and attention-grabbing effects',
+    'thinToBold': 'Progressive text emphasis that grows from thin to bold for key moments',
+    'wavyColors': 'Flowing rainbow effects with smooth color transitions and wave motions',
+    'revealEnlarge': 'Zoom-in discovery effects that reveal text with enlarging animations',
+    'shrinkingPairs': 'Minimalist paired animations with clean shrinking transitions'
+  }
+  return descriptions[template] || 'Custom animation template'
+}
+
+const getTemplateFeatures = (template) => {
+  const features = {
+    'girlboss': '✨ Pink/purple gradients • Bold typography • Confidence themes',
+    'hormozi': '🎯 Business colors • Motivational emphasis • Professional appeal',
+    'tiktokstyle': '📱 Trending effects • Social engagement • Mobile-optimized',
+    'whiteimpact': '⚪ White highlights • Clean design • High contrast',
+    'impactfull': '💥 Maximum impact • Bold effects • Attention-grabbing',
+    'thinToBold': '📈 Progressive weight • Dynamic emphasis • Smooth transitions',
+    'wavyColors': '🌈 Rainbow effects • Flowing motion • Color waves',
+    'revealEnlarge': '🔍 Zoom reveals • Discovery effects • Enlarging text',
+    'shrinkingPairs': '📐 Paired elements • Minimalist design • Shrinking effects'
+  }
+  return features[template] || 'Custom features and animations'
+}
+
+// Template color schemes
+const getTemplateColors = (template) => {
+  const colorSchemes = {
+    'girlboss': { primary: '#ff1493', secondary: '#ff69b4' }, // Deep pink, hot pink
+    'hormozi': { primary: '#1e40af', secondary: '#f59e0b' }, // Blue, amber  
+    'tiktokstyle': { primary: '#fe2c55', secondary: '#25f4ee' }, // TikTok red, cyan
+    'whiteimpact': { primary: '#ffffff', secondary: '#e5e7eb' }, // White, light gray
+    'impactfull': { primary: '#dc2626', secondary: '#fbbf24' }, // Red, yellow
+    'thinToBold': { primary: '#3b82f6', secondary: '#8b5cf6' }, // Blue, purple
+    'wavyColors': { primary: '#06b6d4', secondary: '#f59e0b' }, // Cyan, amber
+    'revealEnlarge': { primary: '#10b981', secondary: '#3b82f6' }, // Green, blue
+    'shrinkingPairs': { primary: '#6b7280', secondary: '#9ca3af' } // Gray, light gray
+  }
+  return colorSchemes[template] || { primary: '#3b82f6', secondary: '#10b981' }
+}
+
+// Apply template-specific colors
+const applyTemplateColors = () => {
+  const colors = getTemplateColors(subtitleSettings.value.animationStyle)
+  subtitleSettings.value.primaryColor = colors.primary
+  subtitleSettings.value.secondaryColor = colors.secondary
+}
+
+// Initialize watchers after component is mounted to avoid initialization issues
+onMounted(() => {
+  console.log('✅ Component mounted, setting up watchers')
+  
+  // Watch for video URL changes to update preview
+  watch(() => videoUrl.value, (newUrl) => {
+    console.log('🔄 VideoURL changed:', newUrl)
+    if (newUrl && !uploadedFile?.value) {
+      previewVideoUrl.value = newUrl
+    }
+  }, { immediate: false })
+
+  // Watch for transcription changes (debugging)
+  watch(() => results.value.transcription, (newTranscription, oldTranscription) => {
+    console.log('👀 Transcription watcher triggered:', {
+      hadBefore: !!oldTranscription,
+      hasNow: !!newTranscription,
+      lengthBefore: oldTranscription?.length || 0,
+      lengthNow: newTranscription?.length || 0,
+      preview: newTranscription?.substring(0, 50) || 'EMPTY'
+    })
+  })
+
+  // Watch for template changes to suggest colors
+  watch(() => subtitleSettings.value.animationStyle, (newTemplate, oldTemplate) => {
+    if (newTemplate !== oldTemplate) {
+      console.log('🎨 Template changed to:', newTemplate)
+      // Show a brief notification or automatically apply colors
+      // For now, just log - users can click the button if they want template colors
+    }
+  })
+})
+</script>
+
+<style scoped>
+/* Additional custom styles if needed */
+</style>
