@@ -23,6 +23,7 @@
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@ffprobe-installer/ffprobe": "^2.1.2",
     "@nuxt/eslint": "^1.1.0",
+    "@supabase/supabase-js": "^2.89.0",
     "@tailwindcss/postcss": "^4.1.13",
     "archiver": "^7.0.1",
     "assemblyai": "^4.9.0",
