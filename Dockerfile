@@ -39,6 +39,10 @@ WORKDIR /app
 ENV FFMPEG_PATH=/usr/bin/ffmpeg
 ENV FFPROBE_PATH=/usr/bin/ffprobe
 ENV USE_GPU=true
+ENV USE_GPU_BATCH=true
+ENV AWS_REGION=us-west-1
+ENV BATCH_JOB_QUEUE=video-processing-queue
+ENV BATCH_JOB_DEFINITION=video-processing-job
 
 # Copy package files
 COPY package.json pnpm-lock.yaml ./
