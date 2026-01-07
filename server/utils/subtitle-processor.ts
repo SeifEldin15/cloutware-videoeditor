@@ -509,15 +509,30 @@ export class SubtitleProcessor {
 
         // Using system fonts now for compatibility
 
-        ffmpegCommand.inputOptions([
+        // Check if GPU mode is enabled
+        const useGpu = process.env.USE_GPU === 'true'
+        
+        const inputOpts = [
           '-protocol_whitelist', 'file,http,https,tcp,tls',
           '-analyzeduration', '10000000',
           '-probesize', '10000000',
           '-thread_queue_size', '512',
-          '-hwaccel', 'auto',              // Enable hardware acceleration
-          '-threads', optimalThreads,      // Use optimal threads
-
-        ])
+        ]
+        
+        if (useGpu) {
+          // NVIDIA CUDA hardware acceleration
+          inputOpts.push(
+            '-hwaccel', 'cuda',
+            '-hwaccel_output_format', 'cuda'  // Keep frames on GPU
+          )
+          console.log('🚀 Using NVIDIA CUDA hardware acceleration')
+        } else {
+          inputOpts.push('-hwaccel', 'auto')
+        }
+        
+        inputOpts.push('-threads', optimalThreads)
+        
+        ffmpegCommand.inputOptions(inputOpts)
 
         console.log(`🔧 Video options received:`, JSON.stringify(videoOptions, null, 2))
         const advancedOptions = videoOptions ? this.buildAdvancedProcessingOptions(videoOptions, quality) : []

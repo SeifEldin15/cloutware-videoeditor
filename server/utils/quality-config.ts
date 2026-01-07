@@ -31,15 +31,16 @@ export interface VideoQualityConfig {
   cq?: number
 }
 
-const USE_GPU = process.env.USE_GPU === 'true'
+// Force GPU mode ON for Vast.ai deployment
+const USE_GPU = process.env.USE_GPU === 'true' || process.env.FORCE_GPU === 'true' || true
 
 // GPU Quality Settings (NVIDIA NVENC)
-// Mapped to match the quality tiers of the CPU configs
+// Compatible with FFmpeg 4.4 (Ubuntu 22.04) - uses h264_nvenc with llhq/hq presets
 export const GPU_PREMIUM_CONFIG: VideoQualityConfig = {
   videoCodec: 'h264_nvenc',
-  preset: 'p7',             // Highest quality
-  crf: 0,                   // Unused for NVENC usually, placeholder
-  cq: 19,                   // High quality (lower is better, 19 is approx CRF 12-14 visual)
+  preset: 'slow',           // NVENC preset: slow = highest quality (FFmpeg 4.4 compatible)
+  crf: 0,                   // Unused for NVENC
+  cq: 19,                   // High quality (lower is better)
   profile: 'high',
   level: '4.1',
   pixelFormat: 'yuv420p',
@@ -55,9 +56,9 @@ export const GPU_PREMIUM_CONFIG: VideoQualityConfig = {
 
 export const GPU_HIGH_CONFIG: VideoQualityConfig = {
   videoCodec: 'h264_nvenc',
-  preset: 'p6',             // High quality
+  preset: 'medium',         // NVENC preset (FFmpeg 4.4 compatible)
   crf: 0,
-  cq: 23,                   // Good quality (approx CRF 18-20)
+  cq: 23,                   // Good quality
   profile: 'high',
   level: '4.1',
   pixelFormat: 'yuv420p',
@@ -73,7 +74,7 @@ export const GPU_HIGH_CONFIG: VideoQualityConfig = {
 
 export const GPU_STANDARD_CONFIG: VideoQualityConfig = {
   videoCodec: 'h264_nvenc',
-  preset: 'p4',             // Medium quality
+  preset: 'fast',            // NVENC preset (FFmpeg 4.4 compatible)
   crf: 0,
   cq: 26,                   // Standard quality
   profile: 'high',
@@ -91,7 +92,7 @@ export const GPU_STANDARD_CONFIG: VideoQualityConfig = {
 
 export const GPU_FAST_CONFIG: VideoQualityConfig = {
   videoCodec: 'h264_nvenc',
-  preset: 'p2',             // Fast
+  preset: 'hp',              // High Performance (FFmpeg 4.4 compatible)
   crf: 0,
   cq: 30,                   // Lower quality
   profile: 'high',

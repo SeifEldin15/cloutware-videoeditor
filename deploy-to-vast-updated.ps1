@@ -102,12 +102,12 @@ echo "Installing NPM packages..."
 npm install
 npm install -g pm2 tsx
 
-echo "Starting Service..."
+echo "Starting Service with GPU acceleration..."
 pm2 delete ffmpeg-service 2>/dev/null || true
-# Start with tsx direct execution
-pm2 start "tsx server.ts" --name ffmpeg-service
+# Start with GPU acceleration enabled on port 3000
+USE_GPU=true PORT=3000 pm2 start "tsx server.ts" --name ffmpeg-service --update-env
 
-echo "✅ Deployment complete. Service running on port 8080."
+echo "✅ Deployment complete. Service running on port 3000 with GPU acceleration."
 pm2 status
 "@
 

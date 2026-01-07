@@ -1,0 +1,55 @@
+# GPU Video Processing Service
+# Build and run on Vast.ai with NVIDIA GPU acceleration
+
+FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
+
+# Install FFmpeg with NVIDIA support, Node.js, and fonts
+RUN apt-get update && apt-get install -y \
+    curl \
+    ffmpeg \
+    fonts-liberation \
+    fontconfig \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy package files first for caching
+COPY gpu-package.json package.json
+COPY tsconfig.json .
+
+# Install dependencies
+RUN npm install && npm install -g tsx
+
+# Copy server entrypoint
+COPY gpu-server.ts server.ts
+
+# Copy Utils from the main project
+COPY server/utils ./utils
+
+# Clean up unused heavy utilities to keep image light
+RUN rm -f \
+    utils/ocr-*.ts \
+    utils/text-detection*.ts \
+    utils/video-text-*.ts \
+    utils/elevenlabs.ts \
+    utils/spell-checker.ts \
+    utils/transcription.ts \
+    utils/text-replacement-processor.ts
+
+# Copy Fonts
+COPY public/fonts ./public/fonts
+
+# Overwrite Windows ffmpeg wrapper with Linux version  
+COPY ffmpeg-linux.ts ./utils/ffmpeg.ts
+
+# Set environment for GPU
+ENV USE_GPU=true
+ENV PORT=3000
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
+
+EXPOSE 3000
+
+CMD ["tsx", "server.ts"]
