@@ -657,14 +657,20 @@ export class SubtitleProcessor {
             console.log('Advanced subtitle FFmpeg process ended successfully')
             ffmpegCompleted = true
             
-            // Set a short timeout ONLY after FFmpeg completes
-            // This catches cases where the stream doesn't properly end
-            streamTimeout = setTimeout(() => {
-              console.warn('⚠️ Stream did not finish naturally after FFmpeg completion - forcing end')
+            // End stream immediately - pipe should handle this but we force it
+            setImmediate(() => {
               if (!outputStream.writableEnded) {
                 outputStream.end()
               }
-            }, 500) // 500ms is enough for stream cleanup
+            })
+            
+            // Fallback timeout in case setImmediate doesn't work
+            streamTimeout = setTimeout(() => {
+              if (!outputStream.writableEnded) {
+                console.warn('⚠️ Forcing stream end after timeout')
+                outputStream.end()
+              }
+            }, 100) // 100ms fallback
             
             this.cleanupTempFile(tempAssFile)
             if (fontCleanup) fontCleanup()
