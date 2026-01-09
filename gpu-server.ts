@@ -136,18 +136,47 @@ app.use('/process', eventHandler(async (event) => {
     const gpuEnabled = process.env.USE_GPU === 'true'
     console.log(`🎬 Starting video processing service... (GPU: ${gpuEnabled ? 'ENABLED' : 'disabled'})`)
     
-    // SubtitleProcessor.processAdvanced returns a Promise<PassThrough>
-    const videoStream = await SubtitleProcessor.processAdvanced(
-      validatedData.videoUrl,
-      captionOptions,
-      validatedData.videoOptions,
-      validatedData.quality as any
-    );
-
-    setHeader(event, 'Content-Type', 'video/mp4')
-    setHeader(event, 'Content-Disposition', 'attachment; filename="processed-video.mp4"')
+    // Download video to temp file first (FFmpeg may not support HTTPS URLs directly)
+    const tempDir = '/tmp'
+    const tempInputPath = `${tempDir}/input-${Date.now()}.mp4`
     
-    return videoStream;
+    console.log(`📥 Downloading video from: ${validatedData.videoUrl}`)
+    const videoResponse = await fetch(validatedData.videoUrl)
+    if (!videoResponse.ok) {
+      throw new Error(`Failed to download video: ${videoResponse.status}`)
+    }
+    
+    const videoBuffer = Buffer.from(await videoResponse.arrayBuffer())
+    const { writeFileSync, unlinkSync } = await import('fs')
+    writeFileSync(tempInputPath, videoBuffer)
+    console.log(`✅ Video downloaded to: ${tempInputPath} (${videoBuffer.length} bytes)`)
+    
+    try {
+      // SubtitleProcessor.processAdvanced returns a Promise<PassThrough>
+      const videoStream = await SubtitleProcessor.processAdvanced(
+        tempInputPath, // Use local file instead of URL
+        captionOptions,
+        validatedData.videoOptions,
+        validatedData.quality as any
+      );
+
+      // Clean up temp file after stream starts
+      videoStream.on('end', () => {
+        try { unlinkSync(tempInputPath) } catch {}
+      });
+      videoStream.on('error', () => {
+        try { unlinkSync(tempInputPath) } catch {}
+      });
+
+      setHeader(event, 'Content-Type', 'video/mp4')
+      setHeader(event, 'Content-Disposition', 'attachment; filename="processed-video.mp4"')
+      
+      return videoStream;
+    } catch (err) {
+      // Clean up on error
+      try { unlinkSync(tempInputPath) } catch {}
+      throw err;
+    }
 
   } catch (error: any) {
     console.error('Video processing error:', error);
