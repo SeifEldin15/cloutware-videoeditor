@@ -39,9 +39,36 @@ export class VideoProcessor {
       try {
         const outputStream = new PassThrough({ highWaterMark: 4 * 1024 * 1024 })
 
+        // Download video to temp file if it's a URL (FFmpeg may not support HTTPS properly)
+        let inputPath = inputUrl
+        let tempFilePath: string | null = null
+        
+        if (inputUrl.startsWith('http://') || inputUrl.startsWith('https://')) {
+          const { writeFileSync, unlinkSync } = await import('fs')
+          const { tmpdir } = await import('os')
+          const { join } = await import('path')
+          
+          tempFilePath = join(tmpdir(), `video-proc-${Date.now()}.mp4`)
+          console.log(`📥 Downloading video from URL to temp file...`)
+          
+          try {
+            const response = await fetch(inputUrl)
+            if (!response.ok) {
+              throw new Error(`Failed to download video: ${response.status}`)
+            }
+            const buffer = Buffer.from(await response.arrayBuffer())
+            writeFileSync(tempFilePath, buffer)
+            inputPath = tempFilePath
+            console.log(`✅ Video downloaded: ${buffer.length} bytes`)
+          } catch (downloadError) {
+            console.error('❌ Failed to download video:', downloadError)
+            throw downloadError
+          }
+        }
+
         let commandOutput = ''
         const ffmpeg = await getInitializedFfmpeg()
-        let ffmpegCommand = ffmpeg(inputUrl)
+        let ffmpegCommand = ffmpeg(inputPath)
 
         ffmpegCommand.inputOptions([
           '-protocol_whitelist', 'file,http,https,tcp,tls',
@@ -95,6 +122,15 @@ export class VideoProcessor {
           ffmpegCommand = ffmpegCommand.input(input)
         })
 
+        // Cleanup temp file function
+        const cleanupTempFile = () => {
+          if (tempFilePath) {
+            import('fs').then(fs => {
+              try { fs.unlinkSync(tempFilePath!) } catch {}
+            })
+          }
+        }
+
         ffmpegCommand
           .outputOptions(cleanedOutputOptions)
           .on('start', (commandLine: string) => {
@@ -112,10 +148,12 @@ export class VideoProcessor {
           .on('error', (err: Error) => {
             console.error(`${options.name} FFmpeg error:`, err)
             console.error(`${options.name} Command output:`, commandOutput)
+            cleanupTempFile()
             reject(new Error(`FFmpeg error: ${err.message}\nCommand output: ${commandOutput}`))
           })
           .on('end', () => {
             console.log(`${options.name} FFmpeg process ended`)
+            cleanupTempFile()
           })
 
         ffmpegCommand.outputOptions(['-preset', 'veryfast', '-threads', optimalThreads])
