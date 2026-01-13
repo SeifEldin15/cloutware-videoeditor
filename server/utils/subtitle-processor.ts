@@ -148,7 +148,7 @@ export class SubtitleProcessor {
     // Get the style-specific font
     const styleFont = getStyleFont(caption?.subtitleStyle || 'basic', caption?.fontFamily);
     
-    return {
+    const baseOptions = {
       fontSize: caption?.fontSize,
       fontFamily: styleFont,
       textAlign: caption?.horizontalAlignment,
@@ -181,6 +181,11 @@ export class SubtitleProcessor {
       wordMode: caption?.wordMode,
       wordsPerGroup: caption?.wordsPerGroup
     }
+    // Add _jobId for progress tracking (if present)
+    if ((caption as any)?._jobId) {
+      (baseOptions as any)._jobId = (caption as any)._jobId
+    }
+    return baseOptions
   }
 
   private static async processVideoWithAdvancedSubtitles(
@@ -636,6 +641,12 @@ export class SubtitleProcessor {
           .on('progress', (progress: any) => {
             if (progress.percent) {
               console.log(`Advanced subtitle processing: ${progress.percent.toFixed(2)}%`)
+              // Report progress to job tracker (10-95% range for FFmpeg encoding)
+              const jobId = (styleOptions as any)._jobId
+              if (jobId && typeof (global as any).setJobProgress === 'function') {
+                const scaledProgress = Math.round(10 + (progress.percent * 0.85)) // Scale 0-100% to 10-95%
+                ;(global as any).setJobProgress(jobId, scaledProgress, `Encoding: ${Math.round(progress.percent)}%`)
+              }
             }
           })
           .on('stderr', (stderrLine: string) => {

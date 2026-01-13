@@ -1,7 +1,28 @@
-import { createApp, eventHandler, readBody, setHeader, toNodeListener, createError } from 'h3'
+import { createApp, eventHandler, readBody, setHeader, toNodeListener, createError, getQuery } from 'h3'
 import { createServer } from 'http'
 import { z } from 'zod'
 import { SubtitleProcessor } from './utils/subtitle-processor'
+
+// Job progress tracking
+interface JobProgress {
+  id: string
+  status: 'pending' | 'processing' | 'complete' | 'error'
+  progress: number
+  stage: string
+  startTime: number
+  error?: string
+}
+
+const activeJobs = new Map<string, JobProgress>()
+
+// Expose progress setter for SubtitleProcessor
+;(global as any).setJobProgress = (jobId: string, progress: number, stage: string) => {
+  const job = activeJobs.get(jobId)
+  if (job) {
+    job.progress = progress
+    job.stage = stage
+  }
+}
 
 // Request Schema
 const requestSchema = z.object({
@@ -23,7 +44,8 @@ const requestSchema = z.object({
   quality: z.enum(['fast', 'standard', 'high', 'premium']).default('premium'),
   wordMode: z.enum(['normal', 'single', 'multiple']).optional(),
   wordsPerGroup: z.number().min(1).max(10).optional(),
-  videoOptions: z.any().optional()
+  videoOptions: z.any().optional(),
+  jobId: z.string().optional() // Client can provide jobId for progress tracking
 });
 
 const templateMapping: Record<string, string> = {
@@ -80,13 +102,53 @@ app.use('/health', eventHandler(() => {
   }
 }))
 
+// Progress polling endpoint
+app.use('/progress', eventHandler((event) => {
+  const query = getQuery(event)
+  const jobId = query.jobId as string
+  
+  if (!jobId) {
+    return { error: 'jobId is required' }
+  }
+  
+  const job = activeJobs.get(jobId)
+  if (!job) {
+    return { error: 'Job not found', status: 'unknown' }
+  }
+  
+  return {
+    status: job.status,
+    progress: job.progress,
+    stage: job.stage,
+    elapsed: Date.now() - job.startTime
+  }
+}))
+
 // Main processing endpoint
 app.use('/process', eventHandler(async (event) => {
+  const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+  
   try {
     const body = await readBody(event);
     const validatedData = requestSchema.parse(body);
+    
+    // Use client-provided jobId or generate one
+    const trackingId = validatedData.jobId || jobId
+    
+    // Initialize job progress
+    activeJobs.set(trackingId, {
+      id: trackingId,
+      status: 'processing',
+      progress: 0,
+      stage: 'Initializing...',
+      startTime: Date.now()
+    })
+    
+    // Return jobId in header for progress tracking
+    setHeader(event, 'X-Job-Id', trackingId)
 
     if (!validatedData.transcription) {
+      activeJobs.delete(trackingId)
       throw createError({
         statusCode: 400,
         statusMessage: 'Transcription is required for video processing.'
@@ -101,6 +163,11 @@ app.use('/process', eventHandler(async (event) => {
         default: return 15
       }
     }
+
+    // Update progress: Starting
+    const job = activeJobs.get(trackingId)!
+    job.progress = 5
+    job.stage = 'Preparing subtitles...'
 
     const captionOptions = {
       srtContent: validatedData.transcription,
@@ -130,56 +197,53 @@ app.use('/process', eventHandler(async (event) => {
       whiteimpactColor: validatedData.primaryColor,
       impactfullColor: validatedData.primaryColor,
       wordMode: validatedData.wordMode || getWordModeForTemplate(validatedData.template),
-      wordsPerGroup: validatedData.wordsPerGroup || getWordsPerGroupForTemplate(validatedData.template)
+      wordsPerGroup: validatedData.wordsPerGroup || getWordsPerGroupForTemplate(validatedData.template),
+      _jobId: trackingId // Pass jobId to processor for progress updates
     };
 
+    job.progress = 10
+    job.stage = 'Starting GPU encoding...'
+
     const gpuEnabled = process.env.USE_GPU === 'true'
-    console.log(`🎬 Starting video processing service... (GPU: ${gpuEnabled ? 'ENABLED' : 'disabled'})`)
+    console.log(`🎬 Starting video processing service... (GPU: ${gpuEnabled ? 'ENABLED' : 'disabled'}) [Job: ${trackingId}]`)
     
-    // Download video to temp file first (FFmpeg may not support HTTPS URLs directly)
-    const tempDir = '/tmp'
-    const tempInputPath = `${tempDir}/input-${Date.now()}.mp4`
+    // SubtitleProcessor.processAdvanced returns a Promise<PassThrough>
+    const videoStream = await SubtitleProcessor.processAdvanced(
+      validatedData.videoUrl,
+      captionOptions,
+      validatedData.videoOptions,
+      validatedData.quality as any
+    );
     
-    console.log(`📥 Downloading video from: ${validatedData.videoUrl}`)
-    const videoResponse = await fetch(validatedData.videoUrl)
-    if (!videoResponse.ok) {
-      throw new Error(`Failed to download video: ${videoResponse.status}`)
-    }
+    // Mark as complete when stream ends
+    videoStream.on('end', () => {
+      const job = activeJobs.get(trackingId)
+      if (job) {
+        job.status = 'complete'
+        job.progress = 100
+        job.stage = 'Complete!'
+        // Clean up after 60 seconds
+        setTimeout(() => activeJobs.delete(trackingId), 60000)
+      }
+    })
     
-    const videoBuffer = Buffer.from(await videoResponse.arrayBuffer())
-    const { writeFileSync, unlinkSync } = await import('fs')
-    writeFileSync(tempInputPath, videoBuffer)
-    console.log(`✅ Video downloaded to: ${tempInputPath} (${videoBuffer.length} bytes)`)
-    
-    try {
-      // SubtitleProcessor.processAdvanced returns a Promise<PassThrough>
-      const videoStream = await SubtitleProcessor.processAdvanced(
-        tempInputPath, // Use local file instead of URL
-        captionOptions,
-        validatedData.videoOptions,
-        validatedData.quality as any
-      );
+    videoStream.on('error', (err) => {
+      const job = activeJobs.get(trackingId)
+      if (job) {
+        job.status = 'error'
+        job.error = err.message
+        setTimeout(() => activeJobs.delete(trackingId), 60000)
+      }
+    })
 
-      // Clean up temp file after stream starts
-      videoStream.on('end', () => {
-        try { unlinkSync(tempInputPath) } catch {}
-      });
-      videoStream.on('error', () => {
-        try { unlinkSync(tempInputPath) } catch {}
-      });
-
-      setHeader(event, 'Content-Type', 'video/mp4')
-      setHeader(event, 'Content-Disposition', 'attachment; filename="processed-video.mp4"')
-      
-      return videoStream;
-    } catch (err) {
-      // Clean up on error
-      try { unlinkSync(tempInputPath) } catch {}
-      throw err;
-    }
+    setHeader(event, 'Content-Type', 'video/mp4')
+    setHeader(event, 'Content-Disposition', 'attachment; filename="processed-video.mp4"')
+    
+    return videoStream;
 
   } catch (error: any) {
     console.error('Video processing error:', error);
+    activeJobs.delete(jobId)
     throw createError({
       statusCode: 400,
       statusMessage: error.message || 'Unknown error'
