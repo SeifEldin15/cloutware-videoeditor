@@ -70,16 +70,25 @@ export class VideoProcessor {
         const ffmpeg = await getInitializedFfmpeg()
         let ffmpegCommand = ffmpeg(inputPath)
 
-        ffmpegCommand.inputOptions([
-          '-protocol_whitelist', 'file,http,https,tcp,tls',
-          '-reconnect', '1',
-          '-reconnect_streamed', '1',
+        // Build input options - only use reconnect for network streams, not local files
+        const inputOpts = [
           '-analyzeduration', '10000000',
           '-probesize', '10000000',
           '-thread_queue_size', '512',
           '-hwaccel', 'auto',
           '-threads', optimalThreads
-        ])
+        ]
+        
+        // Only add protocol whitelist and reconnect for URLs (not for local temp files)
+        if (!tempFilePath) {
+          inputOpts.unshift(
+            '-protocol_whitelist', 'file,http,https,tcp,tls',
+            '-reconnect', '1',
+            '-reconnect_streamed', '1'
+          )
+        }
+
+        ffmpegCommand.inputOptions(inputOpts)
 
         if (options.inputOptions?.length) {
           ffmpegCommand.inputOptions(options.inputOptions)

@@ -31,8 +31,9 @@ export interface VideoQualityConfig {
   cq?: number
 }
 
-// Force GPU mode ON for Vast.ai deployment
-const USE_GPU = process.env.USE_GPU === 'true' || process.env.FORCE_GPU === 'true' || true
+// GPU mode - only enable when explicitly set in environment (for Vast.ai GPU server)
+// Don't force GPU on by default - main server doesn't have one
+const USE_GPU = process.env.USE_GPU === 'true' || process.env.FORCE_GPU === 'true'
 
 // GPU Quality Settings (NVIDIA NVENC)
 // Compatible with FFmpeg 4.4 (Ubuntu 22.04) - uses h264_nvenc with llhq/hq presets
