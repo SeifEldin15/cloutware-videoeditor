@@ -362,12 +362,12 @@ app.use('/layout', eventHandler(async (event) => {
     // Add codec-specific options
     if (gpuEnabled) {
       // NVENC options - using valid presets for h264_nvenc
+      // Note: Don't specify -level as NVENC will auto-detect based on video dimensions
       ffmpegArgs.push(
         '-preset', 'p4',      // p1 (fastest) to p7 (slowest/best quality)
         '-rc', 'vbr',         // Variable bitrate mode
         '-cq', '20',          // Constant quality value (lower = better)
-        '-profile:v', 'high',
-        '-level', '4.1'
+        '-profile:v', 'high'
       )
     } else {
       // CPU libx264 options

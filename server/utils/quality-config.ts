@@ -11,7 +11,7 @@ export interface VideoQualityConfig {
   preset: string
   crf: number
   profile: string
-  level: string
+  level?: string             // Optional - NVENC auto-detects
   pixelFormat: string
   tune?: string              // Optional tune parameter (e.g., 'stillimage' for text)
   
@@ -43,7 +43,7 @@ export const GPU_PREMIUM_CONFIG: VideoQualityConfig = {
   crf: 0,                   // Unused for NVENC
   cq: 19,                   // High quality (lower is better)
   profile: 'high',
-  level: '4.1',
+  // level: auto-detected by NVENC
   pixelFormat: 'yuv420p',
   
   audioCodec: 'aac',
@@ -61,7 +61,7 @@ export const GPU_HIGH_CONFIG: VideoQualityConfig = {
   crf: 0,
   cq: 23,                   // Good quality
   profile: 'high',
-  level: '4.1',
+  // level: auto-detected by NVENC
   pixelFormat: 'yuv420p',
   
   audioCodec: 'aac',
@@ -79,7 +79,7 @@ export const GPU_STANDARD_CONFIG: VideoQualityConfig = {
   crf: 0,
   cq: 26,                   // Standard quality
   profile: 'high',
-  level: '4.1', 
+  // level: auto-detected by NVENC
   pixelFormat: 'yuv420p',
   
   audioCodec: 'aac',
@@ -97,7 +97,7 @@ export const GPU_FAST_CONFIG: VideoQualityConfig = {
   crf: 0,
   cq: 30,                   // Lower quality
   profile: 'high',
-  level: '4.1',
+  // level: auto-detected by NVENC
   pixelFormat: 'yuv420p',
   
   audioCodec: 'aac', 
@@ -207,13 +207,18 @@ export const TEXT_QUALITY_CONFIG: VideoQualityConfig = {
  * Convert quality config to FFmpeg output options array
  */
 export function configToOutputOptions(config: VideoQualityConfig): string[] {
-  const options = [
+  const options: string[] = [
     '-c:v', config.videoCodec,
     '-preset', config.preset,
     '-profile:v', config.profile,
-    '-level', config.level,
-    '-pix_fmt', config.pixelFormat
   ]
+  
+  // Only add level if specified (NVENC auto-detects)
+  if (config.level) {
+    options.push('-level', config.level)
+  }
+  
+  options.push('-pix_fmt', config.pixelFormat)
   
   // Add tune parameter if specified (important for text rendering)
   if (config.tune) {
@@ -280,7 +285,7 @@ export const GPU_TEXT_QUALITY_CONFIG: VideoQualityConfig = {
   crf: 0,                   // Not used for NVENC
   cq: 22,                   // Good quality for text
   profile: 'high',
-  level: '4.1',
+  // Note: Don't set level for NVENC - it auto-detects based on video dimensions
   pixelFormat: 'yuv420p',
   // Note: NVENC doesn't support 'stillimage' tune
   
