@@ -39,7 +39,7 @@ const USE_GPU = process.env.USE_GPU === 'true' || process.env.FORCE_GPU === 'tru
 // Compatible with FFmpeg 4.4 (Ubuntu 22.04) - uses h264_nvenc with llhq/hq presets
 export const GPU_PREMIUM_CONFIG: VideoQualityConfig = {
   videoCodec: 'h264_nvenc',
-  preset: 'slow',           // NVENC preset: slow = highest quality (FFmpeg 4.4 compatible)
+  preset: 'p7',             // NVENC preset: p7 = highest quality (p1-p7 scale)
   crf: 0,                   // Unused for NVENC
   cq: 19,                   // High quality (lower is better)
   profile: 'high',
@@ -57,7 +57,7 @@ export const GPU_PREMIUM_CONFIG: VideoQualityConfig = {
 
 export const GPU_HIGH_CONFIG: VideoQualityConfig = {
   videoCodec: 'h264_nvenc',
-  preset: 'medium',         // NVENC preset (FFmpeg 4.4 compatible)
+  preset: 'p5',             // NVENC preset: p5 = high quality
   crf: 0,
   cq: 23,                   // Good quality
   profile: 'high',
@@ -75,7 +75,7 @@ export const GPU_HIGH_CONFIG: VideoQualityConfig = {
 
 export const GPU_STANDARD_CONFIG: VideoQualityConfig = {
   videoCodec: 'h264_nvenc',
-  preset: 'fast',            // NVENC preset (FFmpeg 4.4 compatible)
+  preset: 'p4',              // NVENC preset: p4 = balanced
   crf: 0,
   cq: 26,                   // Standard quality
   profile: 'high',
@@ -93,7 +93,7 @@ export const GPU_STANDARD_CONFIG: VideoQualityConfig = {
 
 export const GPU_FAST_CONFIG: VideoQualityConfig = {
   videoCodec: 'h264_nvenc',
-  preset: 'hp',              // High Performance (FFmpeg 4.4 compatible)
+  preset: 'p1',              // NVENC preset: p1 = fastest
   crf: 0,
   cq: 30,                   // Lower quality
   profile: 'high',
@@ -273,11 +273,36 @@ export function getQualityConfig(quality: 'fast' | 'standard' | 'high' | 'premiu
   }
 }
 
+// GPU TEXT Quality Settings - For crisp text with GPU acceleration
+export const GPU_TEXT_QUALITY_CONFIG: VideoQualityConfig = {
+  videoCodec: 'h264_nvenc',
+  preset: 'p4',             // Balanced quality/speed for NVENC
+  crf: 0,                   // Not used for NVENC
+  cq: 22,                   // Good quality for text
+  profile: 'high',
+  level: '4.1',
+  pixelFormat: 'yuv420p',
+  // Note: NVENC doesn't support 'stillimage' tune
+  
+  audioCodec: 'aac',
+  audioBitrate: '192k',
+  audioChannels: 2,
+  sampleRate: 48000,
+  
+  maxMuxingQueueSize: 4096,
+  movflags: '+faststart'
+}
+
 /**
  * Get quality config specifically optimized for text/subtitle rendering
- * Always returns TEXT_QUALITY_CONFIG regardless of complexity
+ * Uses GPU acceleration when available for much faster processing
  */
 export function getTextQualityConfig(): VideoQualityConfig {
+  const useGpu = process.env.USE_GPU === 'true'
+  if (useGpu) {
+    console.log('🚀 Using GPU-accelerated text quality config (h264_nvenc)')
+    return GPU_TEXT_QUALITY_CONFIG
+  }
   return TEXT_QUALITY_CONFIG
 }
 
