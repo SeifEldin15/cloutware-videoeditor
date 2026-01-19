@@ -256,27 +256,37 @@ const layoutSchema = z.object({
   url: z.string().url('Invalid video URL'),
   outputName: z.string().default('layout_output'),
   enableWhiteBorder: z.boolean().optional(),
-  leftRightPercent: z.number().optional().default(0),
-  topBottomPercent: z.number().optional().default(0),
-  videoScale: z.number().optional().default(1.0),
-  videoX: z.number().optional().default(0),
-  videoY: z.number().optional().default(0),
-  borderType: z.string().optional().default('color'),
-  whiteBorderColor: z.string().optional().default('#FFFFFF'),
+  leftRightPercent: z.coerce.number().optional(),
+  topBottomPercent: z.coerce.number().optional(),
+  videoScale: z.coerce.number().optional(),
+  videoX: z.coerce.number().optional(),
+  videoY: z.coerce.number().optional(),
+  borderType: z.string().optional(),
+  whiteBorderColor: z.string().optional(),
   borderUrl: z.string().optional(),
-  cropTop: z.number().optional().default(0),
-  cropBottom: z.number().optional().default(0),
-  cropLeft: z.number().optional().default(0),
-  cropRight: z.number().optional().default(0)
+  cropTop: z.coerce.number().optional(),
+  cropBottom: z.coerce.number().optional(),
+  cropLeft: z.coerce.number().optional(),
+  cropRight: z.coerce.number().optional()
 })
 
 app.use('/layout', eventHandler(async (event) => {
   try {
     const body = await readBody(event)
+    console.log(`📨 Raw layout body received:`, JSON.stringify(body, null, 2))
+    
     const validatedData = layoutSchema.parse(body)
     
+    // Extract values with explicit defaults
+    const leftRightPercent = validatedData.leftRightPercent ?? 0
+    const topBottomPercent = validatedData.topBottomPercent ?? 0
+    const videoScale = validatedData.videoScale ?? 1
+    const videoX = validatedData.videoX ?? 0
+    const videoY = validatedData.videoY ?? 0
+    const whiteBorderColor = validatedData.whiteBorderColor || '#FFFFFF'
+    
     console.log(`🎨 GPU Layout processing: ${validatedData.url}`)
-    console.log(`📐 Options: scale=${validatedData.videoScale}, LR=${validatedData.leftRightPercent}%, TB=${validatedData.topBottomPercent}%`)
+    console.log(`📐 Parsed values: scale=${videoScale}, LR=${leftRightPercent}%, TB=${topBottomPercent}%, color=${whiteBorderColor}`)
     
     const { spawn } = await import('child_process')
     const { PassThrough } = await import('stream')
@@ -285,14 +295,22 @@ app.use('/layout', eventHandler(async (event) => {
     
     // Build FFmpeg filter for layout
     // Calculate effective scale based on border percentages
-    const effectiveScaleW = (validatedData.videoScale || 1) * ((100 - (validatedData.leftRightPercent || 0)) / 100)
-    const effectiveScaleH = (validatedData.videoScale || 1) * ((100 - (validatedData.topBottomPercent || 0)) / 100)
+    // leftRightPercent=10 means 10% of width is border (5% each side), video uses 90%
+    const effectiveScaleW = videoScale * ((100 - leftRightPercent) / 100)
+    const effectiveScaleH = videoScale * ((100 - topBottomPercent) / 100)
     
-    const overlayX = `(W-w)/2+(W*${validatedData.videoX || 0}/100)`
-    const overlayY = `(H-h)/2+(H*${validatedData.videoY || 0}/100)`
+    console.log(`📏 Effective scale: W=${effectiveScaleW}, H=${effectiveScaleH}`)
     
-    // Escape color value for FFmpeg (remove # and use proper format)
-    const borderColor = (validatedData.whiteBorderColor || '#FFFFFF').replace('#', '0x')
+    const overlayX = `(W-w)/2+(W*${videoX}/100)`
+    const overlayY = `(H-h)/2+(H*${videoY}/100)`
+    
+    // Format color for FFmpeg - drawbox accepts both #XXXXXX and 0xXXXXXX formats
+    // white, black work as names too
+    const borderColor = whiteBorderColor.startsWith('#') 
+      ? whiteBorderColor.replace('#', '0x')
+      : whiteBorderColor
+    
+    console.log(`🎨 Border color: ${borderColor}`)
     
     // Build filter chain
     const filters: string[] = []
