@@ -1,9 +1,10 @@
 $ErrorActionPreference = "Stop"
 
 # Configuration - UPDATE THESE FOR YOUR VAST.AI INSTANCE
-$VastHost = "ssh7.vast.ai"
-$VastPort = "10885"
+$VastHost = "70.69.192.6"
+$VastPort = "28906"
 $VastUser = "root"
+$SshKey = "$env:USERPROFILE\.ssh\id_ed25519"
 $ImageName = "gpu-video-processor"
 $ContainerName = "ffmpeg-gpu"
 
@@ -47,7 +48,7 @@ Move-Item "$TempDir/$TarFile" . -Force
 
 # Upload to Vast.ai
 Write-Host "Uploading to Vast.ai ${VastHost}:${VastPort}..."
-scp -P $VastPort -o StrictHostKeyChecking=no $TarFile "${VastUser}@${VastHost}:/root/${TarFile}"
+scp -P $VastPort -i $SshKey -o StrictHostKeyChecking=no $TarFile "${VastUser}@${VastHost}:/root/${TarFile}"
 
 # Remote deployment script
 Write-Host "Building Docker image on remote server..."
@@ -61,32 +62,49 @@ cd /root/gpu-service
 tar -xzf /root/gpu-service.tar.gz
 rm -f /root/gpu-service.tar.gz
 
-echo "Building Docker image with GPU support..."
-docker build -t gpu-video-processor -f Dockerfile .
+echo "Setting up file structure..."
+# Copy server.ts from gpu-server.ts
+cp gpu-server.ts server.ts
 
-echo "Stopping old container if exists..."
-docker stop ffmpeg-gpu 2>/dev/null || true
-docker rm ffmpeg-gpu 2>/dev/null || true
+# Move utils from server/utils to ./utils (matching import paths)
+mkdir -p utils
+cp -r server/utils/* utils/
 
-echo "Starting container with GPU..."
-docker run -d \
-  --name ffmpeg-gpu \
-  --gpus all \
-  -p 3000:3000 \
-  -e USE_GPU=true \
-  -e NVIDIA_VISIBLE_DEVICES=all \
-  --restart unless-stopped \
-  gpu-video-processor
+# Overwrite ffmpeg.ts with linux version
+cp ffmpeg-linux.ts utils/ffmpeg.ts
+
+echo "Installing Node.js if needed..."
+if ! command -v node &> /dev/null; then
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+    apt-get install -y nodejs
+fi
+
+echo "Installing tsx globally..."
+npm install -g tsx
+
+echo "Installing dependencies..."
+cp gpu-package.json package.json
+npm install
+
+echo "Stopping old service if running..."
+pkill -f 'tsx server.ts' 2>/dev/null || true
+sleep 2
+
+echo "Starting GPU Video Processing Service..."
+export PORT=3000
+export USE_GPU=true
+nohup tsx server.ts > /var/log/gpu-service.log 2>&1 &
+
+sleep 5
 
 echo ""
 echo "Deployment complete!"
-echo "Container status:"
-docker ps | grep ffmpeg-gpu
+echo "Service status:"
+ps aux | grep -E 'tsx.*server' | grep -v grep || echo "Service may still be starting..."
 
 echo ""
-echo "Container logs:"
-sleep 3
-docker logs ffmpeg-gpu
+echo "Recent logs:"
+cat /var/log/gpu-service.log | tail -20
 "@
 
 # Encode script to Base64
@@ -95,7 +113,7 @@ $Base64Script = [System.Convert]::ToBase64String($ScriptBytes)
 
 # Execute via base64 decode
 $Command = "echo '$Base64Script' | base64 -d | bash"
-ssh -p $VastPort -o StrictHostKeyChecking=no "${VastUser}@${VastHost}" $Command
+ssh -p $VastPort -i $SshKey -o StrictHostKeyChecking=no "${VastUser}@${VastHost}" $Command
 
 # Cleanup Local
 Remove-Item $TempDir -Recurse -Force
@@ -105,4 +123,4 @@ Write-Host ""
 Write-Host "Done! GPU service is running on port 3000"
 Write-Host ""
 Write-Host "Update your SSH tunnel command to:"
-Write-Host "   ssh -p $VastPort -N -L 8085:localhost:3000 ${VastUser}@${VastHost}"
+Write-Host "   ssh -p $VastPort -i $SshKey -N -L 8080:localhost:3000 ${VastUser}@${VastHost}"

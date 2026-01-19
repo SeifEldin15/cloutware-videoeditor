@@ -276,6 +276,7 @@ app.use('/layout', eventHandler(async (event) => {
     const validatedData = layoutSchema.parse(body)
     
     console.log(`🎨 GPU Layout processing: ${validatedData.url}`)
+    console.log(`📐 Options: scale=${validatedData.videoScale}, LR=${validatedData.leftRightPercent}%, TB=${validatedData.topBottomPercent}%`)
     
     const { spawn } = await import('child_process')
     const { PassThrough } = await import('stream')
@@ -283,23 +284,32 @@ app.use('/layout', eventHandler(async (event) => {
     const outputStream = new PassThrough({ highWaterMark: 4 * 1024 * 1024 })
     
     // Build FFmpeg filter for layout
-    const effectiveScaleW = validatedData.videoScale * ((100 - validatedData.leftRightPercent) / 100)
-    const effectiveScaleH = validatedData.videoScale * ((100 - validatedData.topBottomPercent) / 100)
+    // Calculate effective scale based on border percentages
+    const effectiveScaleW = (validatedData.videoScale || 1) * ((100 - (validatedData.leftRightPercent || 0)) / 100)
+    const effectiveScaleH = (validatedData.videoScale || 1) * ((100 - (validatedData.topBottomPercent || 0)) / 100)
     
-    const overlayX = `(W-w)/2+(W*${validatedData.videoX}/100)`
-    const overlayY = `(H-h)/2+(H*${validatedData.videoY}/100)`
+    const overlayX = `(W-w)/2+(W*${validatedData.videoX || 0}/100)`
+    const overlayY = `(H-h)/2+(H*${validatedData.videoY || 0}/100)`
+    
+    // Escape color value for FFmpeg (remove # and use proper format)
+    const borderColor = (validatedData.whiteBorderColor || '#FFFFFF').replace('#', '0x')
     
     // Build filter chain
     const filters: string[] = []
     filters.push(`[0:v]split=2[v_fg][v_bg]`)
-    filters.push(`[v_bg]drawbox=t=fill:c=${validatedData.whiteBorderColor || '#FFFFFF'}[canvas]`)
+    filters.push(`[v_bg]drawbox=t=fill:c=${borderColor}[canvas]`)
     
     let fgChain = 'v_fg'
-    if (validatedData.cropTop > 0 || validatedData.cropBottom > 0 || validatedData.cropLeft > 0 || validatedData.cropRight > 0) {
-      const w = `iw*(1-(${validatedData.cropLeft}/100)-(${validatedData.cropRight}/100))`
-      const h = `ih*(1-(${validatedData.cropTop}/100)-(${validatedData.cropBottom}/100))`
-      const x = `iw*(${validatedData.cropLeft}/100)`
-      const y = `ih*(${validatedData.cropTop}/100)`
+    if ((validatedData.cropTop || 0) > 0 || (validatedData.cropBottom || 0) > 0 || 
+        (validatedData.cropLeft || 0) > 0 || (validatedData.cropRight || 0) > 0) {
+      const cropL = validatedData.cropLeft || 0
+      const cropR = validatedData.cropRight || 0
+      const cropT = validatedData.cropTop || 0
+      const cropB = validatedData.cropBottom || 0
+      const w = `iw*(1-(${cropL}/100)-(${cropR}/100))`
+      const h = `ih*(1-(${cropT}/100)-(${cropB}/100))`
+      const x = `iw*(${cropL}/100)`
+      const y = `ih*(${cropT}/100)`
       filters.push(`[${fgChain}]crop=w=${w}:h=${h}:x=${x}:y=${y}[fg_cropped]`)
       fgChain = 'fg_cropped'
     }
@@ -310,23 +320,49 @@ app.use('/layout', eventHandler(async (event) => {
     const filterComplex = filters.join(';')
     console.log(`🎨 GPU Filter: ${filterComplex}`)
     
-    // Use GPU encoding (h264_nvenc)
+    // Use GPU encoding (h264_nvenc) - but NOT hwaccel for input since we have complex filters
+    // Complex filter graphs require CPU decoding, but we can still use GPU for encoding
     const gpuEnabled = process.env.USE_GPU === 'true'
     const videoCodec = gpuEnabled ? 'h264_nvenc' : 'libx264'
-    const preset = gpuEnabled ? 'p4' : 'veryfast'
+    
+    console.log(`🚀 Starting FFmpeg for layout: ${videoCodec} (GPU encoding: ${gpuEnabled})`)
     
     const ffmpegArgs = [
+      // Input options
       '-protocol_whitelist', 'file,http,https,tcp,tls',
       '-analyzeduration', '10000000',
       '-probesize', '10000000',
       '-i', validatedData.url,
+      // Filter
       '-filter_complex', filterComplex,
       '-map', '[out]',
       '-map', '0:a?',
+      // Video encoding
       '-c:v', videoCodec,
-      '-preset', preset,
-      '-profile:v', 'high',
-      '-level', '4.1',
+    ]
+    
+    // Add codec-specific options
+    if (gpuEnabled) {
+      // NVENC options - using valid presets for h264_nvenc
+      ffmpegArgs.push(
+        '-preset', 'p4',      // p1 (fastest) to p7 (slowest/best quality)
+        '-rc', 'vbr',         // Variable bitrate mode
+        '-cq', '20',          // Constant quality value (lower = better)
+        '-profile:v', 'high',
+        '-level', '4.1'
+      )
+    } else {
+      // CPU libx264 options
+      ffmpegArgs.push(
+        '-preset', 'veryfast',
+        '-crf', '18',
+        '-profile:v', 'high',
+        '-level', '4.1'
+      )
+    }
+    
+    // Common output options
+    ffmpegArgs.push(
       '-pix_fmt', 'yuv420p',
       '-c:a', 'aac',
       '-b:a', '160k',
@@ -335,27 +371,19 @@ app.use('/layout', eventHandler(async (event) => {
       '-movflags', 'frag_keyframe+empty_moov+faststart',
       '-f', 'mp4',
       'pipe:1'
-    ]
+    )
     
-    // Add GPU-specific options
-    if (gpuEnabled) {
-      ffmpegArgs.splice(0, 0, '-hwaccel', 'cuda')
-      // Insert -cq after -preset for quality control
-      const presetIdx = ffmpegArgs.indexOf('-preset')
-      ffmpegArgs.splice(presetIdx + 2, 0, '-cq', '20')
-    } else {
-      ffmpegArgs.splice(ffmpegArgs.indexOf('-profile:v'), 0, '-crf', '18')
-    }
-    
-    console.log(`🚀 Starting GPU FFmpeg for layout: ${videoCodec}`)
+    console.log(`� FFmpeg args: ffmpeg ${ffmpegArgs.join(' ')}`)
     
     const ffmpeg = spawn('ffmpeg', ffmpegArgs)
     
     ffmpeg.stdout.pipe(outputStream)
     
+    let stderrOutput = ''
     ffmpeg.stderr.on('data', (data) => {
       const line = data.toString()
-      if (line.includes('frame=') || line.includes('error') || line.includes('Error')) {
+      stderrOutput += line
+      if (line.includes('frame=') || line.includes('error') || line.includes('Error') || line.includes('failed')) {
         console.log(`GPU Layout FFmpeg: ${line.trim()}`)
       }
     })
@@ -368,6 +396,10 @@ app.use('/layout', eventHandler(async (event) => {
     ffmpeg.on('close', (code) => {
       if (code !== 0) {
         console.error(`GPU Layout FFmpeg exited with code ${code}`)
+        console.error('FFmpeg stderr:', stderrOutput.slice(-2000))
+        if (!outputStream.destroyed) {
+          outputStream.destroy(new Error(`FFmpeg exited with code ${code}`))
+        }
       } else {
         console.log(`✅ GPU Layout processing complete`)
       }
