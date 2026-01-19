@@ -251,10 +251,147 @@ app.use('/process', eventHandler(async (event) => {
   }
 }))
 
+// Layout/White Border processing endpoint
+const layoutSchema = z.object({
+  url: z.string().url('Invalid video URL'),
+  outputName: z.string().default('layout_output'),
+  enableWhiteBorder: z.boolean().optional(),
+  leftRightPercent: z.number().optional().default(0),
+  topBottomPercent: z.number().optional().default(0),
+  videoScale: z.number().optional().default(1.0),
+  videoX: z.number().optional().default(0),
+  videoY: z.number().optional().default(0),
+  borderType: z.string().optional().default('color'),
+  whiteBorderColor: z.string().optional().default('#FFFFFF'),
+  borderUrl: z.string().optional(),
+  cropTop: z.number().optional().default(0),
+  cropBottom: z.number().optional().default(0),
+  cropLeft: z.number().optional().default(0),
+  cropRight: z.number().optional().default(0)
+})
+
+app.use('/layout', eventHandler(async (event) => {
+  try {
+    const body = await readBody(event)
+    const validatedData = layoutSchema.parse(body)
+    
+    console.log(`🎨 GPU Layout processing: ${validatedData.url}`)
+    
+    const { spawn } = await import('child_process')
+    const { PassThrough } = await import('stream')
+    
+    const outputStream = new PassThrough({ highWaterMark: 4 * 1024 * 1024 })
+    
+    // Build FFmpeg filter for layout
+    const effectiveScaleW = validatedData.videoScale * ((100 - validatedData.leftRightPercent) / 100)
+    const effectiveScaleH = validatedData.videoScale * ((100 - validatedData.topBottomPercent) / 100)
+    
+    const overlayX = `(W-w)/2+(W*${validatedData.videoX}/100)`
+    const overlayY = `(H-h)/2+(H*${validatedData.videoY}/100)`
+    
+    // Build filter chain
+    const filters: string[] = []
+    filters.push(`[0:v]split=2[v_fg][v_bg]`)
+    filters.push(`[v_bg]drawbox=t=fill:c=${validatedData.whiteBorderColor || '#FFFFFF'}[canvas]`)
+    
+    let fgChain = 'v_fg'
+    if (validatedData.cropTop > 0 || validatedData.cropBottom > 0 || validatedData.cropLeft > 0 || validatedData.cropRight > 0) {
+      const w = `iw*(1-(${validatedData.cropLeft}/100)-(${validatedData.cropRight}/100))`
+      const h = `ih*(1-(${validatedData.cropTop}/100)-(${validatedData.cropBottom}/100))`
+      const x = `iw*(${validatedData.cropLeft}/100)`
+      const y = `ih*(${validatedData.cropTop}/100)`
+      filters.push(`[${fgChain}]crop=w=${w}:h=${h}:x=${x}:y=${y}[fg_cropped]`)
+      fgChain = 'fg_cropped'
+    }
+    
+    filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
+    filters.push(`[canvas][fg_ready]overlay=x=${overlayX}:y=${overlayY}[out]`)
+    
+    const filterComplex = filters.join(';')
+    console.log(`🎨 GPU Filter: ${filterComplex}`)
+    
+    // Use GPU encoding (h264_nvenc)
+    const gpuEnabled = process.env.USE_GPU === 'true'
+    const videoCodec = gpuEnabled ? 'h264_nvenc' : 'libx264'
+    const preset = gpuEnabled ? 'p4' : 'veryfast'
+    
+    const ffmpegArgs = [
+      '-protocol_whitelist', 'file,http,https,tcp,tls',
+      '-analyzeduration', '10000000',
+      '-probesize', '10000000',
+      '-i', validatedData.url,
+      '-filter_complex', filterComplex,
+      '-map', '[out]',
+      '-map', '0:a?',
+      '-c:v', videoCodec,
+      '-preset', preset,
+      '-profile:v', 'high',
+      '-level', '4.1',
+      '-pix_fmt', 'yuv420p',
+      '-c:a', 'aac',
+      '-b:a', '160k',
+      '-ar', '48000',
+      '-max_muxing_queue_size', '4096',
+      '-movflags', 'frag_keyframe+empty_moov+faststart',
+      '-f', 'mp4',
+      'pipe:1'
+    ]
+    
+    // Add GPU-specific options
+    if (gpuEnabled) {
+      ffmpegArgs.splice(0, 0, '-hwaccel', 'cuda')
+      // Insert -cq after -preset for quality control
+      const presetIdx = ffmpegArgs.indexOf('-preset')
+      ffmpegArgs.splice(presetIdx + 2, 0, '-cq', '20')
+    } else {
+      ffmpegArgs.splice(ffmpegArgs.indexOf('-profile:v'), 0, '-crf', '18')
+    }
+    
+    console.log(`🚀 Starting GPU FFmpeg for layout: ${videoCodec}`)
+    
+    const ffmpeg = spawn('ffmpeg', ffmpegArgs)
+    
+    ffmpeg.stdout.pipe(outputStream)
+    
+    ffmpeg.stderr.on('data', (data) => {
+      const line = data.toString()
+      if (line.includes('frame=') || line.includes('error') || line.includes('Error')) {
+        console.log(`GPU Layout FFmpeg: ${line.trim()}`)
+      }
+    })
+    
+    ffmpeg.on('error', (err) => {
+      console.error('GPU Layout FFmpeg spawn error:', err)
+      outputStream.destroy(err)
+    })
+    
+    ffmpeg.on('close', (code) => {
+      if (code !== 0) {
+        console.error(`GPU Layout FFmpeg exited with code ${code}`)
+      } else {
+        console.log(`✅ GPU Layout processing complete`)
+      }
+    })
+    
+    setHeader(event, 'Content-Type', 'video/mp4')
+    setHeader(event, 'Content-Disposition', `attachment; filename="${validatedData.outputName}.mp4"`)
+    
+    return outputStream
+    
+  } catch (error: any) {
+    console.error('GPU Layout processing error:', error)
+    throw createError({
+      statusCode: 400,
+      statusMessage: error.message || 'Unknown error'
+    })
+  }
+}))
+
 const port = process.env.PORT || 3000
 const server = createServer(toNodeListener(app))
 server.listen(port, () => {
     const gpuEnabled = process.env.USE_GPU === 'true'
     console.log(`🚀 GPU Video Processing Service listening on port ${port}`)
     console.log(`   GPU Acceleration: ${gpuEnabled ? '✅ ENABLED (NVENC)' : '❌ Disabled'}`)
+    console.log(`   Endpoints: /health, /process, /layout, /progress`)
 })
