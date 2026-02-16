@@ -178,7 +178,7 @@ async function extractFrames(
             ])
             .seekInput(timestamp)
             .outputOptions([
-              '-vf', 'scale=2560:-1,eq=contrast=1.5:brightness=0.1', // Higher res + better contrast
+              '-vf', 'scale=3840:-1,eq=contrast=1.7:brightness=0.1', // 4K resolution + stronger contrast
               '-q:v', '1' // Highest quality
             ])
             .frames(1)

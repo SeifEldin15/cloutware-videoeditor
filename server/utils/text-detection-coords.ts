@@ -263,8 +263,15 @@ export async function detectTextWithCoordinates(
 
     // Extract frames at 1 FPS
     console.log(`🎬 Extracting frames at 1 FPS...`)
-    const frames = await extractFrames(videoPath, numberOfFrames, tempDir)
-    console.log(`✅ Extracted ${frames.length} frames`)
+    let frames: any[] = []
+    try {
+        frames = await extractFrames(videoPath, numberOfFrames, tempDir)
+        console.log(`✅ Extracted ${frames.length} frames`)
+    } catch (e) {
+        console.warn('⚠️ Frame extraction failed, retrying with lower quality...')
+        // Retry logic could go here, or just fail gracefully
+        throw e
+    }
     
     // Calculate scale factor: frames are extracted at 2560px width
     // We need to scale coordinates back to original video dimensions

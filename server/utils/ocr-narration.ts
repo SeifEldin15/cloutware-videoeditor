@@ -46,7 +46,8 @@ export async function generateOcrNarration(
   })
 
   if (sortedTexts.length === 0) {
-    throw new Error('No text could be extracted from video')
+    console.warn('[OCR-Narration] ⚠️ No text could be extracted from video. Skipping narration.')
+    return Buffer.alloc(0)
   }
 
   console.log(`[OCR-Narration] Found ${sortedTexts.length} text regions`)

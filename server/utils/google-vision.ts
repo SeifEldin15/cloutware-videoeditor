@@ -73,7 +73,10 @@ export async function detectTextGoogle(imagePath: string, languageHint?: string)
     const requestBody: any = {
       requests: [{
         image: { content },
-        features: [{ type: 'TEXT_DETECTION' }]
+        features: [
+          { type: 'TEXT_DETECTION' },
+          { type: 'DOCUMENT_TEXT_DETECTION' }
+        ]
       }]
     }
 
@@ -90,6 +93,13 @@ export async function detectTextGoogle(imagePath: string, languageHint?: string)
 
     // Access data property safely (avoiding TS errors with googleapis types)
     const data = (response as any).data
+    // Check for API-level errors even in 200 responses
+    const responseError = data.responses?.[0]?.error
+    if (responseError) {
+        console.error('❌ Google Vision API returned error:', JSON.stringify(responseError, null, 2))
+        return { words: [], fullText: '' }
+    }
+
     const annotations = data.responses?.[0]
     
     if (!annotations) return { words: [], fullText: '' }
@@ -137,8 +147,11 @@ export async function detectTextGoogle(imagePath: string, languageHint?: string)
     }
 
     return { words, fullText }
-  } catch (error) {
-    console.error('❌ Google Vision API error:', error)
+  } catch (error: any) {
+    console.error('❌ Google Vision API error:', error.message || error)
+    if (error.response?.data) {
+         console.error('❌ API Error Details:', JSON.stringify(error.response.data, null, 2))
+    }
     // Don't crash processing, just return empty results
     return { words: [], fullText: '' }
   }
