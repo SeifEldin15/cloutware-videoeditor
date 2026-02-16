@@ -46,9 +46,8 @@ const getAuthOptions = (): GoogleAuthOptions => {
   }
   
   return options
-}
 
-const auth = new GoogleAuth(getAuthOptions())
+}
 
 export interface GoogleVisionWord {
   text: string
@@ -65,10 +64,15 @@ export interface GoogleVisionWord {
  * Detect text in an image using Google Cloud Vision API
  * Returns an array of words with their bounding boxes and full text
  */
+
 export async function detectTextGoogle(imagePath: string, languageHint?: string): Promise<{ words: GoogleVisionWord[], fullText: string }> {
   try {
-    const content = await fs.readFile(imagePath, { encoding: 'base64' })
+    // Re-initialize auth and client inside the function to ensure credentials are found
+    const auth = new GoogleAuth(getAuthOptions())
     const client = await auth.getClient()
+    const vision = google.vision({ version: 'v1', auth: client as any })
+
+    const content = await fs.readFile(imagePath, { encoding: 'base64' })
 
     const requestBody: any = {
       requests: [{
