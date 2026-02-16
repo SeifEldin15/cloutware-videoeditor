@@ -262,20 +262,20 @@ export async function detectTextWithCoordinates(
     console.log(`📐 Video dimensions: ${width}x${height}`)
 
     // Extract frames at 1 FPS
-    console.log(`🎬 Extracting frames at 1 FPS...`)
+    console.log(`🎬 Extracting frames at 1 FPS with high contrast...`)
     let frames: any[] = []
     try {
+        // Use 1080p width with strong contrast - 4K might be too heavy/slow
         frames = await extractFrames(videoPath, numberOfFrames, tempDir)
         console.log(`✅ Extracted ${frames.length} frames`)
     } catch (e) {
-        console.warn('⚠️ Frame extraction failed, retrying with lower quality...')
-        // Retry logic could go here, or just fail gracefully
+        console.warn('⚠️ Frame extraction failed:', e)
         throw e
     }
     
-    // Calculate scale factor: frames are extracted at 2560px width
+    // Calculate scale factor: frames are extracted at 1920px width (updated in extractFrames)
     // We need to scale coordinates back to original video dimensions
-    const FRAME_SCALE_WIDTH = 2560
+    const FRAME_SCALE_WIDTH = 1920 
     const scaleFactorX = width / FRAME_SCALE_WIDTH
     const scaleFactorY = scaleFactorX // Maintain aspect ratio
     console.log(`📏 Scale factors: X=${scaleFactorX.toFixed(3)}, Y=${scaleFactorY.toFixed(3)} (frame:${FRAME_SCALE_WIDTH}px -> video:${width}px)`)
@@ -288,7 +288,6 @@ export async function detectTextWithCoordinates(
 
     // Parallel processing limit
     const CONCURRENCY = 3
-    const chunks = []
     
     // Process frames in batches to avoid overwhelming the API
     for (let i = 0; i < frames.length; i += CONCURRENCY) {
@@ -300,8 +299,13 @@ export async function detectTextWithCoordinates(
         
         try {
           // Call Google Vision API
-          const { words: googleWords } = await detectTextGoogle(frame.path, language)
+          const { words: googleWords, fullText } = await detectTextGoogle(frame.path, language)
           
+          if (!googleWords.length) {
+             console.log(`   Frame ${frameIndex + 1}: No text detected by Google (raw)`)
+             if (fullText) console.log(`   (Full text was: "${fullText.substring(0, 50)}...")`)
+          }
+
           // Map to internal format
           const allWords = googleWords.map(w => ({
             text: w.text,
@@ -327,7 +331,7 @@ export async function detectTextWithCoordinates(
       for (const result of results) {
         const { frameIndex, allWords, timestamp } = result
         
-        console.log(`   Frame ${frameIndex + 1}: Found ${allWords.length} words`)
+        console.log(`   Frame ${frameIndex + 1}: Found ${allWords.length} raw words`)
         
         if (allWords.length > 0) {
           // Group words into lines
@@ -353,7 +357,11 @@ export async function detectTextWithCoordinates(
                   timestamp: timestamp
                 })
                 console.log(`   ✓ Added text: "${correctedText}" (${line.confidence.toFixed(2)}%)`)
+              } else {
+                 console.log(`   ⚠️ Rejected (not meaningful): "${cleanedText}"`)
               }
+            } else {
+               console.log(`   ⚠️ Rejected (confidence/length): "${cleanedText}" (Conf: ${line.confidence.toFixed(1)}%, Len: ${cleanedText.length})`)
             }
           }
         }
@@ -381,6 +389,7 @@ export async function detectTextWithCoordinates(
     }
   }
 }
+
 
 /**
  * Group words into lines based on vertical position
