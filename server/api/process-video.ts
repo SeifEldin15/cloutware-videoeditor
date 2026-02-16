@@ -22,7 +22,9 @@ const requestSchema = z.object({
   quality: z.enum(['fast', 'standard', 'high', 'premium']).default('premium'),
   // Optional word processing overrides
   wordMode: z.enum(['normal', 'single', 'multiple']).optional(),
-  wordsPerGroup: z.number().min(1).max(10).optional()
+  wordsPerGroup: z.number().min(1).max(10).optional(),
+  trimStart: z.number().min(0).optional(),
+  trimEnd: z.number().min(0).optional()
 });
 
 // Map template names to validation schema format
@@ -130,10 +132,15 @@ export default defineEventHandler(async (event) => {
     // Process video with advanced subtitles
     console.log(`🎬 Starting video processing with ${validatedData.quality} quality...`)
     console.log(`📍 Vertical position: ${validatedData.verticalPosition} -> ${getVerticalPositionValue(validatedData.verticalPosition)}`)
+    const videoOptions = {
+      trimStart: validatedData.trimStart,
+      trimEnd: validatedData.trimEnd
+    } as any;
+
     const videoStream = await SubtitleProcessor.processAdvanced(
       validatedData.videoUrl,
       captionOptions,
-      undefined, // videoOptions
+      videoOptions, // videoOptions
       validatedData.quality
     );
 

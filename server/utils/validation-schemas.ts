@@ -65,7 +65,10 @@ export const ValidationSchemas = {
         noiseAddition: z.boolean().optional().default(true),
         metadataPoisoning: z.boolean().optional().default(true),
         frameInterpolation: z.boolean().optional().default(true)
-      }).optional().default({})
+      }).optional().default({}),
+      trimStart: z.number().min(0).optional(),
+      trimEnd: z.number().min(0).optional()
+
     }).optional().default({}),
     caption: z.object({
       srtContent: z.string().optional(),

@@ -535,6 +535,17 @@ export class SubtitleProcessor {
           inputOpts.push('-hwaccel', 'auto')
         }
         
+        // Add trimming options if present
+        if (videoOptions?.trimStart !== undefined && videoOptions?.trimStart > 0) {
+          inputOpts.push('-ss', videoOptions.trimStart.toString())
+          console.log(`✂️ Trimming start: ${videoOptions.trimStart}s`)
+        }
+        
+        if (videoOptions?.trimEnd !== undefined && videoOptions?.trimEnd > 0) {
+          inputOpts.push('-to', videoOptions.trimEnd.toString())
+          console.log(`✂️ Trimming end: ${videoOptions.trimEnd}s`)
+        }
+
         inputOpts.push('-threads', optimalThreads)
         
         ffmpegCommand.inputOptions(inputOpts)

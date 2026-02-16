@@ -79,6 +79,61 @@
             </div>
           </div>
 
+          <!-- 1.5 Video Trimming -->
+          <div
+            v-if="videoUrl || uploadedFile"
+            class="bg-gray-800 rounded-lg p-6"
+          >
+            <h2 class="text-xl font-semibold mb-4 text-blue-300">
+              1.5 Trim Video
+            </h2>
+
+            <label class="flex items-center mb-4 cursor-pointer">
+              <div class="relative">
+                <input
+                  v-model="trimSettings.enabled"
+                  type="checkbox"
+                  class="sr-only peer"
+                />
+                <div
+                  class="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"
+                ></div>
+              </div>
+              <span class="ml-3 text-sm font-medium">Trim Video Length</span>
+            </label>
+
+            <div v-if="trimSettings.enabled" class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium mb-1"
+                  >Start Time (sec)</label
+                >
+                <input
+                  v-model.number="trimSettings.startTime"
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-medium mb-1"
+                  >End Time (sec)</label
+                >
+                <input
+                  v-model.number="trimSettings.endTime"
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  placeholder="Leave empty for end"
+                  class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500"
+                />
+                <p class="text-xs text-gray-400 mt-1">
+                  Leave blank or 0 to include until end
+                </p>
+              </div>
+            </div>
+          </div>
+
           <!-- Transcription Settings -->
           <div class="bg-gray-800 rounded-lg p-6">
             <h2 class="text-xl font-semibold mb-4 text-blue-300">
@@ -1090,6 +1145,12 @@ const previewVideoUrl = ref("");
 // Debug initialization
 console.log("🚀 Component initializing, videoUrl ref:", videoUrl);
 
+const trimSettings = ref({
+  enabled: false,
+  startTime: 0,
+  endTime: null,
+});
+
 const transcriptionSettings = ref({
   source: "video-audio",
   language: "en",
@@ -1798,6 +1859,14 @@ const processVideo = async () => {
         // Word processing settings
         wordMode: subtitleSettings.value.wordMode,
         wordsPerGroup: subtitleSettings.value.wordsPerGroup,
+        // Trim settings
+        trimStart: trimSettings.value.enabled
+          ? trimSettings.value.startTime
+          : undefined,
+        trimEnd:
+          trimSettings.value.enabled && trimSettings.value.endTime
+            ? trimSettings.value.endTime
+            : undefined,
       }),
     });
 
