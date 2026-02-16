@@ -1,10 +1,8 @@
-import { createWorker } from 'tesseract.js'
+import { detectTextGoogle } from './google-vision'
 import { getInitializedFfmpeg } from './ffmpeg'
-import { PassThrough } from 'stream'
 import fs from 'fs/promises'
 import path from 'path'
 import os from 'os'
-import sharp from 'sharp'
 
 export interface OCROptions {
   numberOfFrames?: number
@@ -24,27 +22,7 @@ export interface OCRResult {
 }
 
 /**
- * Preprocess image for better OCR results
- * - Convert to grayscale
- * - Increase contrast
- * - Sharpen
- * - Denoise
- */
-async function preprocessImage(inputPath: string): Promise<string> {
-  const outputPath = inputPath.replace('.png', '_processed.png')
-  
-  await sharp(inputPath)
-    .greyscale()
-    .normalize() // Auto-adjust contrast
-    .sharpen({ sigma: 1.5 }) // Sharpen text
-    .threshold(128) // Convert to black and white
-    .toFile(outputPath)
-  
-  return outputPath
-}
-
-/**
- * Extract text from video using Tesseract OCR
+ * Extract text from video using Google Cloud Vision API
  * Extracts frames from the video and performs OCR on each frame
  */
 export async function extractTextFromVideo(
@@ -54,10 +32,10 @@ export async function extractTextFromVideo(
   const {
     numberOfFrames = 10,
     language = 'eng',
-    confidenceThreshold = 30  // Lowered from 70 to 30 for better text detection
+    confidenceThreshold = 30
   } = options
 
-  console.log(`🔍 Starting OCR on video: ${videoUrl}`)
+  console.log(`🔍 Starting OCR on video (Google Vision): ${videoUrl}`)
   console.log(`📊 Settings: ${numberOfFrames} frames, ${language} language, ${confidenceThreshold}% confidence threshold`)
 
   // Create temporary directory for frames
@@ -85,65 +63,63 @@ export async function extractTextFromVideo(
     const frames = await extractFrames(videoPath, numberOfFrames, tempDir)
     console.log(`✅ Extracted ${frames.length} frames`)
 
-    // Initialize Tesseract worker with better configuration
-    console.log('🤖 Initializing Tesseract OCR...')
-    const worker = await createWorker(language, 1, {
-      logger: m => {
-        // Silent mode - only show completion
-      }
-    })
-    
-    // Configure Tesseract for better accuracy with subtitle text
-    await worker.setParameters({
-      tessedit_pageseg_mode: 6 as any, // Assume uniform block of text (better for subtitles)
-      preserve_interword_spaces: '1',
-      tessedit_char_blacklist: '|[]{}\\<>', // Remove common OCR mistakes
-    })
-    console.log('✅ Tesseract ready with enhanced settings')
+    console.log('🤖 Google Vision API ready')
 
     // Process each frame
     const frameResults: OCRResult['frameResults'] = []
     let allText = ''
 
-    for (let i = 0; i < frames.length; i++) {
-      console.log(`📝 Processing frame ${i + 1}/${frames.length}...`)
+    // Process frames in batches
+    const CONCURRENCY = 3
+    
+    for (let i = 0; i < frames.length; i += CONCURRENCY) {
+      const batch = frames.slice(i, i + CONCURRENCY)
+      console.log(`📝 Processing batch ${Math.floor(i / CONCURRENCY) + 1}/${Math.ceil(frames.length / CONCURRENCY)}...`)
       
-      // Preprocess image for better OCR
-      const processedPath = await preprocessImage(frames[i].path)
-      
-      // Perform OCR with better settings
-      const { data } = await worker.recognize(processedPath, {
-        rotateAuto: true,
+      const promises = batch.map(async (frame, index) => {
+        const frameIndex = i + index
+        try {
+          // Call Google Vision API
+          const { words, fullText } = await detectTextGoogle(frame.path, language)
+          
+          // Calculate average confidence for the frame
+          const confidence = words.length > 0
+            ? words.reduce((sum, w) => sum + w.confidence, 0) / words.length
+            : 0
+
+          return { frameIndex, fullText, confidence, timestamp: frame.timestamp }
+        } catch (error) {
+          console.error(`❌ Error processing frame ${frameIndex + 1}:`, error)
+          return { frameIndex, fullText: '', confidence: 0, timestamp: frame.timestamp }
+        }
       })
       
-      console.log(`   Raw text: "${data.text.trim().substring(0, 100)}..."`)
-      console.log(`   Confidence: ${data.confidence.toFixed(2)}%`)
-      console.log(`   Text length: ${data.text.trim().length}`)
+      const results = await Promise.all(promises)
       
-      if (data.confidence >= confidenceThreshold) {
-        const cleanText = data.text
-          .trim()
-          .replace(/\s+/g, ' ') // Normalize whitespace
+      for (const result of results) {
+        const { frameIndex, fullText, confidence, timestamp } = result
         
-        if (cleanText && cleanText.length > 0) { // Accept any non-empty text
+        console.log(`   Frame ${frameIndex + 1}: Found text length ${fullText.length}`)
+        
+        if (confidence >= confidenceThreshold && fullText.trim().length > 0) {
+          const cleanText = fullText
+            .trim()
+            .replace(/\s+/g, ' ') // Normalize whitespace
+          
           frameResults.push({
-            frameNumber: i + 1,
+            frameNumber: frameIndex + 1,
             text: cleanText,
-            confidence: data.confidence,
-            timestamp: frames[i].timestamp
+            confidence: confidence,
+            timestamp: timestamp
           })
           
           allText += cleanText + ' '
-          console.log(`   ✅ Accepted: "${cleanText.substring(0, 50)}..."`)
+          console.log(`   ✅ Accepted: "${cleanText.substring(0, 50)}..." (${confidence.toFixed(1)}%)`)
         } else {
-          console.log(`   ⚠️ Skipped (empty after cleaning)`)
+          console.log(`   ⚠️ Skipped (confidence ${confidence.toFixed(1)}% < ${confidenceThreshold}% or empty)`)
         }
-      } else {
-        console.log(`   ⚠️ Skipped (confidence ${data.confidence.toFixed(2)}% < ${confidenceThreshold}%)`)
       }
     }
-
-    await worker.terminate()
 
     // Calculate average confidence
     const avgConfidence = frameResults.length > 0

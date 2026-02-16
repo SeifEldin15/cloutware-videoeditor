@@ -1,9 +1,8 @@
-import { createWorker } from 'tesseract.js'
+import { detectTextGoogle } from './google-vision'
 import { getInitializedFfmpeg } from './ffmpeg'
 import fs from 'fs/promises'
 import path from 'path'
 import os from 'os'
-import sharp from 'sharp'
 import { correctText } from './spell-checker'
 
 /**
@@ -220,115 +219,7 @@ export interface TextDetectionResult {
 /**
  * Detect if text in image is predominantly light or dark
  */
-async function detectTextBrightness(inputPath: string): Promise<'light' | 'dark'> {
-  const buffer = await fs.readFile(inputPath)
-  const img = sharp(buffer)
-  
-  // Get image statistics
-  const stats = await img.stats()
-  
-  // Calculate average brightness across all channels
-  const avgBrightness = stats.channels.reduce((sum, ch) => sum + ch.mean, 0) / stats.channels.length
-  
-  // If average brightness > 127, image is generally light (might have dark text on light bg)
-  // If < 127, might be light text on dark background
-  // But we want to detect the TEXT color, so look at edges/high-contrast areas
-  
-  // Get edge-detected version to focus on text regions
-  const edgeBuffer = await img
-    .greyscale()
-    .convolve({
-      width: 3,
-      height: 3,
-      kernel: [-1, -1, -1, -1, 8, -1, -1, -1, -1] // Edge detection kernel
-    })
-    .toBuffer()
-  
-  const edgeStats = await sharp(edgeBuffer).stats()
-  const edgeBrightness = edgeStats.channels[0].mean
-  
-  // High edge brightness suggests light text on dark bg
-  // Low edge brightness with high overall brightness suggests dark text on light bg
-  if (avgBrightness < 127 || edgeBrightness > 100) {
-    console.log(`   💡 Detected LIGHT text (avg: ${avgBrightness.toFixed(1)}, edges: ${edgeBrightness.toFixed(1)})`)
-    return 'light'
-  } else {
-    console.log(`   💡 Detected DARK text (avg: ${avgBrightness.toFixed(1)}, edges: ${edgeBrightness.toFixed(1)})`)
-    return 'dark'
-  }
-}
-
-/**
- * Preprocess image for better OCR results
- * Based on Tesseract best practices: https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html
- * Adaptive preprocessing based on text brightness
- * Returns both the processed image path and the scaling information
- */
-async function preprocessImage(inputPath: string): Promise<{
-  outputPath: string
-  preprocessScaleFactor: number
-  borderSize: number
-}> {
-  const outputPath = inputPath.replace('.png', '_processed.png')
-  
-  // Check if input file exists
-  try {
-    await fs.access(inputPath)
-  } catch (error) {
-    throw new Error(`Input file does not exist: ${inputPath}`)
-  }
-  
-  // Detect text color
-  const textBrightness = await detectTextBrightness(inputPath)
-  const isLightText = textBrightness === 'light'
-  
-  const img = sharp(inputPath)
-  const metadata = await img.metadata()
-  const { width = 0, height = 0 } = metadata
-  
-  // Tesseract works best with DPI >= 300, aim for 1080p height minimum
-  const targetHeight = 1080
-  const preprocessScaleFactor = height < targetHeight ? targetHeight / height : 1
-  const borderSize = 10
-  
-  // Create base preprocessed image
-  let preprocessed = img
-    .resize(Math.round(width * preprocessScaleFactor), Math.round(height * preprocessScaleFactor))
-  
-  if (isLightText) {
-    // Light text on dark background - invert for Tesseract (needs dark text on light bg)
-    console.log('   🔄 Inverting image for light text detection')
-    preprocessed = preprocessed
-      .negate() // Invert colors
-      .linear(1.5, -(128 * 0.5)) // Increase contrast: output = 1.5 * input - 64
-      .normalize() // Auto-adjust to full range
-  } else {
-    // Dark text on light background - standard processing
-    preprocessed = preprocessed
-      .linear(1.3, -(128 * 0.3)) // Moderate contrast boost
-      .normalize()
-  }
-  
-  // Common processing for both cases
-  await preprocessed
-    .greyscale()
-    // Add small border (10px) - helps Tesseract with edge text
-    .extend({
-      top: borderSize,
-      bottom: borderSize,
-      left: borderSize,
-      right: borderSize,
-      background: { r: 255, g: 255, b: 255, alpha: 1 }
-    })
-    // Median filter for noise reduction while preserving edges
-    .median(3)
-    .sharpen({ sigma: 2.0 }) // Stronger sharpening
-    // Adaptive threshold for better binarization
-    .threshold(isLightText ? 140 : 128, { greyscale: true })
-    .toFile(outputPath)
-  
-  return { outputPath, preprocessScaleFactor, borderSize }
-}
+// Removed legacy preprocessing functions (detectTextBrightness, preprocessImage) as Google Vision handles this natively
 
 /**
  * Detect text in video with bounding box coordinates
@@ -382,134 +273,85 @@ export async function detectTextWithCoordinates(
     const scaleFactorY = scaleFactorX // Maintain aspect ratio
     console.log(`📏 Scale factors: X=${scaleFactorX.toFixed(3)}, Y=${scaleFactorY.toFixed(3)} (frame:${FRAME_SCALE_WIDTH}px -> video:${width}px)`)
 
-    // Initialize Tesseract
-    console.log('🤖 Initializing Tesseract OCR...')
-    const worker = await createWorker(language)
-    
-    await worker.setParameters({
-      tessedit_pageseg_mode: 3 as any,  // Fully automatic page segmentation (better for videos)
-      preserve_interword_spaces: '1',
-      tessedit_char_blacklist: '|[]{}\\<>',
-      tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,!?\'-',
-      // Disable dictionaries for better detection of non-standard text
-      load_system_dawg: '0',
-      load_freq_dawg: '0',
-    })
-    console.log('✅ Tesseract ready')
+    // Google Vision API requires no initialization here
+    console.log('🤖 Google Vision API ready')
 
 
     const detectedTexts: DetectedText[] = []
 
-    for (let i = 0; i < frames.length; i++) {
-      console.log(`📝 Processing frame ${i + 1}/${frames.length}...`)
+    // Parallel processing limit
+    const CONCURRENCY = 3
+    const chunks = []
+    
+    // Process frames in batches to avoid overwhelming the API
+    for (let i = 0; i < frames.length; i += CONCURRENCY) {
+      const batch = frames.slice(i, i + CONCURRENCY)
+      console.log(`📝 Processing batch ${Math.floor(i / CONCURRENCY) + 1}/${Math.ceil(frames.length / CONCURRENCY)} (frames ${i+1}-${Math.min(i+CONCURRENCY, frames.length)})...`)
       
-      const { outputPath: processedPath, preprocessScaleFactor, borderSize } = await preprocessImage(frames[i].path)
-      // Request detailed output with blocks structure
-      const result = await worker.recognize(processedPath, {}, { text: true, blocks: true, tsv: true })
-      const data = result.data
-      
-      console.log(`   Confidence: ${data.confidence.toFixed(2)}%`)
-      console.log(`   Raw text: "${data.text.substring(0, 100)}..."`)
-      
-      // Parse TSV output which contains word-level coordinates
-      // TSV format: level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext
-      const allWords: any[] = []
-      const tsv = data.tsv || ''
-      const tsvLines = tsv.split('\n')
-      
-      for (let i = 1; i < tsvLines.length; i++) { // Skip header row
-        const parts = tsvLines[i].split('\t')
-        if (parts.length >= 12) {
-          const level = parseInt(parts[0])
-          const left = parseInt(parts[6])
-          const top = parseInt(parts[7])
-          const wordWidth = parseInt(parts[8])
-          const wordHeight = parseInt(parts[9])
-          const conf = parseFloat(parts[10])
-          const text = parts[11]?.trim() || ''
-          
-          // Level 5 = word level in Tesseract TSV output
-          if (level === 5 && text.length > 0 && conf > 0) {
-            // OCR coordinates are from the preprocessed image
-            // 1. Remove border offset (10px on each side)
-            // 2. Scale back from preprocessed size to frame size (2560px)
-            // 3. Scale from frame size to video size
-            const leftInFrame = (left - borderSize) / preprocessScaleFactor
-            const topInFrame = (top - borderSize) / preprocessScaleFactor
-            const widthInFrame = wordWidth / preprocessScaleFactor
-            const heightInFrame = wordHeight / preprocessScaleFactor
-            
-            // Now scale from frame coordinates (2560px) to video coordinates
-            allWords.push({
-              text,
-              confidence: conf,
-              bbox: {
-                x0: Math.round(leftInFrame * scaleFactorX),
-                y0: Math.round(topInFrame * scaleFactorY),
-                x1: Math.round((leftInFrame + widthInFrame) * scaleFactorX),
-                y1: Math.round((topInFrame + heightInFrame) * scaleFactorY)
-              }
-            })
-          }
-        }
-      }
-      
-      console.log(`   Words extracted from TSV: ${allWords.length}`)
-      
-      //Debug: check first word structure if available
-      if (allWords.length > 0) {
-        console.log(`   First word structure:`, JSON.stringify({
-          text: allWords[0].text,
-          confidence: allWords[0].confidence,
-          bbox: allWords[0].bbox,
-          bboxKeys: allWords[0].bbox ? Object.keys(allWords[0].bbox) : 'no bbox'
-        }))
-      }
-      
-      if (allWords.length > 0) {
-        console.log(`   ✓ Frame has ${allWords.length} words, grouping into lines...`)
-        // Group words into lines
-        const lines = groupWordsIntoLines(allWords, width, height)
-        console.log(`   ✓ Grouped into ${lines.length} lines`)
+      const promises = batch.map(async (frame, index) => {
+        const frameIndex = i + index
         
-        // Filter lines by confidence threshold and meaningful text
-        for (const line of lines) {
-          const cleanedText = line.text.trim()
-          console.log(`   Line: "${cleanedText}" (confidence: ${line.confidence.toFixed(2)}%)`)
+        try {
+          // Call Google Vision API
+          const { words: googleWords } = await detectTextGoogle(frame.path, language)
           
-          // Check if line passes confidence threshold and minimum length
-          if (cleanedText.length >= minTextLength && line.confidence >= confidenceThreshold) {
-            // Check if text is meaningful (not gibberish)
-            if (isMeaningfulText(cleanedText)) {
-              // Apply OCR error correction
-              const correctedText = correctOCRErrors(cleanedText)
-              console.log(`   📝 Original: "${cleanedText}" → Corrected: "${correctedText}"`)
-              
-              detectedTexts.push({
-                text: correctedText,
-                confidence: line.confidence,
-                boundingBox: line.boundingBox,
-                frameNumber: i + 1,
-                timestamp: frames[i].timestamp
-              })
-              console.log(`   ✓ Added text: "${correctedText}" (${line.confidence.toFixed(2)}%)`)
-            } else {
-              console.log(`   ✗ Skipped: gibberish or special characters only`)
+          // Map to internal format
+          const allWords = googleWords.map(w => ({
+            text: w.text,
+            confidence: w.confidence,
+            bbox: {
+              x0: Math.round(w.boundingBox.x0 * scaleFactorX),
+              y0: Math.round(w.boundingBox.y0 * scaleFactorY),
+              x1: Math.round(w.boundingBox.x1 * scaleFactorX),
+              y1: Math.round(w.boundingBox.y1 * scaleFactorY)
             }
-          } else if (cleanedText.length > 0 && cleanedText.length < minTextLength) {
-            console.log(`   ✗ Skipped: too short (${cleanedText.length} chars < ${minTextLength})`)
-          } else if (cleanedText.length > 0) {
-            console.log(`   ✗ Skipped: confidence ${line.confidence.toFixed(2)}% < ${confidenceThreshold}%`)
-          } else {
-            console.log(`   ✗ Skipped: empty`)
+          }))
+          
+          return { frameIndex, allWords, timestamp: frame.timestamp }
+        } catch (error) {
+          console.error(`❌ Error processing frame ${frameIndex + 1}:`, error)
+          return { frameIndex, allWords: [], timestamp: frame.timestamp }
+        }
+      })
+      
+      const results = await Promise.all(promises)
+      
+      // Process results
+      for (const result of results) {
+        const { frameIndex, allWords, timestamp } = result
+        
+        console.log(`   Frame ${frameIndex + 1}: Found ${allWords.length} words`)
+        
+        if (allWords.length > 0) {
+          // Group words into lines
+          const lines = groupWordsIntoLines(allWords, width, height)
+          console.log(`   ✓ Grouped into ${lines.length} lines`)
+          
+          // Filter lines by confidence threshold and meaningful text
+          for (const line of lines) {
+            const cleanedText = line.text.trim()
+            
+            // Check if line passes confidence threshold and minimum length
+            if (cleanedText.length >= minTextLength && line.confidence >= confidenceThreshold) {
+              // Check if text is meaningful (not gibberish)
+              if (isMeaningfulText(cleanedText)) {
+                // Apply OCR error correction
+                const correctedText = correctOCRErrors(cleanedText)
+                
+                detectedTexts.push({
+                  text: correctedText,
+                  confidence: line.confidence,
+                  boundingBox: line.boundingBox,
+                  frameNumber: frameIndex + 1,
+                  timestamp: timestamp
+                })
+                console.log(`   ✓ Added text: "${correctedText}" (${line.confidence.toFixed(2)}%)`)
+              }
+            }
           }
         }
-      } else {
-        console.log(`   ✗ No words extracted from frame`)
       }
     }
-
-    await worker.terminate()
 
     console.log(`✅ Detection complete. Found ${detectedTexts.length} text regions`)
 
