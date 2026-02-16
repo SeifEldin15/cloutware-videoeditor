@@ -1,11 +1,54 @@
 import { google } from 'googleapis'
-import { GoogleAuth } from 'google-auth-library'
+import { GoogleAuth, type GoogleAuthOptions } from 'google-auth-library'
 import fs from 'fs/promises'
+import { existsSync } from 'fs'
+import path from 'path'
 
 const vision = google.vision('v1')
-const auth = new GoogleAuth({
-  scopes: ['https://www.googleapis.com/auth/cloud-vision']
-})
+
+// Try to find credentials file in common locations
+const getAuthOptions = (): GoogleAuthOptions => {
+  const options: GoogleAuthOptions = {
+    scopes: ['https://www.googleapis.com/auth/cloud-vision']
+  }
+
+  const keyFiles = [
+    'seif-2-15-2025-b03d48e0a71a.json', // Specific file for this project
+    'service-account.json',
+    'google-credentials.json',
+    'keys.json'
+  ]
+
+  // Check current directory and up to 2 levels up (in case of running from .output/server)
+  const searchDirs = [
+    process.cwd(),
+    path.resolve(process.cwd(), '.output', 'server'),
+    path.resolve(process.cwd(), '..'),
+    path.resolve(process.cwd(), '..', '..')
+  ]
+
+  console.log('[GoogleVision] Current working directory:', process.cwd())
+  console.log('[GoogleVision] Searching for credentials in:', searchDirs.join(', '))
+
+  for (const dir of searchDirs) {
+    for (const file of keyFiles) {
+      const filePath = path.join(dir, file)
+      try {
+        if (existsSync(filePath)) {
+          console.log(`[GoogleVision] Found credentials: ${filePath}`)
+          options.keyFilename = filePath
+          return options
+        }
+      } catch (e) {
+        // ignore errors checking file
+      }
+    }
+  }
+  
+  return options
+}
+
+const auth = new GoogleAuth(getAuthOptions())
 
 export interface GoogleVisionWord {
   text: string
