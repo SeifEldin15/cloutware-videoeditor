@@ -534,6 +534,44 @@
             </label>
 
             <div v-if="narrationSettings.enabled" class="space-y-4">
+              <!-- Language Settings -->
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium mb-2"
+                    >Source Language</label
+                  >
+                  <select
+                    v-model="narrationSettings.sourceLanguage"
+                    class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option
+                      v-for="lang in narrationLanguages.filter((l) => l.value)"
+                      :key="lang.value"
+                      :value="lang.value"
+                    >
+                      {{ lang.title }}
+                    </option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium mb-2"
+                    >Target Language</label
+                  >
+                  <select
+                    v-model="narrationSettings.targetLanguage"
+                    class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option
+                      v-for="lang in narrationLanguages"
+                      :key="lang.value"
+                      :value="lang.value"
+                    >
+                      {{ lang.title }}
+                    </option>
+                  </select>
+                </div>
+              </div>
+
               <!-- Voice Selection -->
               <div>
                 <label class="block text-sm font-medium mb-2">🎤 Voice</label>
@@ -1166,6 +1204,22 @@ const processingOptions = ref({
 });
 
 // Narration settings
+const narrationLanguages = [
+  { value: "", title: "Same as source (no translation)" },
+  { value: "en", title: "🇺🇸 English" },
+  { value: "es", title: "🇪🇸 Spanish" },
+  { value: "fr", title: "🇫🇷 French" },
+  { value: "de", title: "🇩🇪 German" },
+  { value: "it", title: "🇮🇹 Italian" },
+  { value: "pt", title: "🇧🇷 Portuguese" },
+  { value: "nl", title: "🇳🇱 Dutch" },
+  { value: "pl", title: "🇵🇱 Polish" },
+  { value: "ru", title: "🇷🇺 Russian" },
+  { value: "ja", title: "🇯🇵 Japanese" },
+  { value: "ko", title: "🇰🇷 Korean" },
+  { value: "zh", title: "🇨🇳 Chinese" },
+];
+
 const narrationSettings = ref({
   enabled: false,
   voice: "21m00Tcm4TlvDq8ikWAM",
@@ -1173,6 +1227,8 @@ const narrationSettings = ref({
   narrationVolume: 1.0,
   originalVolume: 0.1,
   keepOriginalAudio: true,
+  sourceLanguage: "en",
+  targetLanguage: "",
 });
 
 const isGeneratingNarration = ref(false);
@@ -2016,6 +2072,8 @@ const generateNarration = async () => {
           narrationVolume: narrationSettings.value.narrationVolume,
           originalVolume: narrationSettings.value.originalVolume,
           keepOriginalAudio: narrationSettings.value.keepOriginalAudio,
+          sourceLanguage: narrationSettings.value.sourceLanguage,
+          targetLanguage: narrationSettings.value.targetLanguage,
         },
       }),
     });

@@ -23,7 +23,9 @@ export default defineEventHandler(async (event) => {
       similarityBoost: options.similarityBoost || 0.75,
       narrationVolume: options.narrationVolume ?? 1.0,
       originalVolume: options.originalVolume ?? 0.1,
-      keepOriginalAudio: options.keepOriginalAudio !== false
+      keepOriginalAudio: options.keepOriginalAudio !== false,
+      sourceLanguage: options.sourceLanguage || 'en',
+      targetLanguage: options.targetLanguage || undefined
     })
 
     if (!narratedBuffer || narratedBuffer.length === 0) {

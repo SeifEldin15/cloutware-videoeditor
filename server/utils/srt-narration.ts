@@ -1,4 +1,5 @@
 import { generateSpeech } from './elevenlabs'
+import { translateText } from './translate-text'
 import fs from 'fs/promises'
 import path from 'path'
 import os from 'os'
@@ -16,6 +17,10 @@ export interface SrtNarrationOptions {
   originalVolume?: number
   /** Whether to keep original audio mixed in, default true */
   keepOriginalAudio?: boolean
+  /** Source language code (e.g. 'en'), default 'en' */
+  sourceLanguage?: string
+  /** Target language code for translation (e.g. 'es'). If set and different from source, SRT text is translated before TTS */
+  targetLanguage?: string
 }
 
 interface SrtSegment {
@@ -93,8 +98,12 @@ export async function generateSrtNarration(
     similarityBoost = 0.75,
     narrationVolume = 1.0,
     originalVolume = 0.1,
-    keepOriginalAudio = true
+    keepOriginalAudio = true,
+    sourceLanguage = 'en',
+    targetLanguage
   } = options
+
+  const shouldTranslate = targetLanguage && targetLanguage !== sourceLanguage
 
   // Step 1: Parse SRT
   console.log('[SRT-Narration] Parsing SRT content...')
@@ -113,9 +122,17 @@ export async function generateSrtNarration(
     // Step 2: Generate TTS audio for each segment
     for (let i = 0; i < segments.length; i++) {
       const segment = segments[i]
-      console.log(`[SRT-Narration] Generating audio ${i + 1}/${segments.length}: "${segment.text.substring(0, 50)}..." at ${segment.startTime.toFixed(2)}s`)
+      let textToSpeak = segment.text
 
-      const audioStream = await generateSpeech(segment.text, {
+      // Translate if a target language is specified
+      if (shouldTranslate) {
+        console.log(`[SRT-Narration] Translating segment ${i + 1} to ${targetLanguage}...`)
+        textToSpeak = await translateText(textToSpeak, sourceLanguage, targetLanguage!)
+      }
+
+      console.log(`[SRT-Narration] Generating audio ${i + 1}/${segments.length}: "${textToSpeak.substring(0, 50)}..." at ${segment.startTime.toFixed(2)}s`)
+
+      const audioStream = await generateSpeech(textToSpeak, {
         voiceId: voice,
         speed,
         stability,
