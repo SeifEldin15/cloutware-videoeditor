@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { readBody, setHeader } from 'h3'
 import { SubtitleProcessor } from '../utils/subtitle-processor'
+import { translateSrt } from '../utils/translate-text'
 
 const requestSchema = z.object({
   videoUrl: z.string().url('Invalid video URL'),
@@ -24,7 +25,9 @@ const requestSchema = z.object({
   wordMode: z.enum(['normal', 'single', 'multiple']).optional(),
   wordsPerGroup: z.number().min(1).max(10).optional(),
   trimStart: z.number().min(0).optional(),
-  trimEnd: z.number().min(0).optional()
+  trimEnd: z.number().min(0).optional(),
+  subtitleLanguage: z.string().optional(),
+  sourceLanguage: z.string().optional()
 });
 
 // Map template names to validation schema format
@@ -84,6 +87,24 @@ export default defineEventHandler(async (event) => {
       throw new Error('Transcription is required for video processing. Please run transcription first.');
     }
 
+    let finalTranscription = validatedData.transcription;
+
+    // Handle subtitle translation if requested
+    if (validatedData.subtitleLanguage && validatedData.subtitleLanguage !== validatedData.sourceLanguage) {
+      console.log(`🌍 Translating subtitles from ${validatedData.sourceLanguage || 'auto'} to ${validatedData.subtitleLanguage}...`);
+      try {
+        finalTranscription = await translateSrt(
+          validatedData.transcription,
+          validatedData.sourceLanguage || 'en',
+          validatedData.subtitleLanguage
+        );
+        console.log('✅ Subtitle translation complete');
+      } catch (translateError) {
+        console.error('❌ Subtitle translation failed:', translateError);
+        // Continue with original transcription on error
+      }
+    }
+
     // Map vertical position to proper values for ASS positioning
     const getVerticalPositionValue = (position: string) => {
       switch (position) {
@@ -96,7 +117,7 @@ export default defineEventHandler(async (event) => {
 
     // Create caption options for the subtitle processor
     const captionOptions = {
-      srtContent: validatedData.transcription,
+      srtContent: finalTranscription,
       fontSize: validatedData.fontSize,
       fontColor: validatedData.primaryColor,
       fontFamily: validatedData.fontFamily,

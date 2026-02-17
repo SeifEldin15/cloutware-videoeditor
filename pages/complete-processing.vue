@@ -544,6 +544,32 @@
                 />
                 <span class="ml-2 text-sm">Generate subtitle files</span>
               </label>
+
+              <!-- Subtitle Translation UI -->
+              <div
+                v-if="processingOptions.generateSubtitles"
+                class="mt-2 pl-6 border-l-2 border-gray-700"
+              >
+                <label class="block text-sm font-medium mb-2 text-gray-300">
+                  Target Language (Optional)
+                </label>
+                <select
+                  v-model="processingOptions.subtitleLanguage"
+                  class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
+                >
+                  <option
+                    v-for="lang in narrationLanguages"
+                    :key="lang.value"
+                    :value="lang.value"
+                  >
+                    {{ lang.title }}
+                  </option>
+                </select>
+                <div class="mt-1 text-xs text-blue-400">
+                  Translate subtitles to another language
+                </div>
+              </div>
+
               <label class="flex items-center">
                 <input
                   v-model="processingOptions.embedSubtitles"
@@ -1257,11 +1283,11 @@ const subtitleSettings = ref({
   verticalPosition: "bottom",
 });
 
-const processingOptions = ref({
   generateSubtitles: true,
   embedSubtitles: true,
   optimizeForWeb: true,
   quality: "premium",
+  subtitleLanguage: "", // Add subtitle translation language
 });
 
 // Narration settings
@@ -1270,15 +1296,7 @@ const narrationLanguages = [
   { value: "en", title: "🇺🇸 English" },
   { value: "es", title: "🇪🇸 Spanish" },
   { value: "fr", title: "🇫🇷 French" },
-  { value: "de", title: "🇩🇪 German" },
-  { value: "it", title: "🇮🇹 Italian" },
-  { value: "pt", title: "🇧🇷 Portuguese" },
-  { value: "nl", title: "🇳🇱 Dutch" },
-  { value: "pl", title: "🇵🇱 Polish" },
-  { value: "ru", title: "🇷🇺 Russian" },
-  { value: "ja", title: "🇯🇵 Japanese" },
-  { value: "ko", title: "🇰🇷 Korean" },
-  { value: "zh", title: "🇨🇳 Chinese" },
+  { value: "ar", title: "🇸🇦 Arabic" },
 ];
 
 const narrationSettings = ref({
@@ -1864,9 +1882,12 @@ const processVideo = async () => {
           ? trimSettings.value.startTime
           : undefined,
         trimEnd:
-          trimSettings.value.enabled && trimSettings.value.endTime
+           trimSettings.value.enabled && trimSettings.value.endTime
             ? trimSettings.value.endTime
             : undefined,
+        // Translation settings
+        subtitleLanguage: processingOptions.value.subtitleLanguage,
+        sourceLanguage: transcriptionSettings.value.language,
       }),
     });
 
