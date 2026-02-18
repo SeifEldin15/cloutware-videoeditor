@@ -14,6 +14,12 @@ export interface TextReplacement {
   timestamp: number
   startTime?: number  // Start time in seconds when text should appear
   endTime?: number    // End time in seconds when text should disappear
+  style?: {
+    backgroundColor?: string
+    backgroundOpacity?: number
+    fontColor?: string
+    fontSize?: number
+  }
 }
 
 export interface ReplaceTextOptions {
@@ -207,12 +213,17 @@ function buildTextReplacementFilterComplex(
   // Start with scale filter
   let filterChain = '[0:v]scale=trunc(iw/2)*2:trunc(ih/2)*2'
   
-  const bgColor = hexToRgb(style.backgroundColor)
-  
   // Add each replacement with horizontally aligned overlays AND time-based filtering
   for (let i = 0; i < replacements.length; i++) {
     const replacement = replacements[i]
     const { boundingBox, newText, startTime, endTime } = replacement
+    
+    // Determine styles (use replacement override or global default)
+    const currentBgColorHex = replacement.style?.backgroundColor || style.backgroundColor
+    const currentBgColor = hexToRgb(currentBgColorHex)
+    const currentOpacity = replacement.style?.backgroundOpacity ?? style.backgroundOpacity
+    const currentFontColorHex = replacement.style?.fontColor || style.fontColor
+    const currentFontSize = replacement.style?.fontSize || style.fontSize
     
     console.log(`📝 Processing replacement ${i + 1}: "${replacement.originalText}" -> "${newText}"`)
     
@@ -235,7 +246,7 @@ function buildTextReplacementFilterComplex(
     }
 
     // Draw white rectangle overlay with time-based enable (filled)
-    filterChain += `,drawbox=x=${x}:y=${y}:w=${width}:h=${height}:color=${bgColor}@${style.backgroundOpacity}:t=fill${enableExpression}`
+    filterChain += `,drawbox=x=${x}:y=${y}:w=${width}:h=${height}:color=${currentBgColor}@${currentOpacity}:t=fill${enableExpression}`
     
     // Clean text: Remove special characters, keep letters, numbers, spaces
     // Note: Apostrophes cause FFmpeg escaping issues, so we remove them
@@ -256,10 +267,10 @@ function buildTextReplacementFilterComplex(
     const textY = `(${y}+${height}/2-th/2)` // Center vertically: y + (height - text_height) / 2
     
     // Convert font color from hex to FFmpeg format (remove # prefix)
-    const fontColorFFmpeg = style.fontColor.startsWith('#') ? style.fontColor.substring(1) : style.fontColor
+    const fontColorFFmpeg = currentFontColorHex.startsWith('#') ? currentFontColorHex.substring(1) : currentFontColorHex
     
     // Draw text using system font name with same time-based enable (avoid Windows path issues)
-    filterChain += `,drawtext=text='${safeText}':font=${style.fontFamily}:fontsize=${style.fontSize}:fontcolor=0x${fontColorFFmpeg}:x=${textX}:y=${textY}${enableExpression}`
+    filterChain += `,drawtext=text='${safeText}':font=${style.fontFamily}:fontsize=${currentFontSize}:fontcolor=0x${fontColorFFmpeg}:x=${textX}:y=${textY}${enableExpression}`
     
     console.log(`   📦 Overlay at (${x},${y}) size ${width}x${height} - HORIZONTALLY CENTERED`)
     console.log(`   ✍️  Text "${safeText}" centered in overlay`)
