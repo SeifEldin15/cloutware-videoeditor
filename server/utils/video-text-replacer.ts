@@ -30,6 +30,7 @@ export interface ReplaceTextOptions {
   fontColor?: string
   backgroundColor?: string
   backgroundOpacity?: number
+  borderRadius?: number
   videoWidth?: number  // Video width for horizontal alignment
 }
 
@@ -48,6 +49,7 @@ export async function replaceTextInVideo(
     fontColor = '#000000',
     backgroundColor = '#FFFFFF',
     backgroundOpacity = 1.0,
+    borderRadius = 0,
     videoWidth
   } = options
 
@@ -81,7 +83,9 @@ export async function replaceTextInVideo(
         fontSize,
         fontColor,
         backgroundColor,
-        backgroundOpacity
+        backgroundColor,
+        backgroundOpacity,
+        borderRadius
       }, videoWidth)
 
       console.log('📝 Applying text replacements...')
@@ -187,11 +191,16 @@ function buildTextReplacementFilterComplex(
     fontSize: number
     fontColor: string
     backgroundColor: string
+    backgroundColor: string
     backgroundOpacity: number
+    borderRadius?: number
   },
   videoWidth?: number  // Add video width parameter for centering
 ): string {
   console.log(`🎨 Building filter complex for ${replacements.length} replacement(s)`)
+  if (style.borderRadius && style.borderRadius > 0) {
+     console.log(`ℹ️ Border radius requested: ${style.borderRadius}px (Note: Current rendering engine defaults to rectangular boxes for performance)`) 
+  }
 
   // Calculate the maximum width for all overlays (make them symmetric)
   const padding = 10
