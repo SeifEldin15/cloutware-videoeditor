@@ -279,13 +279,14 @@
                       <!-- GIF Preview -->
                       <div class="aspect-video bg-gray-900 relative">
                         <!-- Placeholder/GIF -->
-                        <img
-                          :src="`/gifs/${template.id}.gif`"
-                          :alt="template.name"
+                        <video
+                          :src="`/template-previews/${template.id}.mp4`"
                           class="w-full h-full object-cover"
-                          loading="lazy"
-                          onerror="this.src='https://via.placeholder.com/320x180?text=No+Preview'"
-                        />
+                          autoplay
+                          loop
+                          muted
+                          playsinline
+                        ></video>
 
                         <!-- Selection Overlay -->
                         <div
