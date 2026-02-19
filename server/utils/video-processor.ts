@@ -24,7 +24,15 @@ export class VideoProcessor {
     }
     
     if (options?.trimEnd !== undefined && options.trimEnd > 0) {
-      inputOptions.push('-to', options.trimEnd.toString())
+      // When using input seeking (-ss before -i), the timestamp resets to 0.
+      // So we must use -t (duration) or -to (position). 
+      // If we use -ss as input option, -to refers to the position relative to the NEW start (0).
+      // So -to would be equivalent to duration.
+      // However, it's safer to calculate duration explicitly.
+      const duration = options.trimEnd - (options.trimStart || 0)
+      if (duration > 0) {
+          inputOptions.push('-t', duration.toString())
+      }
     }
 
     return this.processWithFFmpeg(inputUrl, {
