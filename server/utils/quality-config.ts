@@ -249,7 +249,7 @@ export function configToOutputOptions(config: VideoQualityConfig): string[] {
 /**
  * Get quality config based on quality level
  */
-export function getQualityConfig(quality: 'fast' | 'standard' | 'high' | 'premium' = 'high'): VideoQualityConfig {
+export function getQualityConfig(quality: 'fast' | 'standard' | 'high' | 'premium' | 'text' = 'high'): VideoQualityConfig {
   if (USE_GPU) {
       console.log(`🚀 Using GPU-accelerated configuration (NVENC) for ${quality} quality`)
       switch (quality) {

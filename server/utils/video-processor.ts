@@ -16,10 +16,21 @@ export class VideoProcessor {
   ): Promise<PassThrough> {
     const outputConfig = this.getOutputOptionsForFormat(format, options)
     
+    // Add trimming options if present
+    const inputOptions = [...(outputConfig.inputOptions || [])]
+    
+    if (options?.trimStart !== undefined && options.trimStart > 0) {
+      inputOptions.push('-ss', options.trimStart.toString())
+    }
+    
+    if (options?.trimEnd !== undefined && options.trimEnd > 0) {
+      inputOptions.push('-to', options.trimEnd.toString())
+    }
+
     return this.processWithFFmpeg(inputUrl, {
       name: `${outputName}.${outputConfig.fileExtension}`,
       outputOptions: outputConfig.outputOptions,
-      inputOptions: outputConfig.inputOptions,
+      inputOptions: inputOptions,
       contentType: outputConfig.contentType
     })
   }
@@ -348,7 +359,9 @@ export class VideoProcessor {
     outputOptions.push('-preset', qualityConfig.preset)
     outputOptions.push('-crf', qualityConfig.crf.toString())
     outputOptions.push('-profile:v', qualityConfig.profile)
-    outputOptions.push('-level', qualityConfig.level)
+    if (qualityConfig.level) {
+      outputOptions.push('-level', qualityConfig.level)
+    }
     outputOptions.push('-threads', optimalThreads)
     outputOptions.push('-pix_fmt', qualityConfig.pixelFormat)
     outputOptions.push('-r', '29.97')
