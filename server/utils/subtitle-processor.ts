@@ -542,8 +542,13 @@ export class SubtitleProcessor {
         }
         
         if (videoOptions?.trimEnd !== undefined && videoOptions?.trimEnd > 0) {
-          inputOpts.push('-to', videoOptions.trimEnd.toString())
-          console.log(`✂️ Trimming end: ${videoOptions.trimEnd}s`)
+          // When using input seeking (-ss before -i), timestamps reset to 0.
+          // Must use -t (duration) instead of -to (absolute position).
+          const duration = videoOptions.trimEnd - (videoOptions.trimStart || 0)
+          if (duration > 0) {
+            inputOpts.push('-t', duration.toString())
+            console.log(`✂️ Trimming duration: ${duration}s (from ${videoOptions.trimStart || 0}s to ${videoOptions.trimEnd}s)`)
+          }
         }
 
         inputOpts.push('-threads', optimalThreads)
