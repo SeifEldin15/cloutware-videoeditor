@@ -535,24 +535,14 @@ export class SubtitleProcessor {
           inputOpts.push('-hwaccel', 'auto')
         }
         
-        // Add trimming options if present
+        // Add -ss as INPUT option for fast seeking (timestamps reset to 0 after seek)
         if (videoOptions?.trimStart !== undefined && videoOptions?.trimStart > 0) {
           inputOpts.push('-ss', videoOptions.trimStart.toString())
-          console.log(`✂️ Trimming start: ${videoOptions.trimStart}s`)
-        }
-        
-        if (videoOptions?.trimEnd !== undefined && videoOptions?.trimEnd > 0) {
-          // When using input seeking (-ss before -i), timestamps reset to 0.
-          // Must use -t (duration) instead of -to (absolute position).
-          const duration = videoOptions.trimEnd - (videoOptions.trimStart || 0)
-          if (duration > 0) {
-            inputOpts.push('-t', duration.toString())
-            console.log(`✂️ Trimming duration: ${duration}s (from ${videoOptions.trimStart || 0}s to ${videoOptions.trimEnd}s)`)
-          }
+          console.log(`✂️ Trim: seeking to ${videoOptions.trimStart}s`)
         }
 
         inputOpts.push('-threads', optimalThreads)
-        
+
         ffmpegCommand.inputOptions(inputOpts)
 
         console.log(`🔧 Video options received:`, JSON.stringify(videoOptions, null, 2))
@@ -643,6 +633,16 @@ export class SubtitleProcessor {
           const qualityConfig = getTextQualityConfig()
           const qualityOptions = configToOutputOptions(qualityConfig)
           outputOptions.push(...qualityOptions)
+        }
+
+        // Add -t as OUTPUT option: limits how many seconds to encode from the seeked position.
+        // Must be output-side because -ss as input resets timestamps to 0.
+        if (videoOptions?.trimEnd !== undefined && videoOptions.trimEnd > 0) {
+          const trimDuration = videoOptions.trimEnd - (videoOptions.trimStart || 0)
+          if (trimDuration > 0) {
+            outputOptions.push('-t', trimDuration.toString())
+            console.log(`✂️ Trim: encoding ${trimDuration}s (${videoOptions.trimStart || 0}s → ${videoOptions.trimEnd}s)`)
+          }
         }
 
         outputOptions.push('-threads', optimalThreads, '-pix_fmt', 'yuv420p', '-f', 'mpegts')
