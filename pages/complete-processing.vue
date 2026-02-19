@@ -1300,28 +1300,12 @@ const templateCategories = [
     ],
   },
   {
-    name: "⚡ Impact Templates",
-    templates: [
-      {
-        id: "whiteimpact",
-        name: "White Impact",
-        desc: "Clean white highlights",
-      },
-      { id: "impactfull", name: "Impact Full", desc: "Maximum visual impact" },
-    ],
-  },
-  {
     name: "🎨 Creative Templates",
     templates: [
       {
         id: "revealEnlarge",
         name: "Reveal Enlarge",
         desc: "Zoom-in discovery",
-      },
-      {
-        id: "shrinkingPairs",
-        name: "Shrinking Pairs",
-        desc: "Minimalist pairs",
       },
     ],
   },
