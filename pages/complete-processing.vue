@@ -262,9 +262,7 @@
                   >
                     {{ category.name }}
                   </h3>
-                  <div
-                    class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
-                  >
+                  <div class="grid grid-cols-3 sm:grid-cols-4 gap-3">
                     <div
                       v-for="template in category.templates"
                       :key="template.id"
@@ -314,10 +312,10 @@
                       </div>
 
                       <!-- Template Info -->
-                      <div class="p-3">
+                      <div class="p-2">
                         <div class="flex items-center justify-between mb-1">
                           <span
-                            class="text-sm font-semibold transition-colors"
+                            class="text-xs font-semibold transition-colors truncate"
                             :class="
                               subtitleSettings.animationStyle === template.id
                                 ? 'text-blue-400'
@@ -328,7 +326,7 @@
                           </span>
                         </div>
                         <p
-                          class="text-xs text-gray-400 line-clamp-2 leading-relaxed"
+                          class="text-[10px] text-gray-400 line-clamp-1 leading-tight"
                         >
                           {{ template.desc }}
                         </p>
