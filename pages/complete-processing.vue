@@ -243,102 +243,117 @@
             </h2>
 
             <!-- Style Selection -->
-            <div class="mb-4">
-              <label class="block text-sm font-medium mb-2"
-                >Animation Style Template</label
-              >
-              <select
-                v-model="subtitleSettings.animationStyle"
-                class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500"
-              >
-                <optgroup label="🔥 Viral Templates">
-                  <option value="girlboss">
-                    💅 Girlboss - Bold pink/purple animations
-                  </option>
-                  <option value="hormozi">
-                    🚀 Hormozi - Business motivational style
-                  </option>
-                  <option value="tiktokstyle">
-                    📱 TikTok Style - Social media trending
-                  </option>
-                </optgroup>
-                <optgroup label="⚡ Impact Templates">
-                  <option value="whiteimpact">
-                    ⚪ White Impact - Clean white highlights
-                  </option>
-                  <option value="impactfull">
-                    💥 Impact Full - Maximum visual impact
-                  </option>
-                  <option value="thinToBold">
-                    📈 Thin to Bold - Progressive emphasis
-                  </option>
-                </optgroup>
-                <optgroup label="🎨 Creative Templates">
-                  <option value="wavyColors">
-                    🌊 Wavy Colors - Flowing rainbow effects
-                  </option>
-                  <option value="revealEnlarge">
-                    🔍 Reveal Enlarge - Zoom-in discovery
-                  </option>
-                  <option value="shrinkingPairs">
-                    📐 Shrinking Pairs - Minimalist pairs
-                  </option>
-                </optgroup>
-              </select>
-
-              <!-- Template Preview/Description -->
-              <div
-                class="mt-2 p-3 bg-gradient-to-r from-gray-700 to-gray-600 rounded-lg border border-gray-500"
-              >
-                <div class="flex items-center justify-between mb-2">
-                  <div class="font-medium text-blue-300">
-                    {{
-                      getTemplateDescription(subtitleSettings.animationStyle)
-                    }}
-                  </div>
-                  <div class="text-xs bg-blue-600 px-2 py-1 rounded-full">
-                    {{ subtitleSettings.animationStyle.toUpperCase() }}
-                  </div>
-                </div>
-
-                <!-- Template Preset Info -->
-                <div
-                  class="mb-2 p-2 bg-blue-900/30 border border-blue-600 rounded"
+            <!-- Visual Style Selection Grid -->
+            <div class="mb-6">
+              <label class="block text-sm font-medium mb-3">
+                Choose Animation Style
+                <span class="text-xs text-blue-400 ml-2"
+                  >✨ Select a template to preview</span
                 >
-                  <div class="flex items-center text-blue-400 text-xs">
-                    <span class="mr-2">🎨</span>
-                    <span class="font-medium">TEMPLATE PRESET LOADED</span>
-                  </div>
-                  <div class="text-blue-300 text-xs mt-1">
-                    This template's optimized settings have been loaded as your
-                    starting point. Feel free to customize!
-                  </div>
-                </div>
+              </label>
 
-                <div class="text-gray-300 text-xs mb-2">
-                  {{ getTemplateFeatures(subtitleSettings.animationStyle) }}
-                </div>
-                <div class="flex items-center justify-between">
-                  <div class="text-xs text-gray-400">
-                    🎨
-                    <span
-                      class="inline-block w-3 h-3 rounded-full ml-1"
-                      :style="{
-                        backgroundColor: subtitleSettings.primaryColor,
-                      }"
-                    ></span>
-                    <span
-                      class="inline-block w-3 h-3 rounded-full ml-1"
-                      :style="{
-                        backgroundColor: subtitleSettings.secondaryColor,
-                      }"
-                    ></span>
-                    • 📝 {{ subtitleSettings.fontFamily }}
+              <div class="space-y-6">
+                <div
+                  v-for="category in templateCategories"
+                  :key="category.name"
+                >
+                  <h3
+                    class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 pl-1"
+                  >
+                    {{ category.name }}
+                  </h3>
+                  <div
+                    class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+                  >
+                    <div
+                      v-for="template in category.templates"
+                      :key="template.id"
+                      @click="subtitleSettings.animationStyle = template.id"
+                      class="relative group cursor-pointer bg-gray-700/50 rounded-lg border-2 transition-all duration-200 overflow-hidden hover:bg-gray-700 hover:border-gray-500"
+                      :class="
+                        subtitleSettings.animationStyle === template.id
+                          ? 'border-blue-500 ring-1 ring-blue-500 shadow-lg shadow-blue-500/10'
+                          : 'border-transparent'
+                      "
+                    >
+                      <!-- GIF Preview -->
+                      <div class="aspect-video bg-gray-900 relative">
+                        <!-- Placeholder/GIF -->
+                        <img
+                          :src="`/gifs/${template.id}.gif`"
+                          :alt="template.name"
+                          class="w-full h-full object-cover"
+                          loading="lazy"
+                          onerror="this.src='https://via.placeholder.com/320x180?text=No+Preview'"
+                        />
+
+                        <!-- Selection Overlay -->
+                        <div
+                          v-if="subtitleSettings.animationStyle === template.id"
+                          class="absolute inset-0 bg-blue-500/20 flex items-center justify-center backdrop-blur-[1px]"
+                        >
+                          <div
+                            class="bg-blue-600 rounded-full p-2 shadow-xl transform scale-100 transition-transform"
+                          >
+                            <svg
+                              class="w-5 h-5 text-white"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2.5"
+                                d="M5 13l4 4L19 7"
+                              />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- Template Info -->
+                      <div class="p-3">
+                        <div class="flex items-center justify-between mb-1">
+                          <span
+                            class="text-sm font-semibold transition-colors"
+                            :class="
+                              subtitleSettings.animationStyle === template.id
+                                ? 'text-blue-400'
+                                : 'text-gray-200'
+                            "
+                          >
+                            {{ template.name }}
+                          </span>
+                        </div>
+                        <p
+                          class="text-xs text-gray-400 line-clamp-2 leading-relaxed"
+                        >
+                          {{ template.desc }}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div class="text-xs text-gray-400">
-                    {{ subtitleSettings.fontSize }}px •
-                    {{ subtitleSettings.wordMode }} •
-                    {{ subtitleSettings.verticalPosition }}
+                </div>
+              </div>
+
+              <!-- Selected Template Info Bar -->
+              <div
+                v-if="subtitleSettings.animationStyle"
+                class="mt-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg flex items-start gap-3"
+              >
+                <div class="mt-0.5 text-xl">🎨</div>
+                <div>
+                  <div class="text-sm font-medium text-blue-300">
+                    {{
+                      templateConfigurations[subtitleSettings.animationStyle]
+                        ?.fontFamily || "Custom"
+                    }}
+                    Style Active
+                  </div>
+                  <div class="text-xs text-blue-400/80 mt-0.5">
+                    optimized settings loaded. Customize colors and fonts below
+                    if needed!
                   </div>
                 </div>
               </div>
@@ -1271,6 +1286,47 @@ const templateConfigurations = {
     verticalPosition: "center",
   },
 };
+
+const templateCategories = [
+  {
+    name: "🔥 Viral Templates",
+    templates: [
+      { id: "girlboss", name: "Girlboss", desc: "Bold pink/purple animations" },
+      { id: "hormozi", name: "Hormozi", desc: "Business motivational style" },
+      {
+        id: "tiktokstyle",
+        name: "TikTok Style",
+        desc: "Social media trending",
+      },
+    ],
+  },
+  {
+    name: "⚡ Impact Templates",
+    templates: [
+      {
+        id: "whiteimpact",
+        name: "White Impact",
+        desc: "Clean white highlights",
+      },
+      { id: "impactfull", name: "Impact Full", desc: "Maximum visual impact" },
+    ],
+  },
+  {
+    name: "🎨 Creative Templates",
+    templates: [
+      {
+        id: "revealEnlarge",
+        name: "Reveal Enlarge",
+        desc: "Zoom-in discovery",
+      },
+      {
+        id: "shrinkingPairs",
+        name: "Shrinking Pairs",
+        desc: "Minimalist pairs",
+      },
+    ],
+  },
+];
 
 const subtitleSettings = ref({
   animationStyle: "girlboss",
