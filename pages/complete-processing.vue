@@ -1283,6 +1283,7 @@ const subtitleSettings = ref({
   verticalPosition: "bottom",
 });
 
+const videoProcessingSettings = ref({
   generateSubtitles: true,
   embedSubtitles: true,
   optimizeForWeb: true,
@@ -1882,7 +1883,7 @@ const processVideo = async () => {
           ? trimSettings.value.startTime
           : undefined,
         trimEnd:
-           trimSettings.value.enabled && trimSettings.value.endTime
+          trimSettings.value.enabled && trimSettings.value.endTime
             ? trimSettings.value.endTime
             : undefined,
         // Translation settings
