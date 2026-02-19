@@ -348,6 +348,14 @@ export const parseSRT = (srtContent: string): SubtitleSegment[] => {
   return segments;
 };
 
+export const generateSRT = (segments: SubtitleSegment[]): string => {
+  return segments.map((segment, index) => {
+    const startTime = formatTimeForSRT(segment.start);
+    const endTime = formatTimeForSRT(segment.end);
+    return `${index + 1}\n${startTime} --> ${endTime}\n${segment.text}`;
+  }).join('\n\n');
+};
+
 /**
  * Splits subtitle segments into word-level segments based on the specified word mode
  * @param segments - Original subtitle segments
