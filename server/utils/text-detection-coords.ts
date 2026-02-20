@@ -273,9 +273,9 @@ export async function detectTextWithCoordinates(
         throw e
     }
     
-    // Calculate scale factor: frames are extracted at 1920px width (updated in extractFrames)
+    // Calculate scale factor: frames are extracted at 2560px width (see extractFrames: scale=2560:-1)
     // We need to scale coordinates back to original video dimensions
-    const FRAME_SCALE_WIDTH = 1920 
+    const FRAME_SCALE_WIDTH = 2560
     const scaleFactorX = width / FRAME_SCALE_WIDTH
     const scaleFactorY = scaleFactorX // Maintain aspect ratio
     console.log(`📏 Scale factors: X=${scaleFactorX.toFixed(3)}, Y=${scaleFactorY.toFixed(3)} (frame:${FRAME_SCALE_WIDTH}px -> video:${width}px)`)
