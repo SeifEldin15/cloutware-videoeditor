@@ -50,7 +50,44 @@ export async function generateOcrNarration(
     return Buffer.alloc(0)
   }
 
-  console.log(`[OCR-Narration] Found ${sortedTexts.length} text regions`)
+  console.log(`[OCR-Narration] Found ${sortedTexts.length} text regions before dedup`)
+
+  // Deduplicate: remove sentences that are identical or near-identical (>= 80% similar)
+  // to a sentence already in the narration list (regardless of time position).
+  // This prevents the same on-screen phrase from being narrated multiple times.
+  const normalize = (t: string) => t.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim()
+  const similarity = (a: string, b: string): number => {
+    if (a === b) return 1
+    const longer = a.length > b.length ? a : b
+    const shorter = a.length > b.length ? b : a
+    if (longer.length === 0) return 1
+    const dp: number[][] = Array.from({ length: shorter.length + 1 }, (_, i) => [i])
+    for (let j = 0; j <= longer.length; j++) dp[0][j] = j
+    for (let i = 1; i <= shorter.length; i++) {
+      for (let j = 1; j <= longer.length; j++) {
+        dp[i][j] = shorter[i - 1] === longer[j - 1]
+          ? dp[i - 1][j - 1]
+          : 1 + Math.min(dp[i - 1][j - 1], dp[i - 1][j], dp[i][j - 1])
+      }
+    }
+    return (longer.length - dp[shorter.length][longer.length]) / longer.length
+  }
+
+  const SIMILARITY_THRESHOLD = 0.80
+  const seenNormalized: string[] = []
+  const dedupedTexts = sortedTexts.filter(textObj => {
+    const norm = normalize(textObj.text)
+    if (!norm) return false
+    const isDuplicate = seenNormalized.some(seen => similarity(norm, seen) >= SIMILARITY_THRESHOLD)
+    if (isDuplicate) {
+      console.log(`[OCR-Narration] 🚫 Skipping duplicate sentence: "${textObj.text}"`)
+      return false
+    }
+    seenNormalized.push(norm)
+    return true
+  })
+
+  console.log(`[OCR-Narration] ${dedupedTexts.length} unique text regions after dedup (removed ${sortedTexts.length - dedupedTexts.length} duplicates)`)
 
   if (!timedNarration) {
     // Single audio narration (not implemented as buffer return - would need video merge)
@@ -59,7 +96,7 @@ export async function generateOcrNarration(
 
   // Generate timed narration
   console.log('[OCR-Narration] Generating timed narration video...')
-  const videoBuffer = await generateTimedNarrationBuffer(videoUrl, sortedTexts, voice)
+  const videoBuffer = await generateTimedNarrationBuffer(videoUrl, dedupedTexts, voice)
   
   return videoBuffer
 }
