@@ -830,6 +830,32 @@ export class SubtitleProcessor {
       videoFilters.push('rotate=0.1*PI/180:c=none')
     }
 
+    // Add custom Handle / Watermark
+    // @ts-ignore
+    if (options?.addHandle) {
+      // @ts-ignore
+      const handleText = options.addHandle.replace(/:/g, '\\:').replace(/'/g, "\\'")
+      // @ts-ignore
+      const hx = options.handleX !== undefined ? options.handleX : 50
+      // @ts-ignore
+      const hy = options.handleY !== undefined ? options.handleY : 85
+      
+      let fontParam = ''
+      try {
+        // Import inside or use existing if getFontFilePath is in scope
+        // It is imported at the top of the file
+        const defaultFontPath = getFontFilePath('Arial')
+        if (defaultFontPath) {
+          // ffmpeg needs escaped colons and backslashes for paths in drawtext
+          const escapedPath = defaultFontPath.replace(/\\/g, '/').replace(/:/g, '\\\\:')
+          fontParam = `fontfile='${escapedPath}':`
+        }
+      } catch (e) {}
+      
+      // Use standard drawtext (white text, subtle shadow, semi-transparent background box)
+      videoFilters.push(`drawtext=${fontParam}text='${handleText}':fontcolor=white:fontsize=(h/25):x=(w-tw)*${hx}/100:y=(h-th)*${hy}/100:shadowcolor=black@0.8:shadowx=2:shadowy=2:box=1:boxcolor=black@0.4:boxborderw=5`)
+    }
+
     // White border - MUST BE LAST (applied after all transformations and anti-detection)
     // This ensures the border remains clean and unaffected by blur, rotation, noise, etc.
     // Note: This will be applied to the video BEFORE subtitles are overlaid

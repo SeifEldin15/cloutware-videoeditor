@@ -67,7 +67,10 @@ export const ValidationSchemas = {
         frameInterpolation: z.boolean().optional().default(true)
       }).optional().default({}),
       trimStart: z.number().min(0).optional(),
-      trimEnd: z.number().min(0).optional()
+      trimEnd: z.number().min(0).optional(),
+      addHandle: z.string().optional(),
+      handleX: z.number().min(0).max(100).optional(),
+      handleY: z.number().min(0).max(100).optional()
 
     }).optional().default({}),
     caption: z.object({
