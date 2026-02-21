@@ -202,22 +202,7 @@ function buildTextReplacementFilterComplex(
      console.log(`ℹ️ Border radius requested: ${style.borderRadius}px (Note: Current rendering engine defaults to rectangular boxes for performance)`) 
   }
 
-  // Calculate the maximum width for all overlays (make them symmetric)
   const padding = 10
-  let maxWidth = 0
-  
-  for (const replacement of replacements) {
-    const width = replacement.boundingBox.width + (padding * 2)
-    if (width > maxWidth) {
-      maxWidth = width
-    }
-  }
-  
-  console.log(`📏 Maximum overlay width: ${maxWidth}px`)
-  
-  // Calculate horizontal center position for ALL overlays
-  // If videoWidth is not provided, use detected position of first text
-  const centerX = videoWidth ? Math.floor((videoWidth - maxWidth) / 2) : null
   
   // Start with scale filter
   let filterChain = '[0:v]scale=trunc(iw/2)*2:trunc(ih/2)*2'
@@ -236,11 +221,10 @@ function buildTextReplacementFilterComplex(
     
     console.log(`📝 Processing replacement ${i + 1}: "${replacement.originalText}" -> "${newText}"`)
     
-    // Use centered X position for ALL overlays (horizontally aligned)
-    // Keep original Y position for each text
-    const x = centerX !== null ? centerX : Math.max(0, boundingBox.x - padding)
+    // Use exact X and Y position to cover the original detected text accurately
+    const x = Math.max(0, boundingBox.x - padding)
     const y = Math.max(0, boundingBox.y - padding)
-    const width = maxWidth
+    const width = boundingBox.width + (padding * 2)
     const height = boundingBox.height + (padding * 2)
 
     // Build time-based enable expression
