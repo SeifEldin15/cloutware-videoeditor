@@ -323,6 +323,18 @@ export class VideoProcessor {
       videoFilters.push('rotate=0.1*PI/180:fillcolor=black')
     }
 
+    // Handle / Watermark drawtext
+    // @ts-ignore - addHandle may not be in the type yet
+    if (options?.addHandle) {
+      // @ts-ignore
+      const handleText = options.addHandle.replace(/:/g, '\\\\:').replace(/'/g, "\\\\'")
+      // @ts-ignore
+      const hx = options.handleX !== undefined ? options.handleX : 50
+      // @ts-ignore
+      const hy = options.handleY !== undefined ? options.handleY : 85
+      videoFilters.push(`drawtext=text='${handleText}':fontcolor=white:fontsize=(h/25):x=(w-tw)*${hx}/100:y=(h-th)*${hy}/100:shadowcolor=black@0.8:shadowx=2:shadowy=2:box=1:boxcolor=black@0.4:boxborderw=5`)
+    }
+
     // Scale to even dimensions for codec compatibility
     videoFilters.push('scale=trunc(iw/2)*2:trunc(ih/2)*2')
 
