@@ -838,7 +838,7 @@ export class SubtitleProcessor {
       // @ts-ignore
       const hx = options.handleX !== undefined ? options.handleX : 50
       // @ts-ignore
-      const hy = options.handleY !== undefined ? options.handleY : 85
+      const hy = options.handleY !== undefined ? options.handleY : 25
       
       let fontParam = ''
       try {
