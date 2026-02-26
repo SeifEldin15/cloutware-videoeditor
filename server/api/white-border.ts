@@ -88,8 +88,6 @@ async function processWithLayout(
   return new Promise<PassThrough>(async (resolve, reject) => {
     try {
       const outputStream = new PassThrough({ highWaterMark: 4 * 1024 * 1024 })
-      let commandOutput = ''
-      const ffmpeg = await getInitializedFfmpeg()
 
       // Calculate scale factors
       let effectiveScaleW = options.videoScale
@@ -103,24 +101,12 @@ async function processWithLayout(
 
       const isImageBg = options.borderType === 'image' && options.borderUrl
       const filters: string[] = []
-      let ffmpegCommand: any
 
       if (isImageBg) {
-        // IMAGE BACKGROUND
-        // Input 0 = background image (with -loop 1), Input 1 = source video
-        ffmpegCommand = ffmpeg()
-        ffmpegCommand.input(options.borderUrl)
-        ffmpegCommand.inputOptions(['-loop', '1'])
-        ffmpegCommand.input(inputUrl)
-        ffmpegCommand.inputOptions([
-          '-protocol_whitelist', 'file,http,https,tcp,tls',
-          '-reconnect', '1',
-          '-reconnect_streamed', '1',
-          '-analyzeduration', '10000000',
-          '-probesize', '10000000',
-        ])
+        // IMAGE BACKGROUND: use spawn directly (fluent-ffmpeg mishandles multi-input complex filters)
+        console.log(`🖼️ Image background: ${options.borderUrl}`)
 
-        // [1:v] = video, [0:v] = image
+        // Build filter chain: input 0 = image (-loop 1), input 1 = video
         filters.push(`[1:v]split=2[fg_src][canvas_ref]`)
         filters.push(`[canvas_ref]drawbox=t=fill:c=black[canvas]`)
         filters.push(`[0:v][canvas]scale2ref=w='trunc(iw*max(rw/iw,rh/ih)/2)*2':h='trunc(ih*max(rw/iw,rh/ih)/2)*2'[bg_scaled][canvas2]`)
@@ -137,10 +123,82 @@ async function processWithLayout(
         }
         filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
         filters.push(`[bg_canvas][fg_ready]overlay=x=${overlayX}:y=${overlayY}:shortest=1[out]`)
+
+        const filterComplex = filters.join(';')
+        console.log(`🎨 Image BG Filter: ${filterComplex}`)
+
+        const { spawn } = await import('child_process')
+        const ffmpegArgs = [
+          // Input 0: background image with loop
+          '-loop', '1',
+          '-i', options.borderUrl!,
+          // Input 1: source video
+          '-protocol_whitelist', 'file,http,https,tcp,tls',
+          '-reconnect', '1',
+          '-reconnect_streamed', '1',
+          '-analyzeduration', '10000000',
+          '-probesize', '10000000',
+          '-i', inputUrl,
+          // Processing
+          '-filter_complex', filterComplex,
+          '-map', '[out]',
+          '-map', '1:a?',
+          '-shortest',
+          '-c:v', 'libx264',
+          '-preset', 'veryfast',
+          '-crf', '18',
+          '-profile:v', 'high',
+          '-level', '4.1',
+          '-threads', optimalThreads,
+          '-pix_fmt', 'yuv420p',
+          '-c:a', 'aac',
+          '-b:a', '160k',
+          '-ar', '48000',
+          '-max_muxing_queue_size', '4096',
+          '-movflags', 'frag_keyframe+empty_moov+faststart',
+          '-f', 'mp4',
+          'pipe:1'
+        ]
+
+        console.log(`🎬 ${options.outputName} FFmpeg args: ffmpeg ${ffmpegArgs.join(' ')}`)
+
+        const proc = spawn('ffmpeg', ffmpegArgs)
+
+        proc.stdout.pipe(outputStream)
+
+        let stderrOutput = ''
+        proc.stderr.on('data', (data: Buffer) => {
+          const line = data.toString()
+          stderrOutput += line
+          if (line.includes('frame=') || line.includes('error') || line.includes('Error') || line.includes('failed')) {
+            console.log(`${options.outputName} FFmpeg: ${line.trim()}`)
+          }
+        })
+
+        proc.on('error', (err: Error) => {
+          console.error(`❌ ${options.outputName} FFmpeg spawn error:`, err)
+          outputStream.destroy(err)
+        })
+
+        proc.on('close', (code: number) => {
+          if (code !== 0) {
+            console.error(`❌ ${options.outputName} FFmpeg exited with code ${code}`)
+            console.error('FFmpeg stderr:', stderrOutput.slice(-2000))
+            if (!outputStream.destroyed) {
+              outputStream.destroy(new Error(`FFmpeg exited with code ${code}`))
+            }
+          } else {
+            console.log(`✅ ${options.outputName} FFmpeg process completed`)
+          }
+        })
+
+        resolve(outputStream)
+
       } else {
-        // COLOR BACKGROUND
-        // Input 0 = source video (only input)
-        ffmpegCommand = ffmpeg(inputUrl)
+        // COLOR BACKGROUND: fluent-ffmpeg works fine for single input
+        const ffmpeg = await getInitializedFfmpeg()
+        let commandOutput = ''
+        const ffmpegCommand = ffmpeg(inputUrl)
         ffmpegCommand.inputOptions([
           '-protocol_whitelist', 'file,http,https,tcp,tls',
           '-reconnect', '1',
@@ -162,58 +220,55 @@ async function processWithLayout(
         }
         filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
         filters.push(`[canvas][fg_ready]overlay=x=${overlayX}:y=${overlayY}[out]`)
+
+        console.log(`🎨 Filter (color): ${filters.join(';')}`)
+
+        ffmpegCommand
+          .outputOptions([
+            '-filter_complex', filters.join(';'),
+            '-map', '[out]',
+            '-map', '0:a?',
+            '-c:v', 'libx264',
+            '-preset', 'veryfast',
+            '-crf', '18',
+            '-profile:v', 'high',
+            '-level', '4.1',
+            '-threads', optimalThreads,
+            '-pix_fmt', 'yuv420p',
+            '-c:a', 'aac',
+            '-b:a', '160k',
+            '-ar', '48000',
+            '-max_muxing_queue_size', '4096',
+            '-movflags', 'frag_keyframe+empty_moov+faststart',
+            '-f', 'mp4'
+          ])
+          .on('start', (commandLine: string) => {
+            console.log(`🎬 ${options.outputName} FFmpeg started`)
+            console.log(`📋 Command: ${commandLine}`)
+          })
+          .on('progress', (progress: any) => {
+            if (progress.percent) {
+              console.log(`⏳ ${options.outputName} Processing: ${progress.percent.toFixed(2)}%`)
+            }
+          })
+          .on('stderr', (stderrLine: string) => {
+            commandOutput += stderrLine + '\n'
+            if (stderrLine.includes('error') || stderrLine.includes('Error')) {
+              console.error(`⚠️ ${options.outputName} FFmpeg stderr:`, stderrLine)
+            }
+          })
+          .on('error', (err: Error) => {
+            console.error(`❌ ${options.outputName} FFmpeg error:`, err)
+            console.error(`📋 Command output:`, commandOutput)
+            reject(new Error(`FFmpeg error: ${err.message}\nCommand output: ${commandOutput}`))
+          })
+          .on('end', () => {
+            console.log(`✅ ${options.outputName} FFmpeg process completed`)
+          })
+
+        ffmpegCommand.pipe(outputStream, { end: true })
+        resolve(outputStream)
       }
-
-      console.log(`🎨 Filter (${isImageBg ? 'image' : 'color'}): ${filters.join(';')}`)
-
-      const outputOptions = [
-        '-filter_complex', filters.join(';'),
-        '-map', '[out]',
-        '-map', isImageBg ? '1:a?' : '0:a?',
-        ...(isImageBg ? ['-shortest'] : []),
-        '-c:v', 'libx264',
-        '-preset', 'veryfast',
-        '-crf', '18',
-        '-profile:v', 'high',
-        '-level', '4.1',
-        '-threads', optimalThreads,
-        '-pix_fmt', 'yuv420p',
-        '-c:a', 'aac',
-        '-b:a', '160k',
-        '-ar', '48000',
-        '-max_muxing_queue_size', '4096',
-        '-movflags', 'frag_keyframe+empty_moov+faststart',
-        '-f', 'mp4'
-      ]
-
-      ffmpegCommand
-        .outputOptions(outputOptions)
-        .on('start', (commandLine: string) => {
-          console.log(`🎬 ${options.outputName} FFmpeg started`)
-          console.log(`📋 Command: ${commandLine}`)
-        })
-        .on('progress', (progress: any) => {
-          if (progress.percent) {
-            console.log(`⏳ ${options.outputName} Processing: ${progress.percent.toFixed(2)}%`)
-          }
-        })
-        .on('stderr', (stderrLine: string) => {
-          commandOutput += stderrLine + '\n'
-          if (stderrLine.includes('error') || stderrLine.includes('Error')) {
-            console.error(`⚠️ ${options.outputName} FFmpeg stderr:`, stderrLine)
-          }
-        })
-        .on('error', (err: Error) => {
-          console.error(`❌ ${options.outputName} FFmpeg error:`, err)
-          console.error(`📋 Command output:`, commandOutput)
-          reject(new Error(`FFmpeg error: ${err.message}\nCommand output: ${commandOutput}`))
-        })
-        .on('end', () => {
-          console.log(`✅ ${options.outputName} FFmpeg process completed`)
-        })
-
-      ffmpegCommand.pipe(outputStream, { end: true })
-      resolve(outputStream)
     } catch (error) {
       console.error(`❌ ${options.outputName} processing error:`, error)
       reject(error)
