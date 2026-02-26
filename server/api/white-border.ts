@@ -15,8 +15,8 @@ export default eventHandler(async (event) => {
       return {
         url: data.url,
         outputName: data.outputName || 'processed_layout_video',
-        leftRightPercent: data.leftRightPercent || data.whiteBorderLeftRight || 0,
-        topBottomPercent: data.topBottomPercent || data.whiteBorderTopBottom || 0,
+        leftRightPercent: data.leftRightPercent ?? data.whiteBorderLeftRight ?? 10,
+        topBottomPercent: data.topBottomPercent ?? data.whiteBorderTopBottom ?? 20,
         videoScale: data.videoScale !== undefined ? data.videoScale : 1.0,
         videoX: data.videoX !== undefined ? data.videoX : 0,
         videoY: data.videoY !== undefined ? data.videoY : 0,
@@ -123,7 +123,7 @@ async function processWithLayout(
         // [1:v] = video, [0:v] = image
         filters.push(`[1:v]split=2[fg_src][canvas_ref]`)
         filters.push(`[canvas_ref]drawbox=t=fill:c=black[canvas]`)
-        filters.push(`[0:v][canvas]scale2ref=iw*max(rw/iw\\,rh/ih):ih*max(rw/iw\\,rh/ih)[bg_scaled][canvas2]`)
+        filters.push(`[0:v][canvas]scale2ref=w='trunc(iw*max(rw/iw,rh/ih)/2)*2':h='trunc(ih*max(rw/iw,rh/ih)/2)*2'[bg_scaled][canvas2]`)
         filters.push(`[canvas2][bg_scaled]overlay=(W-w)/2:(H-h)/2[bg_canvas]`)
 
         let fgChain = 'fg_src'

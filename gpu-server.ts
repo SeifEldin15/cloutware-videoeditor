@@ -277,9 +277,9 @@ app.use('/layout', eventHandler(async (event) => {
     
     const validatedData = layoutSchema.parse(body)
     
-    // Extract values with explicit defaults
-    const leftRightPercent = validatedData.leftRightPercent ?? 0
-    const topBottomPercent = validatedData.topBottomPercent ?? 0
+    // Extract values with explicit defaults (10/20 so background is visible by default)
+    const leftRightPercent = validatedData.leftRightPercent ?? 10
+    const topBottomPercent = validatedData.topBottomPercent ?? 20
     const videoScale = validatedData.videoScale ?? 1
     const videoX = validatedData.videoX ?? 0
     const videoY = validatedData.videoY ?? 0
