@@ -319,7 +319,7 @@ app.use('/layout', eventHandler(async (event) => {
     if ((validatedData.borderType === 'image' || validatedData.borderType === 'video') && validatedData.borderUrl) {
         hasBgInput = true
         filters.push(`[0:v]split=2[v_main][v_ref]`)
-        filters.push(`[v_ref]drawbox=t=fill:c=black[base_canvas]`)
+        filters.push(`[v_ref]drawbox=t=fill:c=${borderColor}[base_canvas]`)
         
         filters.push(`[1:v][base_canvas]scale2ref=iw:ih:force_original_aspect_ratio=increase[bg_scaled][base_canvas_ref]`)
         filters.push(`[base_canvas_ref][bg_scaled]overlay=(W-w)/2:(H-h)/2:shortest=1[canvas_with_bg]`)

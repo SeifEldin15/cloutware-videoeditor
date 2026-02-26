@@ -275,9 +275,10 @@ async function processWithLayout(
           
           // Step 1: Background Layer
           // Make a canvas of size 0:v. Using `drawbox` on v_ref is a cheap way to preserve exact format/meta.
-          // Or just pad 0:v with black and cropt to 0? `nullsrc` requires specifying size manually.
           // We'll use `v_ref` to create the base canvas.
-          filters.push(`[v_ref]drawbox=t=fill:c=black[base_canvas]`) 
+          const colorResult = options.whiteBorderColor || options.borderColor || '#ffffff'
+          const colorStr = colorResult.startsWith('#') ? colorResult.replace('#', '0x') : colorResult
+          filters.push(`[v_ref]drawbox=t=fill:c=${colorStr}[base_canvas]`) 
           
           // Step 2: Overlay Custom BG (1:v) onto Base Canvas
           // Scale BG to cover canvas
