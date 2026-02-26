@@ -34,6 +34,8 @@ export async function generateOcrNarration(
   } = options
 
   console.log(`[OCR-Narration] Starting text detection with ${numberOfFrames} frames at ${confidenceThreshold}% confidence`)
+  console.log(`[OCR-Narration] Background music URL: ${backgroundMusicUrl || '(none)'}`)
+  console.log(`[OCR-Narration] Background music volume: ${backgroundMusicVolume}`)
   
   const ocrResults = await detectTextWithCoordinates(videoUrl, {
     numberOfFrames,
@@ -225,9 +227,11 @@ async function generateTimedNarrationBuffer(
         const musicResponse = await fetch(backgroundMusicUrl)
         if (musicResponse.ok) {
           const musicBuffer = Buffer.from(await musicResponse.arrayBuffer())
-          const musicExt = backgroundMusicUrl.match(/\.(mp3|wav|m4a)/i)?.[1] || 'mp3'
-          const bgMusicPath = path.join(tempDir, `bg_music.${musicExt}`)
+          // Always save as .mp3 since FFmpeg reads by content, not extension.
+          // (The URL may end in .mp4 because we spoofed the extension for Supabase upload)
+          const bgMusicPath = path.join(tempDir, `bg_music.mp3`)
           await fs.writeFile(bgMusicPath, musicBuffer)
+          console.log(`[OCR-Narration] Background music saved: ${bgMusicPath} (${musicBuffer.length} bytes)`)
           
           inputOptions.push(bgMusicPath)
           
@@ -244,15 +248,22 @@ async function generateTimedNarrationBuffer(
       } catch (err) {
         console.error(`[OCR-Narration] Background music download error:`, err)
       }
+    } else {
+      console.log(`[OCR-Narration] No background music URL provided, skipping music mix`)
     }
 
     console.log('[OCR-Narration] Merging audio with video...')
+    const bgMusicPath = inputOptions[2] // will be set if backgroundMusicUrl was valid
     await new Promise<void>((resolve, reject) => {
       let command: FfmpegCommand = ffmpeg()
       
-      // Add all inputs
-      for (const input of inputOptions) {
-        command = command.input(input)
+      // Input 0: original video URL
+      command = command.input(inputOptions[0])
+      // Input 1: merged narration audio
+      command = command.input(inputOptions[1])
+      // Input 2 (optional): background music — force mp3 format so FFmpeg decodes correctly
+      if (bgMusicPath) {
+        command = command.input(bgMusicPath).inputOptions(['-f', 'mp3'])
       }
 
       const outputOpts = [
