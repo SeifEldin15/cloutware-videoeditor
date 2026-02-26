@@ -316,18 +316,16 @@ app.use('/layout', eventHandler(async (event) => {
     const filters: string[] = []
     let hasBgInput = false
 
-    if ((validatedData.borderType === 'image' || validatedData.borderType === 'video') && validatedData.borderUrl) {
+    if (validatedData.borderType === 'image' && validatedData.borderUrl) {
         hasBgInput = true
 
-        // Split source video: one for foreground, one for canvas dimensions
-        filters.push(`[0:v]split=2[fg_src][canvas_ref]`)
-        filters.push(`[canvas_ref]drawbox=t=fill:c=black@0[canvas]`)
-        
-        // Scale background to a large size, then overlay onto canvas (canvas clips to correct size)
-        filters.push(`[1:v]scale=8192:8192:force_original_aspect_ratio=decrease[bg_large]`)
-        filters.push(`[canvas][bg_large]overlay=(W-w)/2:(H-h)/2:shortest=1[bg_canvas]`)
+        // Input order: 0 = background image (-loop 1), 1 = source video
+        // Split source video (1:v): one for foreground, one for canvas
+        filters.push(`[1:v]split=2[fg_src][canvas_ref]`)
+        filters.push(`[canvas_ref]drawbox=t=fill:c=black[canvas]`)
+        filters.push(`[0:v][canvas]scale2ref=oh*mdar:oh[bg_scaled][canvas2]`)
+        filters.push(`[canvas2][bg_scaled]overlay=(W-w)/2:(H-h)/2[bg_canvas]`)
 
-        // Process the foreground video
         let fgChain = 'fg_src'
         if ((validatedData.cropTop || 0) > 0 || (validatedData.cropBottom || 0) > 0 || 
             (validatedData.cropLeft || 0) > 0 || (validatedData.cropRight || 0) > 0) {
@@ -344,8 +342,6 @@ app.use('/layout', eventHandler(async (event) => {
         }
         
         filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
-
-        // Overlay foreground onto background canvas
         filters.push(`[bg_canvas][fg_ready]overlay=x=${overlayX}:y=${overlayY}:shortest=1[out]`)
     } else {
         filters.push(`[0:v]split=2[v_fg][v_bg]`)
@@ -374,27 +370,25 @@ app.use('/layout', eventHandler(async (event) => {
     console.log(`🎨 GPU Filter: ${filterComplex}`)
     
     // Use GPU encoding (h264_nvenc) - but NOT hwaccel for input since we have complex filters
-    // Complex filter graphs require CPU decoding, but we can still use GPU for encoding
     const gpuEnabled = process.env.USE_GPU === 'true'
     const videoCodec = gpuEnabled ? 'h264_nvenc' : 'libx264'
     
     console.log(`🚀 Starting FFmpeg for layout: ${videoCodec} (GPU encoding: ${gpuEnabled})`)
     
     const ffmpegArgs = [
-      // Input options
+      // Background image input (if applicable) MUST come first
+      ...(hasBgInput ? ['-loop', '1', '-i', validatedData.borderUrl!] : []),
+      
+      // Video input  
       '-protocol_whitelist', 'file,http,https,tcp,tls',
       '-analyzeduration', '10000000',
       '-probesize', '10000000',
       '-i', validatedData.url,
-      
-      // Secondary input for image/video background
-      ...(hasBgInput && validatedData.borderType === 'image' && validatedData.borderUrl ? ['-loop', '1', '-i', validatedData.borderUrl] : []),
-      ...(hasBgInput && validatedData.borderType === 'video' && validatedData.borderUrl ? ['-stream_loop', '-1', '-i', validatedData.borderUrl] : []),
 
       // Filter
       '-filter_complex', filterComplex,
       '-map', '[out]',
-      '-map', '0:a?',
+      '-map', hasBgInput ? '1:a?' : '0:a?',
       // Video encoding
       '-c:v', videoCodec,
     ]

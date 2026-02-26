@@ -99,15 +99,7 @@ async function processWithLayout(
       const ffmpeg = await getInitializedFfmpeg()
       const ffmpegCommand = ffmpeg(inputUrl)
 
-      // Add background input if needed
-      if ((options.borderType === 'image' || options.borderType === 'video') && options.borderUrl) {
-          ffmpegCommand.input(options.borderUrl)
-          if (options.borderType === 'image') {
-              ffmpegCommand.inputOptions(['-loop', '1'])
-          } else if (options.borderType === 'video') {
-              ffmpegCommand.inputOptions(['-stream_loop', '-1'])
-          }
-      }
+      // Note: Image backgrounds use raw ffmpeg spawn (below) rather than fluent-ffmpeg dual-input
 
       ffmpegCommand.inputOptions([
         '-protocol_whitelist', 'file,http,https,tcp,tls',
@@ -170,214 +162,149 @@ async function processWithLayout(
       const overlayX = `(W-w)/2+(W*${options.videoX}/100)`
       const overlayY = `(H-h)/2+(H*${options.videoY}/100)`
 
-      if ((options.borderType === 'image' || options.borderType === 'video') && options.borderUrl) {
-          // Input 1 is the background
-          // Scale background to match Input 0's original dimensions (which is the canvas size)
-          // We assume output canvas size == Input 0 original size.
-          // [1:v]scale2ref=oh*mdar:ih[bg];[bg][0:v]scale2ref=iw:ih[bg_scaled]... slightly complex to get exact size of 0:v without probing.
-          // Actually, we can use `scale2ref` to scale incoming background (1:v) to match 0:v size.
-          
-          filters.push(`[1:v][0:v]scale2ref=iw:ih:force_original_aspect_ratio=increase[bg_tmp][ref]`) // Scale 1:v to match 0:v
-          filters.push(`[bg_tmp]crop=iw:ih[bg]`) // Crop to exact fit if aspect ratio differs
-          filters.push(`[bg][${fgStream}]overlay=x=${overlayX}:y=${overlayY}:shortest=1[out]`)
-          // Note: using [ref] as dummy or ignoring it? scale2ref outputs 2 streams.
-          // [ref] is the resizing of 0:v? No, "Reference stream is not modified". Wait.
-          // scale2ref: "Scale (resize) the input video, based on a reference video."
-          // Input 0: video to scale (bg). Input 1: ref video (fg).
-          // So [1:v][0:v]scale2ref ... means 1:v is scaled based on 0:v.
-          // Outputs: [scaled_bg][ref_0v_unchanged].
-          // BUT we already processed 0:v into [scaled] via previous filters. We need the *original* size.
-          // 0:v is available at start, but we consumed it? No, if we didn't consume it fully or user split?
-          // Actually, `scale2ref` is best used at start.
-          // Simpler approach: Just pad the FG with color, OR if we strictly need Image BG, use scale2ref.
-          
-          // Let's rewrite the chain to be safer:
-          // [1:v][0:v]scale2ref=iw:ih:force_original_aspect_ratio=increase[bg_scaled][orig_ref];
-          // [bg_scaled]crop=iw:ih[bg_final];
-          // [orig_ref]... apply crop/scale ... [fg_final];
-          // [bg_final][fg_final]overlay...
-          
-          // Resetting filters array for this branch
-          filters.length = 0 
-          
-          // Prepare BG
-          // 1:v (background), 0:v (reference for size)
-          filters.push(`[1:v][0:v]scale2ref=iw:ih:force_original_aspect_ratio=increase[bg_tm][ref]`)
-          filters.push(`[bg_tm][ref]scale2ref=iw:ih[bg_sized][ref2]`) // Ensure exact match? crop is better. 
-          // Actually crop: 
-          filters.push(`[bg_tm][ref]scale2ref=iw:ih[bg_crop_ref][ref_ignore]`) // Getting size again for crop? 
-          // Simpler: `scale2ref` sets sizes. `crop` needs explicit w/h.
-          // Let's assume we can crop to `iw` of the ref.
-          // `[bg_tm]crop=w=iw:h=ih` wait, crop uses its own input dimensions if not specified.
-          
-          // Let's use `pad` on the scaled video to create the canvas, but populating it with the image is tricky without complex filter graph.
-          // Easiest reliable way without probing dimensions beforehand:
-          // Pad the scaled foreground with transparent, then overlay on background?
-          // Or: Overlay scaled FG on scaled BG.
-          
-          // Let's stick to:
-          // scale2ref [1:v] to [0:v]. 
-          filters.length = 0
-          
-          // 1. Resize BG (1:v) to match Source (0:v) dimensions
-          filters.push(`[1:v][0:v]scale2ref=iw:ih:force_original_aspect_ratio=increase[bg_scaled][source_ref]`)
-          filters.push(`[bg_scaled][source_ref]scale2ref=iw:ih[bg_cropped][source_ref2]`) // Trick to crop? No.
-          filters.push(`[bg_scaled]crop=w=iw:h=ih[bg_ready]`) // This might fail if crop doesn't know 'iw' target from separate stream.
-          // Actually, simpler:
-          // Just use `0:v` for the foreground processing chain.
-          // We can assume 0:v dimensions are WxH.
-          
-          // Refined Image BG Chain:
-          // [1:v][0:v]scale2ref=iw:ih:force_original_aspect_ratio=increase[bg_tmp][v0_ref];
-          // [bg_tmp]crop=iw:ih[bg] (This might interpret iw/ih from bg_tmp itself). 
-          // To ensure we crop to 0:v size: `scale2ref` ensures dimensions are >= 0:v due to `increase`.
-          // We theoretically need to crop to exactly 0:v size. 
-          // Let's trust `scale2ref` did its job.
-          
-          // FG Chain (using v0_ref)
-          let fgInput = 'v0_ref'
-          if (options.cropTop > 0 || options.cropBottom > 0 || options.cropLeft > 0 || options.cropRight > 0) {
-             const w = `iw*(1-(${options.cropLeft}/100)-(${options.cropRight}/100))`
-             const h = `ih*(1-(${options.cropTop}/100)-(${options.cropBottom}/100))`
-             const x = `iw*(${options.cropLeft}/100)`
-             const y = `ih*(${options.cropTop}/100)`
-             filters.push(`[${fgInput}]crop=w=${w}:h=${h}:x=${x}:y=${y}[fg_cropped]`)
-             fgInput = 'fg_cropped'
-          }
-          
-          filters.push(`[${fgInput}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_scaled]`)
-          
-          // Final Overlay
-          // We overlay [fg_scaled] onto [bg_tmp] (which we hope is close enough to size, or we use `pad` on BG?)
-          // Safest fallback if crop is tricky: Just use `overlay` because overlay handles mismatched sizes.
-          // But we want the canvas size to be 0:v size. 
-          // scale2ref makes BG size >= target. Overlay crops if BG > Canvas? No.
-          // Let's define the canvas using `pad` on a null source or color source?
-          // Best approach: Use `color` filter sized to 0:v as base, overlay BG (scaled), then overlay FG.
-          
-          // SUPER SAFE CHAIN:
-          // 1. Create canvas from 0:v (clone)
-          // [0:v]split[v_main][v_ref]
-          // [v_ref]drawbox=t=fill:c=${options.borderColor}[canvas]  <-- Creates a solid color canvas of original size
-          
-          // 2. Prepare BG Image/Video
-          // [1:v][v_ref]scale2ref=iw:ih:force_original_aspect_ratio=increase[bg_scaled][v_ref_ignore]
-          // [canvas][bg_scaled]overlay=(W-w)/2:(H-h)/2[canvas_with_bg]  <-- Centers BG on canvas
-          
-          // 3. Prepare FG
-          // [v_main]...crop...scale...[fg_final]
-          
-          // 4. Overlay FG on Canvas
-          // [canvas_with_bg][fg_final]overlay=...
-          
-          filters.length = 0
+      if (options.borderType === 'image' && options.borderUrl) {
+          // === IMAGE BACKGROUND: Use raw ffmpeg spawn to avoid fluent-ffmpeg dual-input bugs ===
+          const { spawn } = await import('child_process')
+          const { join } = await import('path')
+          const { tmpdir } = await import('os')
 
-          // Split source video: one for foreground, one for canvas dimensions
-          filters.push(`[0:v]split=2[fg_src][canvas_ref]`)
-          filters.push(`[canvas_ref]drawbox=t=fill:c=black@0[canvas]`)
-          
-          // Scale background to a large size, then overlay onto canvas (canvas clips to correct size)
-          filters.push(`[1:v]scale=8192:8192:force_original_aspect_ratio=decrease[bg_large]`)
-          filters.push(`[canvas][bg_large]overlay=(W-w)/2:(H-h)/2:shortest=1[bg_canvas]`)
+          // Build the filter chain
+          // Input 0 = background image (with -loop 1)
+          // Input 1 = source video
+          const filterParts: string[] = []
+          filterParts.push(`[1:v]split=2[fg_src][canvas_ref]`)
+          filterParts.push(`[canvas_ref]drawbox=t=fill:c=black[canvas]`)
+          filterParts.push(`[0:v][canvas]scale2ref=oh*mdar:oh[bg_scaled][canvas2]`)
+          filterParts.push(`[canvas2][bg_scaled]overlay=(W-w)/2:(H-h)/2[bg_canvas]`)
 
-          // Process foreground video
           let fgChain = 'fg_src'
           if (options.cropTop > 0 || options.cropBottom > 0 || options.cropLeft > 0 || options.cropRight > 0) {
              const w = `iw*(1-(${options.cropLeft}/100)-(${options.cropRight}/100))`
              const h = `ih*(1-(${options.cropTop}/100)-(${options.cropBottom}/100))`
              const x = `iw*(${options.cropLeft}/100)`
              const y = `ih*(${options.cropTop}/100)`
-             filters.push(`[${fgChain}]crop=w=${w}:h=${h}:x=${x}:y=${y}[fg_cropped]`)
+             filterParts.push(`[${fgChain}]crop=w=${w}:h=${h}:x=${x}:y=${y}[fg_cropped]`)
              fgChain = 'fg_cropped'
           }
-           filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
-           
-           // Overlay foreground onto background canvas
-           filters.push(`[bg_canvas][fg_ready]overlay=x=${overlayX}:y=${overlayY}:shortest=1[out]`)
+          filterParts.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
+          filterParts.push(`[bg_canvas][fg_ready]overlay=x=${overlayX}:y=${overlayY}:shortest=1[out]`)
+
+          const filterComplex = filterParts.join(';')
+          console.log(`🎨 Image BG filter: ${filterComplex}`)
+
+          const tempOutputPath = join(tmpdir(), `wb-${Date.now()}-${options.outputName}.mp4`)
+
+          const ffmpegArgs = [
+            '-loop', '1',
+            '-i', options.borderUrl,        // Input 0: background image
+            '-i', inputUrl,                  // Input 1: source video
+            '-filter_complex', filterComplex,
+            '-map', '[out]',
+            '-map', '1:a?',
+            '-c:v', 'libx264',
+            '-preset', 'veryfast',
+            '-crf', '18',
+            '-profile:v', 'high',
+            '-level', '4.1',
+            '-pix_fmt', 'yuv420p',
+            '-c:a', 'aac',
+            '-b:a', '160k',
+            '-ar', '48000',
+            '-shortest',
+            '-movflags', 'frag_keyframe+empty_moov+faststart',
+            '-f', 'mp4',
+            '-y',
+            tempOutputPath
+          ]
+
+          console.log(`🎬 ${options.outputName} Raw FFmpeg: ffmpeg ${ffmpegArgs.join(' ')}`)
+
+          await new Promise<void>((resolveSpawn, rejectSpawn) => {
+            const proc = spawn('ffmpeg', ffmpegArgs)
+            let stderr = ''
+            proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
+            proc.on('close', (code: number) => {
+              if (code === 0) { console.log(`✅ ${options.outputName} FFmpeg completed`); resolveSpawn() }
+              else rejectSpawn(new Error(`FFmpeg failed (code ${code}): ${stderr.slice(-500)}`))
+            })
+            proc.on('error', rejectSpawn)
+          })
+
+          // Read the output file and stream it
+          const fsModule = await import('fs')
+          const readStream = fsModule.createReadStream(tempOutputPath)
+          readStream.pipe(outputStream, { end: true })
+          readStream.on('end', () => {
+            try { fsModule.unlinkSync(tempOutputPath) } catch {}
+          })
+          readStream.on('error', (err) => reject(err))
+
+          resolve(outputStream)
       } else {
-        // Color Background mode
-        // Much simpler: Resize FG, then PAD to original size with color.
-        // `scale=...,pad=...`
-        // We know 'iw'/'ih' inside the filter chain refer to the input of that filter.
-        
-        // Use `scale` then `pad`.
-        // To get original dimensions for padding, we need to know them.
-        // `pad` can use expressions. `iw` is current width (scaled). `ow` is output width.
-        // We want output width/height to be ORIGINAL input width/height.
-        // But `pad` doesn't know original dimensions if we already scaled!
-        // So we can express target W/H in terms of current iw/ih IF we know the scale factor.
-        // targetW = scaledW / scaleFactor.
-        // But expressions are messy.
-        
-        // Simpler: Split 0:v. Use one for canvas (drawbox color), one for FG.
+        // === COLOR BACKGROUND: Use fluent-ffmpeg (single input, works perfectly) ===
         filters.length = 0
         filters.push(`[0:v]split=2[v_fg][v_bg]`)
-        
-        // Make Canvas
         filters.push(`[v_bg]drawbox=t=fill:c=${options.borderColor}[canvas]`)
         
-        // Process FG
         let fgChain = 'v_fg'
         if (options.cropTop > 0 || options.cropBottom > 0 || options.cropLeft > 0 || options.cropRight > 0) {
            filters.push(`[${fgChain}]crop=w=iw*(1-(${options.cropLeft}/100)-(${options.cropRight}/100)):h=ih*(1-(${options.cropTop}/100)-(${options.cropBottom}/100)):x=iw*(${options.cropLeft}/100):y=ih*(${options.cropTop}/100)[fg_cropped]`)
            fgChain = 'fg_cropped'
         }
         filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
-        
-        // Overlay
         filters.push(`[canvas][fg_ready]overlay=x=${overlayX}:y=${overlayY}[out]`)
+
+        console.log(`🎨 Color filter: ${filters.join(';')}`)
+
+        const outputOptions = [
+          '-filter_complex', filters.join(';'),
+          '-map', '[out]',
+          '-map', '0:a?',
+          '-c:v', 'libx264',
+          '-preset', 'veryfast',
+          '-crf', '18',
+          '-profile:v', 'high',
+          '-level', '4.1',
+          '-threads', optimalThreads,
+          '-pix_fmt', 'yuv420p',
+          '-c:a', 'aac',
+          '-b:a', '160k',
+          '-ar', '48000',
+          '-max_muxing_queue_size', '4096',
+          '-movflags', 'frag_keyframe+empty_moov+faststart',
+          '-f', 'mp4'
+        ]
+
+        ffmpegCommand
+          .outputOptions(outputOptions)
+          .on('start', (commandLine: string) => {
+            console.log(`🎬 ${options.outputName} FFmpeg started`)
+            console.log(`📋 Command: ${commandLine}`)
+          })
+          .on('progress', (progress: any) => {
+            if (progress.percent) {
+              console.log(`⏳ ${options.outputName} Processing: ${progress.percent.toFixed(2)}%`)
+            }
+          })
+          .on('stderr', (stderrLine: string) => {
+            commandOutput += stderrLine + '\n'
+            if (stderrLine.includes('error') || stderrLine.includes('Error')) {
+              console.error(`⚠️ ${options.outputName} FFmpeg stderr:`, stderrLine)
+            }
+          })
+          .on('error', (err: Error) => {
+            console.error(`❌ ${options.outputName} FFmpeg error:`, err)
+            console.error(`📋 Command output:`, commandOutput)
+            reject(new Error(`FFmpeg error: ${err.message}\nCommand output: ${commandOutput}`))
+          })
+          .on('end', () => {
+            console.log(`✅ ${options.outputName} FFmpeg process completed`)
+          })
+
+        ffmpegCommand.pipe(outputStream, { end: true })
+
+        resolve(outputStream)
       }
-
-      console.log(`🎨 Filter complex: ${filters.join(';')}`)
-
-      const outputOptions = [
-        '-filter_complex', filters.join(';'),
-        '-map', '[out]',                // Map the output of complex filter
-        '-map', '0:a?',                 // Map audio from source (optional)
-        '-c:v', 'libx264',
-        '-preset', 'veryfast',
-        '-crf', '18',
-        '-profile:v', 'high',
-        '-level', '4.1',
-        '-threads', optimalThreads,
-        '-pix_fmt', 'yuv420p',
-        '-c:a', 'aac',
-        '-b:a', '160k',
-        '-ar', '48000',
-        '-max_muxing_queue_size', '4096',
-        '-movflags', 'frag_keyframe+empty_moov+faststart',
-        '-f', 'mp4'
-      ]
-
-      ffmpegCommand
-        .outputOptions(outputOptions)
-        .on('start', (commandLine: string) => {
-          console.log(`🎬 ${options.outputName} FFmpeg started`)
-          console.log(`📋 Command: ${commandLine}`)
-        })
-        .on('progress', (progress: any) => {
-          if (progress.percent) {
-            console.log(`⏳ ${options.outputName} Processing: ${progress.percent.toFixed(2)}%`)
-          }
-        })
-        .on('stderr', (stderrLine: string) => {
-          commandOutput += stderrLine + '\n'
-          if (stderrLine.includes('error') || stderrLine.includes('Error')) {
-            console.error(`⚠️ ${options.outputName} FFmpeg stderr:`, stderrLine)
-          }
-        })
-        .on('error', (err: Error) => {
-          console.error(`❌ ${options.outputName} FFmpeg error:`, err)
-          console.error(`📋 Command output:`, commandOutput)
-          reject(new Error(`FFmpeg error: ${err.message}\nCommand output: ${commandOutput}`))
-        })
-        .on('end', () => {
-          console.log(`✅ ${options.outputName} FFmpeg process completed`)
-        })
-
-      ffmpegCommand.pipe(outputStream, { end: true })
-
-      resolve(outputStream)
     } catch (error) {
       console.error(`❌ ${options.outputName} processing error:`, error)
       reject(error)
