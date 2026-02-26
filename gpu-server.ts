@@ -1,6 +1,9 @@
 import { createApp, eventHandler, readBody, setHeader, toNodeListener, createError, getQuery } from 'h3'
 import { createServer } from 'http'
 import { z } from 'zod'
+import { promises as fs } from 'fs'
+import { join } from 'path'
+import { tmpdir } from 'os'
 import { SubtitleProcessor } from './utils/subtitle-processor'
 
 // Job progress tracking
@@ -311,20 +314,41 @@ app.use('/layout', eventHandler(async (event) => {
       : whiteBorderColor
     
     console.log(`🎨 Border color: ${borderColor}`)
+
+    // If image background, download image to temp file first
+    // (HTTP URLs don't work reliably with -loop 1 since FFmpeg needs seeking)
+    let tempBgImagePath: string | null = null
+    if (validatedData.borderType === 'image' && validatedData.borderUrl) {
+      try {
+        const imgResponse = await fetch(validatedData.borderUrl)
+        if (imgResponse.ok) {
+          const imgBuffer = Buffer.from(await imgResponse.arrayBuffer())
+          const ext = validatedData.borderUrl.match(/\.(jpg|jpeg|png|webp|bmp)/i)?.[1] || 'jpg'
+          tempBgImagePath = join(tmpdir(), `gpu-bg-image-${Date.now()}.${ext}`)
+          await fs.writeFile(tempBgImagePath, imgBuffer)
+          console.log(`📸 Downloaded background image to: ${tempBgImagePath} (${imgBuffer.length} bytes)`)
+        } else {
+          console.error(`❌ Failed to download background image: ${imgResponse.status}`)
+        }
+      } catch (err) {
+        console.error('❌ Failed to download background image:', err)
+      }
+    }
     
     // Build filter chain
     const filters: string[] = []
     let hasBgInput = false
 
-    if (validatedData.borderType === 'image' && validatedData.borderUrl) {
+    if (validatedData.borderType === 'image' && validatedData.borderUrl && tempBgImagePath) {
         hasBgInput = true
 
         // Input order: 0 = background image (-loop 1), 1 = source video
         // Correct FFmpeg approach: scale bg image to match video size, then overlay video on top
         
         // Step 1: Scale the background image to match video dimensions
-        filters.push(`[0:v][1:v]scale2ref=iw:ih[bg_raw][vid_ref]`)
-        filters.push(`[bg_raw]setsar=1[bg_ready]`)
+        // scale2ref with NO arguments defaults to matching the reference (video) dimensions
+        filters.push(`[0:v][1:v]scale2ref[bg_scaled][vid_ref]`)
+        filters.push(`[bg_scaled]setsar=1[bg_ready]`)
 
         // Step 2: Prepare the foreground video (crop if needed, then scale)
         let fgChain = 'vid_ref'
@@ -380,7 +404,7 @@ app.use('/layout', eventHandler(async (event) => {
     
     const ffmpegArgs = [
       // Background image input (if applicable) MUST come first
-      ...(hasBgInput ? ['-loop', '1', '-i', validatedData.borderUrl!] : []),
+      ...(hasBgInput && tempBgImagePath ? ['-loop', '1', '-i', tempBgImagePath] : []),
       
       // Video input  
       '-protocol_whitelist', 'file,http,https,tcp,tls',
@@ -457,6 +481,10 @@ app.use('/layout', eventHandler(async (event) => {
         }
       } else {
         console.log(`✅ GPU Layout processing complete`)
+      }
+      // Cleanup temp background image
+      if (tempBgImagePath) {
+        fs.unlink(tempBgImagePath).catch(() => {})
       }
     })
     
