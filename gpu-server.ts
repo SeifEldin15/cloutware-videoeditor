@@ -318,13 +318,13 @@ app.use('/layout', eventHandler(async (event) => {
 
     if ((validatedData.borderType === 'image' || validatedData.borderType === 'video') && validatedData.borderUrl) {
         hasBgInput = true
-        filters.push(`[0:v]split=2[v_main][v_ref]`)
-        filters.push(`[v_ref]drawbox=t=fill:c=${borderColor}[base_canvas]`)
-        
-        filters.push(`[1:v][base_canvas]scale2ref=iw:ih:force_original_aspect_ratio=increase[bg_scaled][base_canvas_ref]`)
-        filters.push(`[base_canvas_ref][bg_scaled]overlay=(W-w)/2:(H-h)/2:shortest=1[canvas_with_bg]`)
-        
-        let fgChain = 'v_main'
+
+        // 1. Scale background image (1:v) to match source video (0:v) dimensions
+        filters.push(`[1:v][0:v]scale2ref=iw:ih:force_original_aspect_ratio=increase[bg_scaled][v_orig]`)
+        filters.push(`[bg_scaled][v_orig]scale2ref=iw:ih[bg_exact][v_orig2]`)
+
+        // 2. Process the foreground video
+        let fgChain = 'v_orig2'
         if ((validatedData.cropTop || 0) > 0 || (validatedData.cropBottom || 0) > 0 || 
             (validatedData.cropLeft || 0) > 0 || (validatedData.cropRight || 0) > 0) {
           const cropL = validatedData.cropLeft || 0
@@ -340,7 +340,9 @@ app.use('/layout', eventHandler(async (event) => {
         }
         
         filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
-        filters.push(`[canvas_with_bg][fg_ready]overlay=x=${overlayX}:y=${overlayY}:shortest=1[out]`)
+
+        // 3. Overlay foreground onto background
+        filters.push(`[bg_exact][fg_ready]overlay=x=${overlayX}:y=${overlayY}:shortest=1[out]`)
     } else {
         filters.push(`[0:v]split=2[v_fg][v_bg]`)
         filters.push(`[v_bg]drawbox=t=fill:c=${borderColor}[canvas]`)

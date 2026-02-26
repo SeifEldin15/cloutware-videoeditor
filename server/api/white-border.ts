@@ -271,22 +271,13 @@ async function processWithLayout(
           // [canvas_with_bg][fg_final]overlay=...
           
           filters.length = 0
-          filters.push(`[0:v]split=2[v_main][v_ref]`)
-          
-          // Step 1: Background Layer
-          // Make a canvas of size 0:v. Using `drawbox` on v_ref is a cheap way to preserve exact format/meta.
-          // We'll use `v_ref` to create the base canvas.
-          const colorResult = options.whiteBorderColor || options.borderColor || '#ffffff'
-          const colorStr = colorResult.startsWith('#') ? colorResult.replace('#', '0x') : colorResult
-          filters.push(`[v_ref]drawbox=t=fill:c=${colorStr}[base_canvas]`) 
-          
-          // Step 2: Overlay Custom BG (1:v) onto Base Canvas
-          // Scale BG to cover canvas
-          filters.push(`[1:v][base_canvas]scale2ref=iw:ih:force_original_aspect_ratio=increase[bg_scaled][base_canvas_ref]`)
-          filters.push(`[base_canvas_ref][bg_scaled]overlay=(W-w)/2:(H-h)/2:shortest=1[canvas_with_bg]`)
-          
-          // Step 3: Manipulate FG (v_main)
-          let fgChain = 'v_main'
+
+          // 1. Scale background image (1:v) to match source video (0:v) dimensions
+          filters.push(`[1:v][0:v]scale2ref=iw:ih:force_original_aspect_ratio=increase[bg_scaled][v_orig]`)
+          filters.push(`[bg_scaled][v_orig]scale2ref=iw:ih[bg_exact][v_orig2]`)
+
+          // 2. Process foreground video
+          let fgChain = 'v_orig2'
           if (options.cropTop > 0 || options.cropBottom > 0 || options.cropLeft > 0 || options.cropRight > 0) {
              const w = `iw*(1-(${options.cropLeft}/100)-(${options.cropRight}/100))`
              const h = `ih*(1-(${options.cropTop}/100)-(${options.cropBottom}/100))`
@@ -297,8 +288,8 @@ async function processWithLayout(
           }
            filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
            
-           // Step 4: Final Overlay
-           filters.push(`[canvas_with_bg][fg_ready]overlay=x=${overlayX}:y=${overlayY}:shortest=1[out]`)
+           // 3. Overlay foreground onto background
+           filters.push(`[bg_exact][fg_ready]overlay=x=${overlayX}:y=${overlayY}:shortest=1[out]`)
       } else {
         // Color Background mode
         // Much simpler: Resize FG, then PAD to original size with color.
