@@ -314,26 +314,55 @@ app.use('/layout', eventHandler(async (event) => {
     
     // Build filter chain
     const filters: string[] = []
-    filters.push(`[0:v]split=2[v_fg][v_bg]`)
-    filters.push(`[v_bg]drawbox=t=fill:c=${borderColor}[canvas]`)
-    
-    let fgChain = 'v_fg'
-    if ((validatedData.cropTop || 0) > 0 || (validatedData.cropBottom || 0) > 0 || 
-        (validatedData.cropLeft || 0) > 0 || (validatedData.cropRight || 0) > 0) {
-      const cropL = validatedData.cropLeft || 0
-      const cropR = validatedData.cropRight || 0
-      const cropT = validatedData.cropTop || 0
-      const cropB = validatedData.cropBottom || 0
-      const w = `iw*(1-(${cropL}/100)-(${cropR}/100))`
-      const h = `ih*(1-(${cropT}/100)-(${cropB}/100))`
-      const x = `iw*(${cropL}/100)`
-      const y = `ih*(${cropT}/100)`
-      filters.push(`[${fgChain}]crop=w=${w}:h=${h}:x=${x}:y=${y}[fg_cropped]`)
-      fgChain = 'fg_cropped'
+    let hasBgInput = false
+
+    if ((validatedData.borderType === 'image' || validatedData.borderType === 'video') && validatedData.borderUrl) {
+        hasBgInput = true
+        filters.push(`[0:v]split=2[v_main][v_ref]`)
+        filters.push(`[v_ref]drawbox=t=fill:c=black[base_canvas]`)
+        
+        filters.push(`[1:v][base_canvas]scale2ref=iw:ih:force_original_aspect_ratio=increase[bg_scaled][base_canvas_ref]`)
+        filters.push(`[base_canvas_ref][bg_scaled]overlay=(W-w)/2:(H-h)/2:shortest=1[canvas_with_bg]`)
+        
+        let fgChain = 'v_main'
+        if ((validatedData.cropTop || 0) > 0 || (validatedData.cropBottom || 0) > 0 || 
+            (validatedData.cropLeft || 0) > 0 || (validatedData.cropRight || 0) > 0) {
+          const cropL = validatedData.cropLeft || 0
+          const cropR = validatedData.cropRight || 0
+          const cropT = validatedData.cropTop || 0
+          const cropB = validatedData.cropBottom || 0
+          const w = `iw*(1-(${cropL}/100)-(${cropR}/100))`
+          const h = `ih*(1-(${cropT}/100)-(${cropB}/100))`
+          const x = `iw*(${cropL}/100)`
+          const y = `ih*(${cropT}/100)`
+          filters.push(`[${fgChain}]crop=w=${w}:h=${h}:x=${x}:y=${y}[fg_cropped]`)
+          fgChain = 'fg_cropped'
+        }
+        
+        filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
+        filters.push(`[canvas_with_bg][fg_ready]overlay=x=${overlayX}:y=${overlayY}:shortest=1[out]`)
+    } else {
+        filters.push(`[0:v]split=2[v_fg][v_bg]`)
+        filters.push(`[v_bg]drawbox=t=fill:c=${borderColor}[canvas]`)
+        
+        let fgChain = 'v_fg'
+        if ((validatedData.cropTop || 0) > 0 || (validatedData.cropBottom || 0) > 0 || 
+            (validatedData.cropLeft || 0) > 0 || (validatedData.cropRight || 0) > 0) {
+          const cropL = validatedData.cropLeft || 0
+          const cropR = validatedData.cropRight || 0
+          const cropT = validatedData.cropTop || 0
+          const cropB = validatedData.cropBottom || 0
+          const w = `iw*(1-(${cropL}/100)-(${cropR}/100))`
+          const h = `ih*(1-(${cropT}/100)-(${cropB}/100))`
+          const x = `iw*(${cropL}/100)`
+          const y = `ih*(${cropT}/100)`
+          filters.push(`[${fgChain}]crop=w=${w}:h=${h}:x=${x}:y=${y}[fg_cropped]`)
+          fgChain = 'fg_cropped'
+        }
+        
+        filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
+        filters.push(`[canvas][fg_ready]overlay=x=${overlayX}:y=${overlayY}[out]`)
     }
-    
-    filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
-    filters.push(`[canvas][fg_ready]overlay=x=${overlayX}:y=${overlayY}[out]`)
     
     const filterComplex = filters.join(';')
     console.log(`🎨 GPU Filter: ${filterComplex}`)
@@ -351,6 +380,11 @@ app.use('/layout', eventHandler(async (event) => {
       '-analyzeduration', '10000000',
       '-probesize', '10000000',
       '-i', validatedData.url,
+      
+      // Secondary input for image/video background
+      ...(hasBgInput && validatedData.borderType === 'image' && validatedData.borderUrl ? ['-loop', '1', '-i', validatedData.borderUrl] : []),
+      ...(hasBgInput && validatedData.borderType === 'video' && validatedData.borderUrl ? ['-stream_loop', '-1', '-i', validatedData.borderUrl] : []),
+
       // Filter
       '-filter_complex', filterComplex,
       '-map', '[out]',

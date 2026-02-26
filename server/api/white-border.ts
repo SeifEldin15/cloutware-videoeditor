@@ -102,6 +102,11 @@ async function processWithLayout(
       // Add background input if needed
       if ((options.borderType === 'image' || options.borderType === 'video') && options.borderUrl) {
           ffmpegCommand.input(options.borderUrl)
+          if (options.borderType === 'image') {
+              ffmpegCommand.inputOptions(['-loop', '1'])
+          } else if (options.borderType === 'video') {
+              ffmpegCommand.inputOptions(['-stream_loop', '-1'])
+          }
       }
 
       ffmpegCommand.inputOptions([
