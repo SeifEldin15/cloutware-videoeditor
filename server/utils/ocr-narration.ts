@@ -235,43 +235,92 @@ async function generateTimedNarrationBuffer(
     // Merge narration (and optionally bg music) with the original video
     console.log('[OCR-Narration] Merging audio with video...')
 
+    // Check if the original video has an audio track
+    console.log('[OCR-Narration] Probing video for audio stream...')
+    const probeFfmpeg = await getInitializedFfmpeg()
+    const hasOriginalAudio = await new Promise<boolean>((resolve) => {
+      probeFfmpeg.ffprobe(videoUrl, (err: any, metadata: any) => {
+        if (err) {
+          console.warn('[OCR-Narration] FFprobe error, assuming video has audio:', err)
+          resolve(true)
+        } else {
+          const hasAudio = metadata?.streams?.some((s: any) => s.codec_type === 'audio') || false
+          resolve(hasAudio)
+        }
+      })
+    })
+    console.log(`[OCR-Narration] Original video has audio: ${hasOriginalAudio}`)
+
     await new Promise<void>((resolve, reject) => {
       const { spawn } = require('child_process')
 
       let ffmpegArgs: string[]
+      const volMusic = backgroundMusicVolume !== undefined ? backgroundMusicVolume : 0.2
 
       if (bgMusicLocalPath) {
-        // 3-input mix: video + narration audio + background music
-        const volMusic = backgroundMusicVolume !== undefined ? backgroundMusicVolume : 0.2
-        ffmpegArgs = [
-          '-i', videoUrl,                         // 0: original video
-          '-i', mergedAudioPath,                   // 1: narration
-          '-i', bgMusicLocalPath,                  // 2: background music
-          '-filter_complex',
-          `[1:a]volume=1.0[a1];[2:a]volume=${volMusic}[a2];[a1][a2]amix=inputs=2:duration=first:dropout_transition=2[aout]`,
-          '-map', '0:v:0',
-          '-map', '[aout]',
-          '-c:v', 'copy',
-          '-c:a', 'aac',
-          '-b:a', '192k',
-          '-shortest',
-          '-y', outputPath
-        ]
-        console.log(`[OCR-Narration] FFmpeg: 3-input mix (narration + bg music at vol ${volMusic})`)
+        if (hasOriginalAudio) {
+          // 3-input mix: orig audio + narration + bg music
+          ffmpegArgs = [
+            '-i', videoUrl,
+            '-i', mergedAudioPath,
+            '-i', bgMusicLocalPath,
+            '-filter_complex',
+            `[0:a]volume=0.3[a0];[1:a]volume=1.0[a1];[2:a]volume=${volMusic}[a2];[a0][a1][a2]amix=inputs=3:duration=longest:dropout_transition=2:normalize=0[aout]`,
+            '-map', '0:v:0',
+            '-map', '[aout]',
+            '-c:v', 'copy',
+            '-c:a', 'aac',
+            '-b:a', '192k',
+            '-shortest',
+            '-y', outputPath
+          ]
+        } else {
+          // 2-input mix: narration + bg music (no original audio)
+          ffmpegArgs = [
+            '-i', videoUrl,
+            '-i', mergedAudioPath,
+            '-i', bgMusicLocalPath,
+            '-filter_complex',
+            `[1:a]volume=1.0[a1];[2:a]volume=${volMusic}[a2];[a1][a2]amix=inputs=2:duration=longest:dropout_transition=2:normalize=0[aout]`,
+            '-map', '0:v:0',
+            '-map', '[aout]',
+            '-c:v', 'copy',
+            '-c:a', 'aac',
+            '-b:a', '192k',
+            '-shortest',
+            '-y', outputPath
+          ]
+        }
       } else {
-        // 2-input: video + narration audio only
-        ffmpegArgs = [
-          '-i', videoUrl,                          // 0: original video
-          '-i', mergedAudioPath,                   // 1: narration
-          '-map', '0:v:0',
-          '-map', '1:a:0',
-          '-c:v', 'copy',
-          '-c:a', 'aac',
-          '-b:a', '192k',
-          '-shortest',
-          '-y', outputPath
-        ]
-        console.log('[OCR-Narration] FFmpeg: 2-input merge (narration only, no bg music)')
+        if (hasOriginalAudio) {
+          // 2-input mix: orig audio + narration
+          ffmpegArgs = [
+            '-i', videoUrl,
+            '-i', mergedAudioPath,
+            '-filter_complex',
+            `[0:a]volume=0.3[a0];[1:a]volume=1.0[a1];[a0][a1]amix=inputs=2:duration=longest:dropout_transition=2:normalize=0[aout]`,
+            '-map', '0:v:0',
+            '-map', '[aout]',
+            '-c:v', 'copy',
+            '-c:a', 'aac',
+            '-b:a', '192k',
+            '-shortest',
+            '-y', outputPath
+          ]
+        } else {
+          // 1-input: video + narration audio only
+          ffmpegArgs = [
+            '-i', videoUrl,
+            '-i', mergedAudioPath,
+            '-map', '0:v:0',
+            '-map', '1:a:0',
+            '-c:v', 'copy',
+            '-c:a', 'aac',
+            '-b:a', '192k',
+            '-shortest',
+            '-y', outputPath
+          ]
+        }
       }
 
       console.log('[OCR-Narration] FFmpeg spawn args:', ffmpegArgs.join(' '))
