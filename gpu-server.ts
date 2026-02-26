@@ -323,7 +323,7 @@ app.use('/layout', eventHandler(async (event) => {
         // Split source video (1:v): one for foreground, one for canvas
         filters.push(`[1:v]split=2[fg_src][canvas_ref]`)
         filters.push(`[canvas_ref]drawbox=t=fill:c=black[canvas]`)
-        filters.push(`[0:v][canvas]scale2ref=iw*max(rw/iw\\,rh/ih):ih*max(rw/iw\\,rh/ih)[bg_scaled][canvas2]`)
+        filters.push(`[0:v][canvas]scale2ref=w='trunc(iw*max(rw/iw,rh/ih)/2)*2':h='trunc(ih*max(rw/iw,rh/ih)/2)*2'[bg_scaled][canvas2]`)
         filters.push(`[canvas2][bg_scaled]overlay=(W-w)/2:(H-h)/2[bg_canvas]`)
 
         let fgChain = 'fg_src'
