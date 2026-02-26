@@ -272,12 +272,16 @@ async function processWithLayout(
           
           filters.length = 0
 
-          // 1. Scale background image (1:v) to match source video (0:v) dimensions
-          filters.push(`[1:v][0:v]scale2ref=iw:ih:force_original_aspect_ratio=increase[bg_scaled][v_orig]`)
-          filters.push(`[bg_scaled][v_orig]scale2ref=iw:ih[bg_exact][v_orig2]`)
+          // Split source video: one for foreground, one for canvas dimensions
+          filters.push(`[0:v]split=2[fg_src][canvas_ref]`)
+          filters.push(`[canvas_ref]drawbox=t=fill:c=black@0[canvas]`)
+          
+          // Scale background to a large size, then overlay onto canvas (canvas clips to correct size)
+          filters.push(`[1:v]scale=8192:8192:force_original_aspect_ratio=decrease[bg_large]`)
+          filters.push(`[canvas][bg_large]overlay=(W-w)/2:(H-h)/2:shortest=1[bg_canvas]`)
 
-          // 2. Process foreground video
-          let fgChain = 'v_orig2'
+          // Process foreground video
+          let fgChain = 'fg_src'
           if (options.cropTop > 0 || options.cropBottom > 0 || options.cropLeft > 0 || options.cropRight > 0) {
              const w = `iw*(1-(${options.cropLeft}/100)-(${options.cropRight}/100))`
              const h = `ih*(1-(${options.cropTop}/100)-(${options.cropBottom}/100))`
@@ -288,8 +292,8 @@ async function processWithLayout(
           }
            filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
            
-           // 3. Overlay foreground onto background
-           filters.push(`[bg_exact][fg_ready]overlay=x=${overlayX}:y=${overlayY}:shortest=1[out]`)
+           // Overlay foreground onto background canvas
+           filters.push(`[bg_canvas][fg_ready]overlay=x=${overlayX}:y=${overlayY}:shortest=1[out]`)
       } else {
         // Color Background mode
         // Much simpler: Resize FG, then PAD to original size with color.
