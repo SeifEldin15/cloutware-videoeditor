@@ -210,11 +210,8 @@ async function generateTimedNarrationBuffer(
     // Now merge the timed audio with the original video
     const outputPath = path.join(tempDir, 'output.mp4')
 
-    // inputOptions[0] = video URL, inputOptions[1] = narration mp3, inputOptions[2] = bg music (optional)
-    const inputOptions = [
-      videoUrl,
-      mergedAudioPath
-    ]
+    // Download background music if provided
+    let bgMusicLocalPath: string | null = null
 
     if (backgroundMusicUrl) {
       console.log(`[OCR-Narration] Downloading background music from ${backgroundMusicUrl}`)
@@ -222,39 +219,34 @@ async function generateTimedNarrationBuffer(
         const musicResponse = await fetch(backgroundMusicUrl)
         if (musicResponse.ok) {
           const musicBuffer = Buffer.from(await musicResponse.arrayBuffer())
-          // Always save as .mp3 since FFmpeg reads by content, not extension.
-          // (The URL may end in .mp4 because we spoofed the extension for Supabase upload)
-          const bgMusicPath = path.join(tempDir, `bg_music.mp3`)
-          await fs.writeFile(bgMusicPath, musicBuffer)
-          console.log(`[OCR-Narration] Background music saved: ${bgMusicPath} (${musicBuffer.length} bytes)`)
-          inputOptions.push(bgMusicPath)
-          console.log(`[OCR-Narration] Will mix background music (volume: ${backgroundMusicVolume ?? 0.2})`)
+          bgMusicLocalPath = path.join(tempDir, `bg_music.mp3`)
+          await fs.writeFile(bgMusicLocalPath, musicBuffer)
+          console.log(`[OCR-Narration] ✅ Background music saved: ${bgMusicLocalPath} (${musicBuffer.length} bytes)`)
         } else {
-          console.error(`[OCR-Narration] Failed to download background music: ${musicResponse.status}`)
+          console.error(`[OCR-Narration] ❌ Failed to download background music: HTTP ${musicResponse.status}`)
         }
       } catch (err) {
-        console.error(`[OCR-Narration] Background music download error:`, err)
+        console.error(`[OCR-Narration] ❌ Background music download error:`, err)
       }
     } else {
       console.log(`[OCR-Narration] No background music URL provided, skipping music mix`)
     }
 
-
+    // Merge narration (and optionally bg music) with the original video
     console.log('[OCR-Narration] Merging audio with video...')
-    const bgMusicPath = inputOptions[2] // defined only when backgroundMusicUrl was valid
 
     await new Promise<void>((resolve, reject) => {
       const { spawn } = require('child_process')
 
       let ffmpegArgs: string[]
 
-      if (bgMusicPath) {
+      if (bgMusicLocalPath) {
         // 3-input mix: video + narration audio + background music
         const volMusic = backgroundMusicVolume !== undefined ? backgroundMusicVolume : 0.2
         ffmpegArgs = [
-          '-i', inputOptions[0],          // 0: original video
-          '-f', 'mp3', '-i', inputOptions[1], // 1: narration
-          '-f', 'mp3', '-i', bgMusicPath,     // 2: background music
+          '-i', videoUrl,                         // 0: original video
+          '-i', mergedAudioPath,                   // 1: narration
+          '-i', bgMusicLocalPath,                  // 2: background music
           '-filter_complex',
           `[1:a]volume=1.0[a1];[2:a]volume=${volMusic}[a2];[a1][a2]amix=inputs=2:duration=first:dropout_transition=2[aout]`,
           '-map', '0:v:0',
@@ -269,8 +261,8 @@ async function generateTimedNarrationBuffer(
       } else {
         // 2-input: video + narration audio only
         ffmpegArgs = [
-          '-i', inputOptions[0],          // 0: original video
-          '-f', 'mp3', '-i', inputOptions[1], // 1: narration
+          '-i', videoUrl,                          // 0: original video
+          '-i', mergedAudioPath,                   // 1: narration
           '-map', '0:v:0',
           '-map', '1:a:0',
           '-c:v', 'copy',
@@ -282,17 +274,17 @@ async function generateTimedNarrationBuffer(
         console.log('[OCR-Narration] FFmpeg: 2-input merge (narration only, no bg music)')
       }
 
-      console.log('[OCR-Narration] Spawn args:', ffmpegArgs.join(' '))
+      console.log('[OCR-Narration] FFmpeg spawn args:', ffmpegArgs.join(' '))
 
       const proc = spawn('ffmpeg', ffmpegArgs)
       let stderr = ''
       proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
       proc.on('close', (code: number) => {
         if (code === 0) {
-          console.log('[FFmpeg] Video merge complete')
+          console.log('[FFmpeg] ✅ Video merge complete')
           resolve()
         } else {
-          console.error('[FFmpeg] stderr tail:', stderr.slice(-1000))
+          console.error('[FFmpeg] ❌ stderr tail:', stderr.slice(-1000))
           reject(new Error(`FFmpeg merge failed (code ${code}): ${stderr.slice(-400)}`))
         }
       })
