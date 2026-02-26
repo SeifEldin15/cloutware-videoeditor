@@ -346,9 +346,9 @@ app.use('/layout', eventHandler(async (event) => {
         // Correct FFmpeg approach: scale bg image to match video size, then overlay video on top
         
         // Step 1: Scale the background image to match video dimensions
-        // scale2ref: rw = reference width (video), rh = reference height (video)
-        // This stretches the image to exactly match the video frame size
-        filters.push(`[0:v][1:v]scale2ref=w=rw:h=rh[bg_scaled][vid_ref]`)
+        // rw:rh = reference width:reference height (the video's dimensions)
+        // Without explicit rw:rh, scale2ref defaults to iw:ih (image's own size = no scaling!)
+        filters.push(`[0:v][1:v]scale2ref=rw:rh[bg_scaled][vid_ref]`)
         filters.push(`[bg_scaled]setsar=1[bg_ready]`)
 
         // Step 2: Prepare the foreground video (crop if needed, then scale)
