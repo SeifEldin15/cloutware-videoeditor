@@ -320,13 +320,14 @@ app.use('/layout', eventHandler(async (event) => {
         hasBgInput = true
 
         // Input order: 0 = background image (-loop 1), 1 = source video
-        // Split source video (1:v): one for foreground, one for canvas
-        filters.push(`[1:v]split=2[fg_src][canvas_ref]`)
-        filters.push(`[canvas_ref]drawbox=t=fill:c=black[canvas]`)
-        filters.push(`[0:v][canvas]scale2ref=w='trunc(iw*max(rw/iw,rh/ih)/2)*2':h='trunc(ih*max(rw/iw,rh/ih)/2)*2'[bg_scaled][canvas2]`)
-        filters.push(`[canvas2][bg_scaled]overlay=(W-w)/2:(H-h)/2[bg_canvas]`)
+        // Correct FFmpeg approach: scale bg image to match video size, then overlay video on top
+        
+        // Step 1: Scale the background image to match video dimensions
+        filters.push(`[0:v][1:v]scale2ref=iw:ih[bg_raw][vid_ref]`)
+        filters.push(`[bg_raw]setsar=1[bg_ready]`)
 
-        let fgChain = 'fg_src'
+        // Step 2: Prepare the foreground video (crop if needed, then scale)
+        let fgChain = 'vid_ref'
         if ((validatedData.cropTop || 0) > 0 || (validatedData.cropBottom || 0) > 0 || 
             (validatedData.cropLeft || 0) > 0 || (validatedData.cropRight || 0) > 0) {
           const cropL = validatedData.cropLeft || 0
@@ -342,7 +343,9 @@ app.use('/layout', eventHandler(async (event) => {
         }
         
         filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
-        filters.push(`[bg_canvas][fg_ready]overlay=x=${overlayX}:y=${overlayY}:shortest=1[out]`)
+
+        // Step 3: Overlay foreground on background image
+        filters.push(`[bg_ready][fg_ready]overlay=x=${overlayX}:y=${overlayY}:shortest=1[out]`)
     } else {
         filters.push(`[0:v]split=2[v_fg][v_bg]`)
         filters.push(`[v_bg]drawbox=t=fill:c=${borderColor}[canvas]`)
