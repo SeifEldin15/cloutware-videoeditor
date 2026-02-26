@@ -95,8 +95,9 @@ export async function replaceTextInVideo(
 
       if (borderRadius > 0) {
         // ── Rounded corners path: generate PNG overlays with Sharp ──
+        const effectiveRadius = borderRadius * 2;
         console.log(
-          `🔵 Using rounded rectangle overlays (borderRadius=${borderRadius}px)`,
+          `🔵 Using rounded rectangle overlays (input radius=${borderRadius}px, effective=${effectiveRadius}px)`,
         );
         const sharpModule = (await import("sharp")).default;
         const padding = 10;
@@ -121,7 +122,7 @@ export async function replaceTextInVideo(
             ? currentBgColorHex + opacityHex
             : `#${currentBgColorHex}${opacityHex}`;
 
-          const svgRect = `<svg width="${width}" height="${height}"><rect x="0" y="0" width="${width}" height="${height}" rx="${borderRadius}" ry="${borderRadius}" fill="${fillColor}"/></svg>`;
+          const svgRect = `<svg width="${width}" height="${height}"><rect x="0" y="0" width="${width}" height="${height}" rx="${effectiveRadius}" ry="${effectiveRadius}" fill="${fillColor}"/></svg>`;
 
           const tempPng = path.join(
             os.tmpdir(),
@@ -134,7 +135,7 @@ export async function replaceTextInVideo(
           command.input(tempPng);
 
           console.log(
-            `   📐 Generated rounded rect PNG ${i}: ${width}x${height} radius=${borderRadius} → ${tempPng}`,
+            `   📐 Generated rounded rect PNG ${i}: ${width}x${height} radius=${effectiveRadius} → ${tempPng}`,
           );
         }
 
