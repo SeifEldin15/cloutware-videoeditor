@@ -158,7 +158,6 @@ export async function replaceTextInVideo(
             fontSize,
             fontColor,
             backgroundColor,
-            backgroundColor,
             backgroundOpacity,
             borderRadius: 0,
           },
@@ -411,7 +410,6 @@ function buildTextReplacementFilterComplex(
     fontFamily: string;
     fontSize: number;
     fontColor: string;
-    backgroundColor: string;
     backgroundColor: string;
     backgroundOpacity: number;
     borderRadius?: number;

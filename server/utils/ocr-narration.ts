@@ -12,6 +12,8 @@ interface OcrNarrationOptions {
   confidenceThreshold?: number
   voice?: string
   timedNarration?: boolean
+  backgroundMusicUrl?: string
+  backgroundMusicVolume?: number
 }
 
 /**
@@ -26,7 +28,9 @@ export async function generateOcrNarration(
     numberOfFrames = 100,
     confidenceThreshold = 79,
     voice = '21m00Tcm4TlvDq8ikWAM',
-    timedNarration = true
+    timedNarration = true,
+    backgroundMusicUrl,
+    backgroundMusicVolume = 0.2
   } = options
 
   console.log(`[OCR-Narration] Starting text detection with ${numberOfFrames} frames at ${confidenceThreshold}% confidence`)
@@ -96,7 +100,7 @@ export async function generateOcrNarration(
 
   // Generate timed narration
   console.log('[OCR-Narration] Generating timed narration video...')
-  const videoBuffer = await generateTimedNarrationBuffer(videoUrl, dedupedTexts, voice)
+  const videoBuffer = await generateTimedNarrationBuffer(videoUrl, dedupedTexts, voice, backgroundMusicUrl, backgroundMusicVolume)
   
   return videoBuffer
 }
@@ -104,7 +108,9 @@ export async function generateOcrNarration(
 async function generateTimedNarrationBuffer(
   videoUrl: string,
   texts: any[],
-  voice: string
+  voice: string,
+  backgroundMusicUrl?: string,
+  backgroundMusicVolume: number = 0.2
 ): Promise<Buffer> {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'timed-narration-'))
   const audioFiles: Array<{ path: string, startTime: number }> = []
@@ -203,18 +209,65 @@ async function generateTimedNarrationBuffer(
     const ffmpeg = await getInitializedFfmpeg()
     const outputPath = path.join(tempDir, 'output.mp4')
 
+    // Prepare inputs and filter complex based on presence of background music
+    const inputOptions = [
+      videoUrl,
+      mergedAudioPath
+    ]
+
+    let filterComplex = ''
+    let mapVideo = '-map 0:v:0'
+    let mapAudio = '-map 1:a:0'
+
+    if (backgroundMusicUrl) {
+      console.log(`[OCR-Narration] Downloading background music from ${backgroundMusicUrl}`)
+      try {
+        const musicResponse = await fetch(backgroundMusicUrl)
+        if (musicResponse.ok) {
+          const musicBuffer = Buffer.from(await musicResponse.arrayBuffer())
+          const musicExt = backgroundMusicUrl.match(/\.(mp3|wav|m4a)/i)?.[1] || 'mp3'
+          const bgMusicPath = path.join(tempDir, `bg_music.${musicExt}`)
+          await fs.writeFile(bgMusicPath, musicBuffer)
+          
+          inputOptions.push(bgMusicPath)
+          
+          // Original video (0:v), AI narration (1:a), Background Music (2:a)
+          // Adjust volume of AI narration, adjust volume of bg music, mix them together
+          const volMusic = backgroundMusicVolume !== undefined ? backgroundMusicVolume : 0.2
+          
+          filterComplex = `[1:a]volume=1.0[a1];[2:a]volume=${volMusic}[a2];[a1][a2]amix=inputs=2:duration=first:dropout_transition=2[aout]`
+          mapAudio = '-map [aout]'
+          console.log(`[OCR-Narration] Will mix background music (volume: ${volMusic})`)
+        } else {
+          console.error(`[OCR-Narration] Failed to download background music: ${musicResponse.status}`)
+        }
+      } catch (err) {
+        console.error(`[OCR-Narration] Background music download error:`, err)
+      }
+    }
+
     console.log('[OCR-Narration] Merging audio with video...')
     await new Promise<void>((resolve, reject) => {
-      const command: FfmpegCommand = ffmpeg()
-        .input(videoUrl)
-        .input(mergedAudioPath)
-        .outputOptions([
-          '-c:v copy',
-          '-c:a aac',
-          '-b:a 192k',
-          '-map 0:v:0',
-          '-map 1:a:0'
-        ])
+      let command: FfmpegCommand = ffmpeg()
+      
+      // Add all inputs
+      for (const input of inputOptions) {
+        command = command.input(input)
+      }
+
+      const outputOpts = [
+        '-c:v copy',
+        '-c:a aac',
+        '-b:a 192k',
+        mapVideo,
+        mapAudio
+      ]
+
+      if (filterComplex) {
+          command = command.complexFilter(filterComplex)
+      }
+
+      command.outputOptions(outputOpts)
         .output(outputPath)
         .on('start', (cmd: any) => {
           console.log('[FFmpeg] Command:', cmd)
