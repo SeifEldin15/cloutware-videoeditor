@@ -343,16 +343,22 @@ app.use('/layout', eventHandler(async (event) => {
         hasBgInput = true
 
         // Input order: 0 = background image (-loop 1), 1 = source video
-        // Correct FFmpeg approach: scale bg image to match video size, then overlay video on top
+        // Approach WITHOUT scale2ref (deprecated in FFmpeg 7+):
+        //   1. Split video → canvas + foreground
+        //   2. Overlay image on canvas → background
+        //   3. Scale foreground video down for border
+        //   4. Overlay foreground on background
         
-        // Step 1: Scale the background image to match video dimensions
-        // rw:rh = reference width:reference height (the video's dimensions)
-        // Without explicit rw:rh, scale2ref defaults to iw:ih (image's own size = no scaling!)
-        filters.push(`[0:v][1:v]scale2ref=rw:rh[bg_scaled][vid_ref]`)
-        filters.push(`[bg_scaled]setsar=1[bg_ready]`)
+        // Use the video [1:v] to create a canvas matching its dimensions
+        filters.push(`[1:v]split=2[vid_fg][vid_canvas]`)
+        filters.push(`[vid_canvas]drawbox=t=fill:c=black[canvas]`)
+        // Scale background image to even dimensions
+        filters.push(`[0:v]scale=2*trunc(iw/2):2*trunc(ih/2)[img_even]`)
+        // Overlay image centered on canvas (canvas = video dims, image fills from center)
+        filters.push(`[canvas][img_even]overlay=(W-w)/2:(H-h)/2[bg_ready]`)
 
-        // Step 2: Prepare the foreground video (crop if needed, then scale)
-        let fgChain = 'vid_ref'
+        // Prepare the foreground video (crop if needed, then scale)
+        let fgChain = 'vid_fg'
         if ((validatedData.cropTop || 0) > 0 || (validatedData.cropBottom || 0) > 0 || 
             (validatedData.cropLeft || 0) > 0 || (validatedData.cropRight || 0) > 0) {
           const cropL = validatedData.cropLeft || 0
@@ -369,7 +375,7 @@ app.use('/layout', eventHandler(async (event) => {
         
         filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
 
-        // Step 3: Overlay foreground on background image
+        // Overlay foreground video on background image
         filters.push(`[bg_ready][fg_ready]overlay=x=${overlayX}:y=${overlayY}:shortest=1[out]`)
     } else {
         filters.push(`[0:v]split=2[v_fg][v_bg]`)
