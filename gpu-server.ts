@@ -338,64 +338,83 @@ app.use('/layout', eventHandler(async (event) => {
     // Build filter chain
     const filters: string[] = []
     let hasBgInput = false
+    let bgVideoPath: string | null = null  // pre-rendered bg video (if image bg)
 
-    // If image background: probe video dimensions AND duration so dual-input works correctly
-    let videoDimensions = { width: 1080, height: 1920 }
-    let videoDuration = 60 // safe fallback in seconds
     if (validatedData.borderType === 'image' && validatedData.borderUrl && tempBgImagePath) {
+      hasBgInput = true
+
+      // ── Step 1: Probe the source video to get exact dimensions + duration ────
+      let vW = 1080, vH = 1920, vDur = 60
       try {
         const { execSync } = await import('child_process')
-        // Probe both dimensions and duration in one call
         const probeOut = execSync(
           `ffprobe -v error -select_streams v:0 -show_entries stream=width,height,duration -of csv=p=0 "${validatedData.url}"`,
           { encoding: 'utf8', timeout: 15000 }
         ).trim()
         const parts = probeOut.split(',')
         if (parts.length >= 2) {
-          const w = parseInt(parts[0], 10)
-          const h = parseInt(parts[1], 10)
-          const d = parseFloat(parts[2] || '60')
-          if (w > 0 && h > 0) { videoDimensions = { width: w, height: h } }
-          if (d > 0 && isFinite(d)) { videoDuration = d }
-          console.log(`📐 Probed video: ${w}x${h}, duration=${d}s`)
+          const pw = parseInt(parts[0]); const ph = parseInt(parts[1])
+          const pd = parseFloat(parts[2] || '60')
+          if (pw > 0 && ph > 0) { vW = pw; vH = ph }
+          if (pd > 0 && isFinite(pd)) { vDur = pd }
+          console.log(`📐 Source video: ${vW}x${vH}, ${vDur}s`)
         }
       } catch (err) {
         console.warn('⚠️ ffprobe failed, using defaults:', err)
       }
-    }
 
-    if (validatedData.borderType === 'image' && validatedData.borderUrl && tempBgImagePath) {
-        hasBgInput = true
+      // ── Step 2: Pre-render the image into a real MP4 (same dims as source) ──
+      // This GUARANTEES a normal video stream — no -loop 1 filter_complex tricks.
+      bgVideoPath = join(tmpdir(), `gpu-bg-video-${Date.now()}.mp4`)
+      const bgDuration = Math.ceil(vDur) + 2  // a tiny bit longer to be safe
+      const ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg'
+      await new Promise<void>((resolve, reject) => {
+        const { spawn: sp } = require('child_process')
+        const bgProc = sp(ffmpegPath, [
+          '-loop', '1',
+          '-i', tempBgImagePath,
+          '-t', String(bgDuration),
+          '-vf', `scale=${vW}:${vH}:force_original_aspect_ratio=disable,setsar=1`,
+          '-r', '30',
+          '-c:v', 'libx264',
+          '-pix_fmt', 'yuv420p',
+          '-preset', 'ultrafast',
+          '-an',   // no audio in bg video
+          '-y', bgVideoPath
+        ], { stdio: ['ignore', 'pipe', 'pipe'] })
+        let errOut = ''
+        bgProc.stderr.on('data', (d: Buffer) => { errOut += d.toString() })
+        bgProc.on('close', (code: number) => {
+          if (code === 0) {
+            console.log(`✅ BG video pre-rendered: ${bgVideoPath}`)
+            resolve()
+          } else {
+            console.error(`❌ BG pre-render failed (code ${code}):`, errOut.slice(-500))
+            reject(new Error(`BG pre-render failed: code ${code}`))
+          }
+        })
+      })
 
-        // INPUT ORDER: video=0, image=1 (video goes first since it's the reliable stream)
-        //   [0:v] = source video  → foreground (scaled down for border effect)
-        //   [1:v] = bg image (-loop 1) → background (scaled to full video frame)
-        const vW = videoDimensions.width
-        const vH = videoDimensions.height
+      // ── Step 3: Build a simple 2-video overlay filter ─────────────────────
+      // input 0 = bg video (pre-rendered image, full frame = vW x vH)
+      // input 1 = source video (to scale down and overlay)
+      let fgChain = '1:v'
+      if ((validatedData.cropTop || 0) > 0 || (validatedData.cropBottom || 0) > 0 ||
+          (validatedData.cropLeft || 0) > 0 || (validatedData.cropRight || 0) > 0) {
+        const cropL = validatedData.cropLeft || 0
+        const cropR = validatedData.cropRight || 0
+        const cropT = validatedData.cropTop || 0
+        const cropB = validatedData.cropBottom || 0
+        const w = `iw*(1-(${cropL}/100)-(${cropR}/100))`
+        const h = `ih*(1-(${cropT}/100)-(${cropB}/100))`
+        const x = `iw*(${cropL}/100)`; const y = `ih*(${cropT}/100)`
+        filters.push(`[${fgChain}]crop=w=${w}:h=${h}:x=${x}:y=${y}[fg_cropped]`)
+        fgChain = 'fg_cropped'
+      }
+      filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
+      // bg (input 0) at full frame, source video (fg_ready) scaled down on top
+      filters.push(`[0:v][fg_ready]overlay=x=${overlayX}:y=${overlayY}:shortest=1[out]`)
 
-        // Scale bg IMAGE (input 1) to exact video frame dimensions
-        filters.push(`[1:v]scale=${vW}:${vH},setsar=1[bg_ready]`)
-
-        // Source VIDEO (input 0): crop if needed, then scale down for border effect
-        let fgChain = '0:v'
-        if ((validatedData.cropTop || 0) > 0 || (validatedData.cropBottom || 0) > 0 || 
-            (validatedData.cropLeft || 0) > 0 || (validatedData.cropRight || 0) > 0) {
-          const cropL = validatedData.cropLeft || 0
-          const cropR = validatedData.cropRight || 0
-          const cropT = validatedData.cropTop || 0
-          const cropB = validatedData.cropBottom || 0
-          const w = `iw*(1-(${cropL}/100)-(${cropR}/100))`
-          const h = `ih*(1-(${cropT}/100)-(${cropB}/100))`
-          const x = `iw*(${cropL}/100)`
-          const y = `ih*(${cropT}/100)`
-          filters.push(`[${fgChain}]crop=w=${w}:h=${h}:x=${x}:y=${y}[fg_cropped]`)
-          fgChain = 'fg_cropped'
-        }
-        
-        filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH},setsar=1[fg_ready]`)
-
-        // Compose: image background at full frame, video centered on top
-        filters.push(`[bg_ready][fg_ready]overlay=x=${overlayX}:y=${overlayY}:eof_action=endall[out]`)
     } else {
         filters.push(`[0:v]split=2[v_fg][v_bg]`)
         filters.push(`[v_bg]drawbox=t=fill:c=${borderColor}[canvas]`)
@@ -429,20 +448,21 @@ app.use('/layout', eventHandler(async (event) => {
     console.log(`🚀 Starting FFmpeg for layout: ${videoCodec} (GPU encoding: ${gpuEnabled})`)
     
     const ffmpegArgs = [
-      // VIDEO always first (input 0) — reliable, finite stream
+      // For image bg: bg VIDEO (pre-rendered) is input 0; source video is input 1
+      // For color bg:  source video is the only input 0
+      ...(hasBgInput && bgVideoPath ? ['-i', bgVideoPath] : []),
+
+      // Source video input (always present)
       '-protocol_whitelist', 'file,http,https,tcp,tls',
       '-analyzeduration', '10000000',
       '-probesize', '10000000',
       '-i', validatedData.url,
 
-      // IMAGE second (input 1) — looped to match video duration
-      ...(hasBgInput && tempBgImagePath ? ['-loop', '1', '-t', String(Math.ceil(videoDuration) + 1), '-i', tempBgImagePath] : []),
-
       // Filter
       '-filter_complex', filterComplex,
       '-map', '[out]',
-      '-map', '0:a?',   // audio always from video (input 0)
-      '-shortest',      // stop when shortest input (video) ends
+      '-map', hasBgInput ? '1:a?' : '0:a?',  // audio from source video
+      '-shortest',
       // Video encoding
       '-c:v', videoCodec,
     ]
@@ -509,10 +529,9 @@ app.use('/layout', eventHandler(async (event) => {
       } else {
         console.log(`✅ GPU Layout processing complete`)
       }
-      // Cleanup temp background image
-      if (tempBgImagePath) {
-        fs.unlink(tempBgImagePath).catch(() => {})
-      }
+      // Cleanup temp files
+      if (tempBgImagePath) fs.unlink(tempBgImagePath).catch(() => {})
+      if (bgVideoPath) fs.unlink(bgVideoPath).catch(() => {})
     })
     
     setHeader(event, 'Content-Type', 'video/mp4')
