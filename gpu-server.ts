@@ -352,10 +352,10 @@ app.use('/layout', eventHandler(async (event) => {
         // Use the video [1:v] to create a canvas matching its dimensions
         filters.push(`[1:v]split=2[vid_fg][vid_canvas]`)
         filters.push(`[vid_canvas]drawbox=t=fill:c=black[canvas]`)
-        // Scale background image to even dimensions
-        filters.push(`[0:v]scale=2*trunc(iw/2):2*trunc(ih/2)[img_even]`)
-        // Overlay image centered on canvas (canvas = video dims, image fills from center)
-        filters.push(`[canvas][img_even]overlay=(W-w)/2:(H-h)/2[bg_ready]`)
+        // Scale background image to cover the canvas, preserving aspect ratio using scale2ref
+        filters.push(`[0:v][canvas]scale2ref=w=rw:h=rh:force_original_aspect_ratio=increase[img_scaled][canvas_ref]`)
+        // Overlay the scaled image onto the canvas (image overflows get cropped automatically)
+        filters.push(`[canvas_ref][img_scaled]overlay=(W-w)/2:(H-h)/2[bg_ready]`)
 
         // Prepare the foreground video (crop if needed, then scale)
         let fgChain = 'vid_fg'
