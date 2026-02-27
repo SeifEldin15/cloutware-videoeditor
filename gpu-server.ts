@@ -388,7 +388,7 @@ app.use('/layout', eventHandler(async (event) => {
           fgChain = 'fg_cropped'
         }
         
-        filters.push(`[${fgChain}]scale=iw*${effectiveScaleW * 1.1}:ih*${effectiveScaleH * 1.2}[fg_ready]`)
+        filters.push(`[${fgChain}]scale=iw*${effectiveScaleW * 1.05}:ih*${effectiveScaleH * 1.1}[fg_ready]`)
 
         // Overlay scaled-down video on the correctly-sized image background
         filters.push(`[bg_ready][fg_ready]overlay=x=${overlayX}:y=${overlayY}:shortest=1[out]`)
