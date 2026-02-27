@@ -340,7 +340,7 @@ app.use('/layout', eventHandler(async (event) => {
       // 1. Create black canvas of video's size
       filters.push(`[v_bg]drawbox=x=0:y=0:w=iw:h=ih:color=black:t=max[canvas_black]`)
       // 2. Scale image (input 1) to cover canvas preserving ratio
-      filters.push(`[1:v][canvas_black]scale2ref=w='max(mw,mh*a)':h='max(mh,mw/a)'[img_scaled][canvas_base]`)
+      filters.push(`[1:v][canvas_black]scale2ref=w='max(main_w,main_h*a)':h='max(main_h,main_w/a)'[img_scaled][canvas_base]`)
       // 3. Overlay scaled image onto canvas to crop excess (center cropped)
       filters.push(`[canvas_base][img_scaled]overlay=x='(main_w-overlay_w)/2':y='(main_h-overlay_h)/2':shortest=1[canvas]`)
       
