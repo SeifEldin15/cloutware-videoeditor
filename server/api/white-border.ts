@@ -92,57 +92,20 @@ async function processWithLayout(
       const ffmpeg = await getInitializedFfmpeg()
 
       // Calculate scale factors.
-      // For image backgrounds, the leftRight/topBottom padding is 0 (videoScale controls size directly).
-      // For color backgrounds, the padding shrinks the video to reveal the colored border.
-      const isImageBg2 = options.borderType === 'image'
+      // The padding shrinks the video to reveal the colored border.
       let effectiveScaleW = options.videoScale
       let effectiveScaleH = options.videoScale
-      if (!isImageBg2 && options.leftRightPercent > 0) effectiveScaleW *= ((100 - options.leftRightPercent) / 100)
-      if (!isImageBg2 && options.topBottomPercent > 0) effectiveScaleH *= ((100 - options.topBottomPercent) / 100)
+      if (options.leftRightPercent > 0) effectiveScaleW *= ((100 - options.leftRightPercent) / 100)
+      if (options.topBottomPercent > 0) effectiveScaleH *= ((100 - options.topBottomPercent) / 100)
 
       // Overlay position
       const overlayX = `(W-w)/2+(W*${options.videoX}/100)`
       const overlayY = `(H-h)/2+(H*${options.videoY}/100)`
 
-      const isImageBg = options.borderType === 'image' && options.borderUrl
       const filters: string[] = []
       let ffmpegCommand: any
-
-      if (isImageBg) {
-        // IMAGE BACKGROUND
-        // Input 0 = background image (with -loop 1), Input 1 = source video
-        ffmpegCommand = ffmpeg()
-        ffmpegCommand.input(options.borderUrl)
-        ffmpegCommand.inputOptions(['-loop', '1'])
-        ffmpegCommand.input(inputUrl)
-        ffmpegCommand.inputOptions([
-          '-protocol_whitelist', 'file,http,https,tcp,tls',
-          '-reconnect', '1',
-          '-reconnect_streamed', '1',
-          '-analyzeduration', '10000000',
-          '-probesize', '10000000',
-        ])
-
-        // [1:v] = video, [0:v] = image
-        filters.push(`[1:v]split=2[fg_src][canvas_ref]`)
-        filters.push(`[canvas_ref]drawbox=t=fill:c=black[canvas]`)
-        filters.push(`[0:v][canvas]scale2ref=w='trunc(iw*max(rw/iw,rh/ih)/2)*2':h='trunc(ih*max(rw/iw,rh/ih)/2)*2'[bg_scaled][canvas2]`)
-        filters.push(`[canvas2][bg_scaled]overlay=(W-w)/2:(H-h)/2[bg_canvas]`)
-
-        let fgChain = 'fg_src'
-        if (options.cropTop > 0 || options.cropBottom > 0 || options.cropLeft > 0 || options.cropRight > 0) {
-          const w = `iw*(1-(${options.cropLeft}/100)-(${options.cropRight}/100))`
-          const h = `ih*(1-(${options.cropTop}/100)-(${options.cropBottom}/100))`
-          const x = `iw*(${options.cropLeft}/100)`
-          const y = `ih*(${options.cropTop}/100)`
-          filters.push(`[${fgChain}]crop=w=${w}:h=${h}:x=${x}:y=${y}[fg_cropped]`)
-          fgChain = 'fg_cropped'
-        }
-        filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
-        filters.push(`[bg_canvas][fg_ready]overlay=x=${overlayX}:y=${overlayY}:shortest=1[out]`)
-      } else {
-        // COLOR BACKGROUND
-        // Input 0 = source video (only input)
+      // COLOR BACKGROUND
+      // Input 0 = source video (only input)
         ffmpegCommand = ffmpeg(inputUrl)
         ffmpegCommand.inputOptions([
           '-protocol_whitelist', 'file,http,https,tcp,tls',
@@ -165,15 +128,12 @@ async function processWithLayout(
         }
         filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
         filters.push(`[canvas][fg_ready]overlay=x=${overlayX}:y=${overlayY}[out]`)
-      }
-
-      console.log(`🎨 Filter (${isImageBg ? 'image' : 'color'}): ${filters.join(';')}`)
+      console.log(`🎨 Filter (color): ${filters.join(';')}`)
 
       const outputOptions = [
         '-filter_complex', filters.join(';'),
         '-map', '[out]',
-        '-map', isImageBg ? '1:a?' : '0:a?',
-        ...(isImageBg ? ['-shortest'] : []),
+        '-map', '0:a?',
         '-c:v', 'libx264',
         '-preset', 'veryfast',
         '-crf', '18',

@@ -266,7 +266,6 @@ const layoutSchema = z.object({
   videoY: z.coerce.number().optional(),
   borderType: z.string().optional(),
   whiteBorderColor: z.string().optional(),
-  borderUrl: z.string().optional(),
   cropTop: z.coerce.number().optional(),
   cropBottom: z.coerce.number().optional(),
   cropLeft: z.coerce.number().optional(),
@@ -284,13 +283,8 @@ app.use('/layout', eventHandler(async (event) => {
     const videoX = validatedData.videoX ?? 0
     const videoY = validatedData.videoY ?? 0
     const whiteBorderColor = validatedData.whiteBorderColor || '#FFFFFF'
-    const isImageBorderType = validatedData.borderType === 'image'
-
-    // For image backgrounds, videoScale directly controls the video size on the image canvas.
-    // leftRight/topBottom border padding is only relevant for solid color backgrounds.
-    // Default the padding to 0 for image type (since those UI sliders were removed).
-    const leftRightPercent = isImageBorderType ? 0 : (validatedData.leftRightPercent ?? 10)
-    const topBottomPercent = isImageBorderType ? 0 : (validatedData.topBottomPercent ?? 20)
+    const leftRightPercent = validatedData.leftRightPercent ?? 10
+    const topBottomPercent = validatedData.topBottomPercent ?? 20
 
     console.log(`🎨 GPU Layout processing: ${validatedData.url}`)
     console.log(`📐 Parsed values: scale=${videoScale}, LR=${leftRightPercent}%, TB=${topBottomPercent}%, color=${whiteBorderColor}, type=${validatedData.borderType}`)
@@ -319,61 +313,11 @@ app.use('/layout', eventHandler(async (event) => {
     
     console.log(`🎨 Border color: ${borderColor}`)
 
-    // If image background, download image to temp file first
-    // (HTTP URLs don't work reliably with -loop 1 since FFmpeg needs seeking)
-    let tempBgImagePath: string | null = null
-    if (validatedData.borderType === 'image' && validatedData.borderUrl) {
-      try {
-        const imgResponse = await fetch(validatedData.borderUrl)
-        if (imgResponse.ok) {
-          const imgBuffer = Buffer.from(await imgResponse.arrayBuffer())
-          const ext = validatedData.borderUrl.match(/\.(jpg|jpeg|png|webp|bmp)/i)?.[1] || 'jpg'
-          tempBgImagePath = join(tmpdir(), `gpu-bg-image-${Date.now()}.${ext}`)
-          await fs.writeFile(tempBgImagePath, imgBuffer)
-          console.log(`📸 Downloaded background image to: ${tempBgImagePath} (${imgBuffer.length} bytes)`)
-        } else {
-          console.error(`❌ Failed to download background image: ${imgResponse.status}`)
-        }
-      } catch (err) {
-        console.error('❌ Failed to download background image:', err)
-      }
-    }
-    
     // Build filter chain
     const filters: string[] = []
-    let hasBgInput = false
-    let bgVideoPath: string | null = null  // pre-rendered bg video (if image bg)
-
-    if (validatedData.borderType === 'image' && validatedData.borderUrl && tempBgImagePath) {
-      hasBgInput = true
-
-      // Native scale2ref logic without ffprobe. This perfectly handles vertical video rotation.
-      // input 0 = backgound image (-loop 1)
-      // input 1 = source video (automatically rotated properly)
-      filters.push(`[1:v]split=2[fg_src][canvas_ref]`)
-      filters.push(`[canvas_ref]drawbox=t=fill:c=black[canvas]`)
-      filters.push(`[0:v][canvas]scale2ref=w='trunc(iw*max(rw/iw,rh/ih)/2)*2':h='trunc(ih*max(rw/iw,rh/ih)/2)*2'[bg_scaled][canvas2]`)
-      filters.push(`[canvas2][bg_scaled]overlay=(W-w)/2:(H-h)/2[bg_canvas]`)
-
-      let fgChain = 'fg_src'
-      if ((validatedData.cropTop || 0) > 0 || (validatedData.cropBottom || 0) > 0 ||
-          (validatedData.cropLeft || 0) > 0 || (validatedData.cropRight || 0) > 0) {
-        const cropL = validatedData.cropLeft || 0
-        const cropR = validatedData.cropRight || 0
-        const cropT = validatedData.cropTop || 0
-        const cropB = validatedData.cropBottom || 0
-        const w = `iw*(1-(${cropL}/100)-(${cropR}/100))`
-        const h = `ih*(1-(${cropT}/100)-(${cropB}/100))`
-        const x = `iw*(${cropL}/100)`; const y = `ih*(${cropT}/100)`
-        filters.push(`[${fgChain}]crop=w=${w}:h=${h}:x=${x}:y=${y}[fg_cropped]`)
-        fgChain = 'fg_cropped'
-      }
-      filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
-      // bg_canvas is our background image, source video (fg_ready) scaled down on top
-      filters.push(`[bg_canvas][fg_ready]overlay=x=${overlayX}:y=${overlayY}:shortest=1[out]`)
-
-    } else {
-        filters.push(`[0:v]split=2[v_fg][v_bg]`)
+    
+    // Always use color background
+    filters.push(`[0:v]split=2[v_fg][v_bg]`)
         filters.push(`[v_bg]drawbox=t=fill:c=${borderColor}[canvas]`)
         
         let fgChain = 'v_fg'
@@ -393,7 +337,6 @@ app.use('/layout', eventHandler(async (event) => {
         
         filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
         filters.push(`[canvas][fg_ready]overlay=x=${overlayX}:y=${overlayY}[out]`)
-    }
     
     const filterComplex = filters.join(';')
     console.log(`🎨 GPU Filter: ${filterComplex}`)
@@ -405,9 +348,6 @@ app.use('/layout', eventHandler(async (event) => {
     console.log(`🚀 Starting FFmpeg for layout: ${videoCodec} (GPU encoding: ${gpuEnabled})`)
     
     const ffmpegArgs = [
-      // For image bg: loop the downloaded image infinitely
-      ...(hasBgInput && tempBgImagePath ? ['-loop', '1', '-i', tempBgImagePath] : []),
-
       // Source video input (always present)
       '-protocol_whitelist', 'file,http,https,tcp,tls',
       '-analyzeduration', '10000000',
@@ -417,7 +357,7 @@ app.use('/layout', eventHandler(async (event) => {
       // Filter
       '-filter_complex', filterComplex,
       '-map', '[out]',
-      '-map', hasBgInput ? '1:a?' : '0:a?',  // audio from source video
+      '-map', '0:a?',  // audio from source video
       '-shortest',
       // Video encoding
       '-c:v', videoCodec,
@@ -486,8 +426,6 @@ app.use('/layout', eventHandler(async (event) => {
         console.log(`✅ GPU Layout processing complete`)
       }
       // Cleanup temp files
-      if (tempBgImagePath) fs.unlink(tempBgImagePath).catch(() => {})
-      if (bgVideoPath) fs.unlink(bgVideoPath).catch(() => {})
     })
     
     setHeader(event, 'Content-Type', 'video/mp4')
