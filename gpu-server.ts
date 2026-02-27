@@ -265,12 +265,12 @@ const layoutSchema = z.object({
   videoX: z.coerce.number().optional(),
   videoY: z.coerce.number().optional(),
   borderType: z.string().optional(),
-  borderUrl: z.string().optional(),
   whiteBorderColor: z.string().optional(),
   cropTop: z.coerce.number().optional(),
   cropBottom: z.coerce.number().optional(),
   cropLeft: z.coerce.number().optional(),
-  cropRight: z.coerce.number().optional()
+  cropRight: z.coerce.number().optional(),
+  borderUrl: z.string().optional()
 })
 
 app.use('/layout', eventHandler(async (event) => {
@@ -314,23 +314,38 @@ app.use('/layout', eventHandler(async (event) => {
     
     console.log(`🎨 Border color: ${borderColor}`)
 
+    // Check if we requested image background
+    const hasImageBg = validatedData.borderType === 'image' && validatedData.borderUrl;
+
+    const ffmpegArgs = [
+      // Source video input
+      '-protocol_whitelist', 'file,http,https,tcp,tls',
+      '-analyzeduration', '10000000',
+      '-probesize', '10000000',
+      '-i', validatedData.url,
+    ]
+
+    if (hasImageBg) {
+      ffmpegArgs.push(
+        '-loop', '1',
+        '-i', validatedData.borderUrl as string
+      )
+    }
+
     // Build filter chain
     const filters: string[] = []
     
-    // Use image background if specified
-    const usesImageBg = validatedData.borderType === 'image' && validatedData.borderUrl
-    
-    // Always use color background as fallback
-    if (usesImageBg) {
-        filters.push(`[0:v]split=2[v_fg][v_orig]`)
-        // Scale the image [1:v] to exactly match the video's dimensions [v_orig]
-        filters.push(`[1:v][v_orig]scale2ref=w=iw:h=ih[canvas][v_orig_dismiss]`)
+    if (hasImageBg) {
+      filters.push(`[0:v]split=2[v_fg_base][v_bg]`)
+      filters.push(`[v_bg]drawbox=t=fill:c=black[canvas_black]`)
+      filters.push(`[1:v][canvas_black]scale2ref=w=iw:h=ih:force_original_aspect_ratio=increase[img_scaled][canvas_base]`)
+      filters.push(`[canvas_base][img_scaled]overlay=x='(main_w-overlay_w)/2':y='(main_h-overlay_h)/2':shortest=0[canvas]`)
     } else {
-        filters.push(`[0:v]split=2[v_fg][v_bg]`)
-        filters.push(`[v_bg]drawbox=t=fill:c=${borderColor}[canvas]`)
+      filters.push(`[0:v]split=2[v_fg_base][v_bg]`)
+      filters.push(`[v_bg]drawbox=t=fill:c=${borderColor}[canvas]`)
     }
         
-        let fgChain = 'v_fg'
+        let fgChain = 'v_fg_base'
         if ((validatedData.cropTop || 0) > 0 || (validatedData.cropBottom || 0) > 0 || 
             (validatedData.cropLeft || 0) > 0 || (validatedData.cropRight || 0) > 0) {
           const cropL = validatedData.cropLeft || 0
@@ -346,7 +361,7 @@ app.use('/layout', eventHandler(async (event) => {
         }
         
         filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
-        filters.push(`[canvas][fg_ready]overlay=x=${overlayX}:y=${overlayY}[out]`)
+        filters.push(`[canvas][fg_ready]overlay=x=${overlayX}:y=${overlayY}:shortest=1[out]`)
     
     const filterComplex = filters.join(';')
     console.log(`🎨 GPU Filter: ${filterComplex}`)
@@ -357,19 +372,7 @@ app.use('/layout', eventHandler(async (event) => {
     
     console.log(`🚀 Starting FFmpeg for layout: ${videoCodec} (GPU encoding: ${gpuEnabled})`)
     
-    const ffmpegArgs = [
-      // Source video input (always input 0)
-      '-protocol_whitelist', 'file,http,https,tcp,tls',
-      '-analyzeduration', '10000000',
-      '-probesize', '10000000',
-      '-i', validatedData.url,
-    ]
-
-    // Apply image background as input 1
-    if (usesImageBg) {
-      ffmpegArgs.push('-loop', '1', '-i', validatedData.borderUrl as string)
-    }
-
+    // Add additional args
     ffmpegArgs.push(
       // Filter
       '-filter_complex', filterComplex,

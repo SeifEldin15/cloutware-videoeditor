@@ -102,13 +102,12 @@ async function processWithLayout(
       const overlayX = `(W-w)/2+(W*${options.videoX}/100)`
       const overlayY = `(H-h)/2+(H*${options.videoY}/100)`
 
-      const usesImageBg = options.borderType === 'image' && options.borderUrl
-
       const filters: string[] = []
-      let ffmpegCommand: any
+      // Check if we requested image background
+      const hasImageBg = options.borderType === 'image' && options.borderUrl;
       
-      // Input 0 = source video
-      ffmpegCommand = ffmpeg(inputUrl)
+      let ffmpegCommand = ffmpeg();
+      ffmpegCommand.input(inputUrl);
       ffmpegCommand.inputOptions([
         '-protocol_whitelist', 'file,http,https,tcp,tls',
         '-reconnect', '1',
@@ -118,30 +117,33 @@ async function processWithLayout(
         '-thread_queue_size', '512',
         '-hwaccel', 'auto',
         '-threads', optimalThreads
-      ])
+      ]);
 
-      // Input 1 = image background (if applicable)
-      if (usesImageBg) {
-        ffmpegCommand.input(options.borderUrl).inputOptions(['-loop', '1'])
+      if (hasImageBg) {
+        ffmpegCommand.input(options.borderUrl!);
+        ffmpegCommand.inputOptions([
+          '-loop', '1'
+        ]);
       }
 
-      if (usesImageBg) {
-        filters.push(`[0:v]split=2[v_fg][v_orig]`)
-        // Scale the image [1:v] to exactly match the video's dimensions [v_orig]
-        filters.push(`[1:v][v_orig]scale2ref=w=iw:h=ih[canvas][v_orig_dismiss]`)
+      if (hasImageBg) {
+        filters.push(`[0:v]split=2[v_fg_base][v_bg]`)
+        filters.push(`[v_bg]drawbox=t=fill:c=black[canvas_black]`)
+        filters.push(`[1:v][canvas_black]scale2ref=w=iw:h=ih:force_original_aspect_ratio=increase[img_scaled][canvas_base]`)
+        filters.push(`[canvas_base][img_scaled]overlay=x='(main_w-overlay_w)/2':y='(main_h-overlay_h)/2':shortest=0[canvas]`)
       } else {
-        filters.push(`[0:v]split=2[v_fg][v_bg]`)
+        filters.push(`[0:v]split=2[v_fg_base][v_bg]`)
         filters.push(`[v_bg]drawbox=t=fill:c=${options.borderColor}[canvas]`)
       }
 
-        let fgChain = 'v_fg'
-        if (options.cropTop > 0 || options.cropBottom > 0 || options.cropLeft > 0 || options.cropRight > 0) {
-          filters.push(`[${fgChain}]crop=w=iw*(1-(${options.cropLeft}/100)-(${options.cropRight}/100)):h=ih*(1-(${options.cropTop}/100)-(${options.cropBottom}/100)):x=iw*(${options.cropLeft}/100):y=ih*(${options.cropTop}/100)[fg_cropped]`)
-          fgChain = 'fg_cropped'
-        }
-        filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
-        filters.push(`[canvas][fg_ready]overlay=x=${overlayX}:y=${overlayY}[out]`)
-      console.log(`🎨 Filter (color): ${filters.join(';')}`)
+      let fgChain = 'v_fg_base'
+      if (options.cropTop > 0 || options.cropBottom > 0 || options.cropLeft > 0 || options.cropRight > 0) {
+        filters.push(`[${fgChain}]crop=w=iw*(1-(${options.cropLeft}/100)-(${options.cropRight}/100)):h=ih*(1-(${options.cropTop}/100)-(${options.cropBottom}/100)):x=iw*(${options.cropLeft}/100):y=ih*(${options.cropTop}/100)[fg_cropped]`)
+        fgChain = 'fg_cropped'
+      }
+      filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
+      filters.push(`[canvas][fg_ready]overlay=x=${overlayX}:y=${overlayY}:shortest=1[out]`)
+      console.log(`🎨 Filter (color/image): ${filters.join(';')}`)
 
       const outputOptions = [
         '-filter_complex', filters.join(';'),
