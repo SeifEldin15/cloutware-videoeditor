@@ -129,7 +129,7 @@ async function processWithLayout(
       if (hasImageBg) {
         filters.push(`[0:v]split=2[v_orig][v_bg]`)
         // 1. Create black canvas of video's size
-        filters.push(`[v_bg]drawbox=t=fill:c=black[canvas_black]`)
+        filters.push(`[v_bg]drawbox=x=0:y=0:w=iw:h=ih:t=fill:c=black[canvas_black]`)
         // 2. Scale image (input 1) to cover canvas
         filters.push(`[1:v][canvas_black]scale2ref=w=iw:h=ih:force_original_aspect_ratio=increase[img_scaled][canvas_base]`)
         // 3. Overlay scaled image onto canvas to crop excess
