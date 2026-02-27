@@ -127,21 +127,34 @@ async function processWithLayout(
       }
 
       if (hasImageBg) {
-        filters.push(`[0:v]split=2[v_fg_base][v_bg]`)
+        filters.push(`[0:v]split=2[v_orig][v_bg]`)
+        // 1. Create black canvas of video's size
         filters.push(`[v_bg]drawbox=t=fill:c=black[canvas_black]`)
+        // 2. Scale image (input 1) to cover canvas
         filters.push(`[1:v][canvas_black]scale2ref=w=iw:h=ih:force_original_aspect_ratio=increase[img_scaled][canvas_base]`)
+        // 3. Overlay scaled image onto canvas to crop excess
         filters.push(`[canvas_base][img_scaled]overlay=x='(main_w-overlay_w)/2':y='(main_h-overlay_h)/2':shortest=0[canvas]`)
+        
+        let fgChain = 'v_orig'
+        // 4. Crop original video
+        if (options.cropTop > 0 || options.cropBottom > 0 || options.cropLeft > 0 || options.cropRight > 0) {
+          filters.push(`[${fgChain}]crop=w=iw*(1-(${options.cropLeft}/100)-(${options.cropRight}/100)):h=ih*(1-(${options.cropTop}/100)-(${options.cropBottom}/100)):x=iw*(${options.cropLeft}/100):y=ih*(${options.cropTop}/100)[fg_cropped]`)
+          fgChain = 'fg_cropped'
+        }
+        // 5. Scale cropped video
+        filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
+        
       } else {
-        filters.push(`[0:v]split=2[v_fg_base][v_bg]`)
+        filters.push(`[0:v]split=2[v_orig][v_bg]`)
         filters.push(`[v_bg]drawbox=t=fill:c=${options.borderColor}[canvas]`)
+        
+        let fgChain = 'v_orig'
+        if (options.cropTop > 0 || options.cropBottom > 0 || options.cropLeft > 0 || options.cropRight > 0) {
+          filters.push(`[${fgChain}]crop=w=iw*(1-(${options.cropLeft}/100)-(${options.cropRight}/100)):h=ih*(1-(${options.cropTop}/100)-(${options.cropBottom}/100)):x=iw*(${options.cropLeft}/100):y=ih*(${options.cropTop}/100)[fg_cropped]`)
+          fgChain = 'fg_cropped'
+        }
+        filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
       }
-
-      let fgChain = 'v_fg_base'
-      if (options.cropTop > 0 || options.cropBottom > 0 || options.cropLeft > 0 || options.cropRight > 0) {
-        filters.push(`[${fgChain}]crop=w=iw*(1-(${options.cropLeft}/100)-(${options.cropRight}/100)):h=ih*(1-(${options.cropTop}/100)-(${options.cropBottom}/100)):x=iw*(${options.cropLeft}/100):y=ih*(${options.cropTop}/100)[fg_cropped]`)
-        fgChain = 'fg_cropped'
-      }
-      filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
       filters.push(`[canvas][fg_ready]overlay=x=${overlayX}:y=${overlayY}:shortest=1[out]`)
       console.log(`🎨 Filter (color/image): ${filters.join(';')}`)
 
