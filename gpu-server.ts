@@ -265,6 +265,7 @@ const layoutSchema = z.object({
   videoX: z.coerce.number().optional(),
   videoY: z.coerce.number().optional(),
   borderType: z.string().optional(),
+  borderUrl: z.string().optional(),
   whiteBorderColor: z.string().optional(),
   cropTop: z.coerce.number().optional(),
   cropBottom: z.coerce.number().optional(),
@@ -316,9 +317,18 @@ app.use('/layout', eventHandler(async (event) => {
     // Build filter chain
     const filters: string[] = []
     
-    // Always use color background
-    filters.push(`[0:v]split=2[v_fg][v_bg]`)
+    // Use image background if specified
+    const usesImageBg = validatedData.borderType === 'image' && validatedData.borderUrl
+    
+    // Always use color background as fallback
+    if (usesImageBg) {
+        filters.push(`[0:v]split=2[v_fg][v_orig]`)
+        // Scale the image [1:v] to exactly match the video's dimensions [v_orig]
+        filters.push(`[1:v][v_orig]scale2ref=w=iw:h=ih[canvas][v_orig_dismiss]`)
+    } else {
+        filters.push(`[0:v]split=2[v_fg][v_bg]`)
         filters.push(`[v_bg]drawbox=t=fill:c=${borderColor}[canvas]`)
+    }
         
         let fgChain = 'v_fg'
         if ((validatedData.cropTop || 0) > 0 || (validatedData.cropBottom || 0) > 0 || 
@@ -348,12 +358,19 @@ app.use('/layout', eventHandler(async (event) => {
     console.log(`🚀 Starting FFmpeg for layout: ${videoCodec} (GPU encoding: ${gpuEnabled})`)
     
     const ffmpegArgs = [
-      // Source video input (always present)
+      // Source video input (always input 0)
       '-protocol_whitelist', 'file,http,https,tcp,tls',
       '-analyzeduration', '10000000',
       '-probesize', '10000000',
       '-i', validatedData.url,
+    ]
 
+    // Apply image background as input 1
+    if (usesImageBg) {
+      ffmpegArgs.push('-loop', '1', '-i', validatedData.borderUrl as string)
+    }
+
+    ffmpegArgs.push(
       // Filter
       '-filter_complex', filterComplex,
       '-map', '[out]',
@@ -361,7 +378,7 @@ app.use('/layout', eventHandler(async (event) => {
       '-shortest',
       // Video encoding
       '-c:v', videoCodec,
-    ]
+    )
     
     // Add codec-specific options
     if (gpuEnabled) {

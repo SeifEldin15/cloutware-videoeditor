@@ -102,24 +102,37 @@ async function processWithLayout(
       const overlayX = `(W-w)/2+(W*${options.videoX}/100)`
       const overlayY = `(H-h)/2+(H*${options.videoY}/100)`
 
+      const usesImageBg = options.borderType === 'image' && options.borderUrl
+
       const filters: string[] = []
       let ffmpegCommand: any
-      // COLOR BACKGROUND
-      // Input 0 = source video (only input)
-        ffmpegCommand = ffmpeg(inputUrl)
-        ffmpegCommand.inputOptions([
-          '-protocol_whitelist', 'file,http,https,tcp,tls',
-          '-reconnect', '1',
-          '-reconnect_streamed', '1',
-          '-analyzeduration', '10000000',
-          '-probesize', '10000000',
-          '-thread_queue_size', '512',
-          '-hwaccel', 'auto',
-          '-threads', optimalThreads
-        ])
+      
+      // Input 0 = source video
+      ffmpegCommand = ffmpeg(inputUrl)
+      ffmpegCommand.inputOptions([
+        '-protocol_whitelist', 'file,http,https,tcp,tls',
+        '-reconnect', '1',
+        '-reconnect_streamed', '1',
+        '-analyzeduration', '10000000',
+        '-probesize', '10000000',
+        '-thread_queue_size', '512',
+        '-hwaccel', 'auto',
+        '-threads', optimalThreads
+      ])
 
+      // Input 1 = image background (if applicable)
+      if (usesImageBg) {
+        ffmpegCommand.input(options.borderUrl).inputOptions(['-loop', '1'])
+      }
+
+      if (usesImageBg) {
+        filters.push(`[0:v]split=2[v_fg][v_orig]`)
+        // Scale the image [1:v] to exactly match the video's dimensions [v_orig]
+        filters.push(`[1:v][v_orig]scale2ref=w=iw:h=ih[canvas][v_orig_dismiss]`)
+      } else {
         filters.push(`[0:v]split=2[v_fg][v_bg]`)
         filters.push(`[v_bg]drawbox=t=fill:c=${options.borderColor}[canvas]`)
+      }
 
         let fgChain = 'v_fg'
         if (options.cropTop > 0 || options.cropBottom > 0 || options.cropLeft > 0 || options.cropRight > 0) {
