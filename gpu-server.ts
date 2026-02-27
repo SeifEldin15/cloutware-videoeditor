@@ -339,23 +339,41 @@ app.use('/layout', eventHandler(async (event) => {
     const filters: string[] = []
     let hasBgInput = false
 
+    // If image background: probe video dimensions BEFORE building the filter
+    // so we can hard-code W x H in scale=W:H (works on every FFmpeg version)
+    let videoDimensions = { width: 1080, height: 1920 } // safe 9:16 default
+    if (validatedData.borderType === 'image' && validatedData.borderUrl && tempBgImagePath) {
+      try {
+        const { execSync } = await import('child_process')
+        const probeOut = execSync(
+          `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "${validatedData.url}"`,
+          { encoding: 'utf8', timeout: 10000 }
+        ).trim()
+        const parts = probeOut.split(',')
+        if (parts.length === 2) {
+          const w = parseInt(parts[0], 10)
+          const h = parseInt(parts[1], 10)
+          if (w > 0 && h > 0) {
+            videoDimensions = { width: w, height: h }
+            console.log(`📐 Probed video dims: ${w}x${h}`)
+          }
+        }
+      } catch (err) {
+        console.warn('⚠️ ffprobe failed, using default 1080x1920:', err)
+      }
+    }
+
     if (validatedData.borderType === 'image' && validatedData.borderUrl && tempBgImagePath) {
         hasBgInput = true
 
-        // Clean 3-step approach (no scale2ref, no drawbox canvas tricks):
-        //   Step 1: Split video into foreground copy + size-reference copy
-        //   Step 2: Two-input scale=rw:rh → scale image to EXACTLY video frame dims
-        //   Step 3: Overlay scaled-down fg video on correctly-sized bg image
-        
-        // Step 1: Split video — one copy for foreground, one as size reference
-        filters.push(`[1:v]split=2[vid_fg][vid_ref]`)
+        // Scale image to EXACTLY the video frame size using literal px values from ffprobe
+        // This avoids all scale2ref / rw:rh / version compatibility issues
+        const vW = videoDimensions.width
+        const vH = videoDimensions.height
+        filters.push(`[0:v]scale=${vW}:${vH}[bg_ready]`)
 
-        // Step 2: Scale image to exactly match video dimensions
-        // Two-input scale: [img][ref]scale=rw:rh → img sized to ref (vid_ref consumed)
-        filters.push(`[0:v][vid_ref]scale=rw:rh[bg_ready]`)
-
-        // Step 3: Prepare the foreground video (crop if needed, then scale down for border)
-        let fgChain = 'vid_fg'
+        // Prepare foreground video (crop if needed, then scale down for border)
+        let fgChain = '1:v'
         if ((validatedData.cropTop || 0) > 0 || (validatedData.cropBottom || 0) > 0 || 
             (validatedData.cropLeft || 0) > 0 || (validatedData.cropRight || 0) > 0) {
           const cropL = validatedData.cropLeft || 0
@@ -372,7 +390,7 @@ app.use('/layout', eventHandler(async (event) => {
         
         filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
 
-        // Step 4: Overlay scaled-down video on image background
+        // Overlay scaled-down video on the correctly-sized image background
         filters.push(`[bg_ready][fg_ready]overlay=x=${overlayX}:y=${overlayY}:shortest=1[out]`)
     } else {
         filters.push(`[0:v]split=2[v_fg][v_bg]`)
