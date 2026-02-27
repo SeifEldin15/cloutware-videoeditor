@@ -366,14 +366,18 @@ app.use('/layout', eventHandler(async (event) => {
     if (validatedData.borderType === 'image' && validatedData.borderUrl && tempBgImagePath) {
         hasBgInput = true
 
-        // Scale image to EXACTLY the video frame size using literal px values from ffprobe
-        // This avoids all scale2ref / rw:rh / version compatibility issues
+        // SINGLE INPUT approach using movie filter — no dual-input stream leakage
         const vW = videoDimensions.width
         const vH = videoDimensions.height
-        filters.push(`[0:v]scale=${vW}:${vH}[bg_ready]`)
+
+        // Escape path for FFmpeg movie filter (forward slashes, escape colons on Linux/Windows)
+        const escapedBgPath = tempBgImagePath.replace(/\\/g, '/').replace(/:/g, '\\:')
+
+        // Load bg image internally via movie filter, scale to exact video dims
+        filters.push(`movie='${escapedBgPath}',scale=${vW}:${vH}[bg_ready]`)
 
         // Prepare foreground video (crop if needed, then scale down for border)
-        let fgChain = '1:v'
+        let fgChain = '0:v'
         if ((validatedData.cropTop || 0) > 0 || (validatedData.cropBottom || 0) > 0 || 
             (validatedData.cropLeft || 0) > 0 || (validatedData.cropRight || 0) > 0) {
           const cropL = validatedData.cropLeft || 0
@@ -388,7 +392,7 @@ app.use('/layout', eventHandler(async (event) => {
           fgChain = 'fg_cropped'
         }
         
-        filters.push(`[${fgChain}]scale=iw*${effectiveScaleW * 1.05}:ih*${effectiveScaleH * 1.1}[fg_ready]`)
+        filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
 
         // Overlay scaled-down video on the correctly-sized image background
         filters.push(`[bg_ready][fg_ready]overlay=x=${overlayX}:y=${overlayY}:shortest=1[out]`)
@@ -425,10 +429,7 @@ app.use('/layout', eventHandler(async (event) => {
     console.log(`🚀 Starting FFmpeg for layout: ${videoCodec} (GPU encoding: ${gpuEnabled})`)
     
     const ffmpegArgs = [
-      // Background image input (if applicable) MUST come first
-      ...(hasBgInput && tempBgImagePath ? ['-loop', '1', '-i', tempBgImagePath] : []),
-      
-      // Video input  
+      // Single video input — bg image is loaded via movie filter inside filter_complex
       '-protocol_whitelist', 'file,http,https,tcp,tls',
       '-analyzeduration', '10000000',
       '-probesize', '10000000',
@@ -437,7 +438,7 @@ app.use('/layout', eventHandler(async (event) => {
       // Filter
       '-filter_complex', filterComplex,
       '-map', '[out]',
-      '-map', hasBgInput ? '1:a?' : '0:a?',
+      '-map', '0:a?',   // always 0:a? — video is always input 0
       // Video encoding
       '-c:v', videoCodec,
     ]
