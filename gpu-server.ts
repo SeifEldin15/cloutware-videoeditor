@@ -378,7 +378,7 @@ app.use('/layout', eventHandler(async (event) => {
           '-loop', '1',
           '-i', tempBgImagePath,
           '-t', String(bgDuration),
-          '-vf', `scale=${vW}:${vH}:force_original_aspect_ratio=disable,setsar=1`,
+          '-vf', `scale=${vW}:${vH}:force_original_aspect_ratio=increase,crop=${vW}:${vH},setsar=1`,
           '-r', '30',
           '-c:v', 'libx264',
           '-pix_fmt', 'yuv420p',
