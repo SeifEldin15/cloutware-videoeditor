@@ -342,22 +342,19 @@ app.use('/layout', eventHandler(async (event) => {
     if (validatedData.borderType === 'image' && validatedData.borderUrl && tempBgImagePath) {
         hasBgInput = true
 
-        // Input order: 0 = background image (-loop 1), 1 = source video
-        // Approach WITHOUT scale2ref (deprecated in FFmpeg 7+):
-        //   1. Split video → canvas + foreground
-        //   2. Overlay image on canvas → background
-        //   3. Scale foreground video down for border
-        //   4. Overlay foreground on background
+        // Clean 3-step approach (no scale2ref, no drawbox canvas tricks):
+        //   Step 1: Split video into foreground copy + size-reference copy
+        //   Step 2: Two-input scale=rw:rh → scale image to EXACTLY video frame dims
+        //   Step 3: Overlay scaled-down fg video on correctly-sized bg image
         
-        // Use the video [1:v] to create a canvas matching its dimensions
-        filters.push(`[1:v]split=2[vid_fg][vid_canvas]`)
-        filters.push(`[vid_canvas]drawbox=t=fill:c=black[canvas]`)
-        // Scale background image to cover the canvas, preserving aspect ratio using scale2ref
-        filters.push(`[0:v][canvas]scale2ref=w=rw:h=rh:force_original_aspect_ratio=increase[img_scaled][canvas_ref]`)
-        // Overlay the scaled image onto the canvas (image overflows get cropped automatically)
-        filters.push(`[canvas_ref][img_scaled]overlay=(W-w)/2:(H-h)/2[bg_ready]`)
+        // Step 1: Split video — one copy for foreground, one as size reference
+        filters.push(`[1:v]split=2[vid_fg][vid_ref]`)
 
-        // Prepare the foreground video (crop if needed, then scale)
+        // Step 2: Scale image to exactly match video dimensions
+        // Two-input scale: [img][ref]scale=rw:rh → img sized to ref (vid_ref consumed)
+        filters.push(`[0:v][vid_ref]scale=rw:rh[bg_ready]`)
+
+        // Step 3: Prepare the foreground video (crop if needed, then scale down for border)
         let fgChain = 'vid_fg'
         if ((validatedData.cropTop || 0) > 0 || (validatedData.cropBottom || 0) > 0 || 
             (validatedData.cropLeft || 0) > 0 || (validatedData.cropRight || 0) > 0) {
@@ -375,7 +372,7 @@ app.use('/layout', eventHandler(async (event) => {
         
         filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
 
-        // Overlay foreground video on background image
+        // Step 4: Overlay scaled-down video on image background
         filters.push(`[bg_ready][fg_ready]overlay=x=${overlayX}:y=${overlayY}:shortest=1[out]`)
     } else {
         filters.push(`[0:v]split=2[v_fg][v_bg]`)
