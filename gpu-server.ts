@@ -368,8 +368,8 @@ app.use('/layout', eventHandler(async (event) => {
       bgVideoPath = join(tmpdir(), `gpu-bg-video-${Date.now()}.mp4`)
       const bgDuration = Math.ceil(vDur) + 2  // a tiny bit longer to be safe
       const ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg'
+      const { spawn: sp } = await import('child_process')
       await new Promise<void>((resolve, reject) => {
-        const { spawn: sp } = require('child_process')
         const bgProc = sp(ffmpegPath, [
           '-loop', '1',
           '-i', tempBgImagePath,
