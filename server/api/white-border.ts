@@ -129,11 +129,11 @@ async function processWithLayout(
       if (hasImageBg) {
         filters.push(`[0:v]split=2[v_orig][v_bg]`)
         // 1. Create black canvas of video's size
-        filters.push(`[v_bg]drawbox=x=0:y=0:w=iw:h=ih:t=fill:c=black[canvas_black]`)
-        // 2. Scale image (input 1) to cover canvas
-        filters.push(`[1:v][canvas_black]scale2ref=w=iw:h=ih:force_original_aspect_ratio=increase[img_scaled][canvas_base]`)
-        // 3. Overlay scaled image onto canvas to crop excess
-        filters.push(`[canvas_base][img_scaled]overlay=x='(main_w-overlay_w)/2':y='(main_h-overlay_h)/2':shortest=0[canvas]`)
+        filters.push(`[v_bg]drawbox=x=0:y=0:w=iw:h=ih:color=black:t=max[canvas_black]`)
+        // 2. Scale image (input 1) to cover canvas preserving ratio
+        filters.push(`[1:v][canvas_black]scale2ref=w='max(mw,mh*a)':h='max(mh,mw/a)'[img_scaled][canvas_base]`)
+        // 3. Overlay scaled image onto canvas to crop excess (center cropped)
+        filters.push(`[canvas_base][img_scaled]overlay=x='(main_w-overlay_w)/2':y='(main_h-overlay_h)/2':shortest=1[canvas]`)
         
         let fgChain = 'v_orig'
         // 4. Crop original video
@@ -146,7 +146,7 @@ async function processWithLayout(
         
       } else {
         filters.push(`[0:v]split=2[v_orig][v_bg]`)
-        filters.push(`[v_bg]drawbox=t=fill:c=${options.borderColor}[canvas]`)
+        filters.push(`[v_bg]drawbox=x=0:y=0:w=iw:h=ih:color=${options.borderColor}:t=max[canvas]`)
         
         let fgChain = 'v_orig'
         if (options.cropTop > 0 || options.cropBottom > 0 || options.cropLeft > 0 || options.cropRight > 0) {
