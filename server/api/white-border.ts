@@ -91,11 +91,14 @@ async function processWithLayout(
       let commandOutput = ''
       const ffmpeg = await getInitializedFfmpeg()
 
-      // Calculate scale factors
+      // Calculate scale factors.
+      // For image backgrounds, the leftRight/topBottom padding is 0 (videoScale controls size directly).
+      // For color backgrounds, the padding shrinks the video to reveal the colored border.
+      const isImageBg2 = options.borderType === 'image'
       let effectiveScaleW = options.videoScale
       let effectiveScaleH = options.videoScale
-      if (options.leftRightPercent > 0) effectiveScaleW *= ((100 - options.leftRightPercent) / 100)
-      if (options.topBottomPercent > 0) effectiveScaleH *= ((100 - options.topBottomPercent) / 100)
+      if (!isImageBg2 && options.leftRightPercent > 0) effectiveScaleW *= ((100 - options.leftRightPercent) / 100)
+      if (!isImageBg2 && options.topBottomPercent > 0) effectiveScaleH *= ((100 - options.topBottomPercent) / 100)
 
       // Overlay position
       const overlayX = `(W-w)/2+(W*${options.videoX}/100)`

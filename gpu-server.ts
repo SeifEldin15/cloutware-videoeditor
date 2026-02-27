@@ -280,16 +280,20 @@ app.use('/layout', eventHandler(async (event) => {
     
     const validatedData = layoutSchema.parse(body)
     
-    // Extract values with explicit defaults (10/20 so background is visible by default)
-    const leftRightPercent = validatedData.leftRightPercent ?? 10
-    const topBottomPercent = validatedData.topBottomPercent ?? 20
     const videoScale = validatedData.videoScale ?? 1
     const videoX = validatedData.videoX ?? 0
     const videoY = validatedData.videoY ?? 0
     const whiteBorderColor = validatedData.whiteBorderColor || '#FFFFFF'
-    
+    const isImageBorderType = validatedData.borderType === 'image'
+
+    // For image backgrounds, videoScale directly controls the video size on the image canvas.
+    // leftRight/topBottom border padding is only relevant for solid color backgrounds.
+    // Default the padding to 0 for image type (since those UI sliders were removed).
+    const leftRightPercent = isImageBorderType ? 0 : (validatedData.leftRightPercent ?? 10)
+    const topBottomPercent = isImageBorderType ? 0 : (validatedData.topBottomPercent ?? 20)
+
     console.log(`🎨 GPU Layout processing: ${validatedData.url}`)
-    console.log(`📐 Parsed values: scale=${videoScale}, LR=${leftRightPercent}%, TB=${topBottomPercent}%, color=${whiteBorderColor}`)
+    console.log(`📐 Parsed values: scale=${videoScale}, LR=${leftRightPercent}%, TB=${topBottomPercent}%, color=${whiteBorderColor}, type=${validatedData.borderType}`)
     
     const { spawn } = await import('child_process')
     const { PassThrough } = await import('stream')
@@ -297,8 +301,8 @@ app.use('/layout', eventHandler(async (event) => {
     const outputStream = new PassThrough({ highWaterMark: 4 * 1024 * 1024 })
     
     // Build FFmpeg filter for layout
-    // Calculate effective scale based on border percentages
-    // leftRightPercent=10 means 10% of width is border (5% each side), video uses 90%
+    // For color bg: leftRightPercent/topBottomPercent shrink the video to reveal the color border.
+    // For image bg: effectiveScaleW/H = videoScale directly (no extra border shrink).
     const effectiveScaleW = videoScale * ((100 - leftRightPercent) / 100)
     const effectiveScaleH = videoScale * ((100 - topBottomPercent) / 100)
     
