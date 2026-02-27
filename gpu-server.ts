@@ -347,62 +347,15 @@ app.use('/layout', eventHandler(async (event) => {
     if (validatedData.borderType === 'image' && validatedData.borderUrl && tempBgImagePath) {
       hasBgInput = true
 
-      // ── Step 1: Probe the source video to get exact dimensions + duration ────
-      let vW = 1080, vH = 1920, vDur = 60
-      try {
-        const { execSync } = await import('child_process')
-        const probeOut = execSync(
-          `ffprobe -v error -select_streams v:0 -show_entries stream=width,height,duration -of csv=p=0 "${validatedData.url}"`,
-          { encoding: 'utf8', timeout: 15000 }
-        ).trim()
-        const parts = probeOut.split(',')
-        if (parts.length >= 2) {
-          const pw = parseInt(parts[0]); const ph = parseInt(parts[1])
-          const pd = parseFloat(parts[2] || '60')
-          if (pw > 0 && ph > 0) { vW = pw; vH = ph }
-          if (pd > 0 && isFinite(pd)) { vDur = pd }
-          console.log(`📐 Source video: ${vW}x${vH}, ${vDur}s`)
-        }
-      } catch (err) {
-        console.warn('⚠️ ffprobe failed, using defaults:', err)
-      }
+      // Native scale2ref logic without ffprobe. This perfectly handles vertical video rotation.
+      // input 0 = backgound image (-loop 1)
+      // input 1 = source video (automatically rotated properly)
+      filters.push(`[1:v]split=2[fg_src][canvas_ref]`)
+      filters.push(`[canvas_ref]drawbox=t=fill:c=black[canvas]`)
+      filters.push(`[0:v][canvas]scale2ref=w='trunc(iw*max(rw/iw,rh/ih)/2)*2':h='trunc(ih*max(rw/iw,rh/ih)/2)*2'[bg_scaled][canvas2]`)
+      filters.push(`[canvas2][bg_scaled]overlay=(W-w)/2:(H-h)/2[bg_canvas]`)
 
-      // ── Step 2: Pre-render the image into a real MP4 (same dims as source) ──
-      // This GUARANTEES a normal video stream — no -loop 1 filter_complex tricks.
-      bgVideoPath = join(tmpdir(), `gpu-bg-video-${Date.now()}.mp4`)
-      const bgDuration = Math.ceil(vDur) + 2  // a tiny bit longer to be safe
-      const ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg'
-      const { spawn: sp } = await import('child_process')
-      await new Promise<void>((resolve, reject) => {
-        const bgProc = sp(ffmpegPath, [
-          '-loop', '1',
-          '-i', tempBgImagePath,
-          '-t', String(bgDuration),
-          '-vf', `scale=${vW}:${vH}:force_original_aspect_ratio=increase,crop=${vW}:${vH},setsar=1`,
-          '-r', '30',
-          '-c:v', 'libx264',
-          '-pix_fmt', 'yuv420p',
-          '-preset', 'ultrafast',
-          '-an',   // no audio in bg video
-          '-y', bgVideoPath
-        ], { stdio: ['ignore', 'pipe', 'pipe'] })
-        let errOut = ''
-        bgProc.stderr.on('data', (d: Buffer) => { errOut += d.toString() })
-        bgProc.on('close', (code: number) => {
-          if (code === 0) {
-            console.log(`✅ BG video pre-rendered: ${bgVideoPath}`)
-            resolve()
-          } else {
-            console.error(`❌ BG pre-render failed (code ${code}):`, errOut.slice(-500))
-            reject(new Error(`BG pre-render failed: code ${code}`))
-          }
-        })
-      })
-
-      // ── Step 3: Build a simple 2-video overlay filter ─────────────────────
-      // input 0 = bg video (pre-rendered image, full frame = vW x vH)
-      // input 1 = source video (to scale down and overlay)
-      let fgChain = '1:v'
+      let fgChain = 'fg_src'
       if ((validatedData.cropTop || 0) > 0 || (validatedData.cropBottom || 0) > 0 ||
           (validatedData.cropLeft || 0) > 0 || (validatedData.cropRight || 0) > 0) {
         const cropL = validatedData.cropLeft || 0
@@ -416,8 +369,8 @@ app.use('/layout', eventHandler(async (event) => {
         fgChain = 'fg_cropped'
       }
       filters.push(`[${fgChain}]scale=iw*${effectiveScaleW}:ih*${effectiveScaleH}[fg_ready]`)
-      // bg (input 0) at full frame, source video (fg_ready) scaled down on top
-      filters.push(`[0:v][fg_ready]overlay=x=${overlayX}:y=${overlayY}:shortest=1[out]`)
+      // bg_canvas is our background image, source video (fg_ready) scaled down on top
+      filters.push(`[bg_canvas][fg_ready]overlay=x=${overlayX}:y=${overlayY}:shortest=1[out]`)
 
     } else {
         filters.push(`[0:v]split=2[v_fg][v_bg]`)
@@ -452,9 +405,8 @@ app.use('/layout', eventHandler(async (event) => {
     console.log(`🚀 Starting FFmpeg for layout: ${videoCodec} (GPU encoding: ${gpuEnabled})`)
     
     const ffmpegArgs = [
-      // For image bg: bg VIDEO (pre-rendered) is input 0; source video is input 1
-      // For color bg:  source video is the only input 0
-      ...(hasBgInput && bgVideoPath ? ['-i', bgVideoPath] : []),
+      // For image bg: loop the downloaded image infinitely
+      ...(hasBgInput && tempBgImagePath ? ['-loop', '1', '-i', tempBgImagePath] : []),
 
       // Source video input (always present)
       '-protocol_whitelist', 'file,http,https,tcp,tls',
