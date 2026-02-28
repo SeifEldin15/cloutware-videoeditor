@@ -764,10 +764,10 @@ export class SubtitleProcessor {
       // @ts-ignore
       const cropV = options.cropVertical || 0
       
-      const w = `iw*(1-(${cropH}/100)*2)`
-      const h = `ih*(1-(${cropV}/100)*2)`
-      const x = `iw*(${cropH}/100)`
-      const y = `ih*(${cropV}/100)`
+      const w = `trunc((iw*(1-(${cropH}/100)*2))/2)*2`
+      const h = `trunc((ih*(1-(${cropV}/100)*2))/2)*2`
+      const x = `trunc((iw*(${cropH}/100))/2)*2`
+      const y = `trunc((ih*(${cropV}/100))/2)*2`
       videoFilters.push(`crop=w=${w}:h=${h}:x=${x}:y=${y}`)
     }
     
