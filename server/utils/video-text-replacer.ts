@@ -88,8 +88,10 @@ export async function replaceTextInVideo(
         "5",
       ]);
 
-      // Track temp PNG files for cleanup
+      // Track temp PNG files and ASS file for cleanup
       const tempPngFiles: string[] = [];
+      const tempAssPath = path.join(os.tmpdir(), `text_replace_${Date.now()}.ass`);
+      tempPngFiles.push(tempAssPath);
 
       let filterComplex: string;
 
@@ -139,7 +141,7 @@ export async function replaceTextInVideo(
           );
         }
 
-        // Build filter complex with overlay filters for rounded rects + drawtext for text
+        // Build filter complex with overlay filters for rounded rects + ass filter for text
         filterComplex = buildRoundedFilterComplex(textReplacements, {
           fontFamily,
           fontSize,
@@ -148,7 +150,7 @@ export async function replaceTextInVideo(
           backgroundOpacity,
           borderRadius,
           padding,
-        });
+        }, tempAssPath);
       } else {
         // ── Standard rectangular path (drawbox) ──
         filterComplex = buildTextReplacementFilterComplex(
@@ -161,6 +163,7 @@ export async function replaceTextInVideo(
             backgroundOpacity,
             borderRadius: 0,
           },
+          tempAssPath,
           videoWidth,
         );
       }
@@ -286,9 +289,21 @@ export async function replaceTextInVideo(
 }
 
 /**
+ * Helper to format seconds to ASS timestamp (H:MM:SS.cs)
+ */
+function formatAssTime(seconds: number | undefined, defaultTime: string): string {
+  if (seconds === undefined) return defaultTime;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, "0");
+  const s = Math.floor(seconds % 60).toString().padStart(2, "0");
+  const cs = Math.floor((seconds % 1) * 100).toString().padStart(2, "0");
+  return `${h}:${m}:${s}.${cs}`;
+}
+
+/**
  * Build FFmpeg filter complex for rounded rectangle overlays.
  * Each overlay PNG is an additional input (inputs 1..N), and the video is input 0.
- * Uses chained overlay filters with time-based enable, then drawtext on top.
+ * Uses chained overlay filters with time-based enable, then ass on top.
  */
 function buildRoundedFilterComplex(
   replacements: TextReplacement[],
@@ -301,6 +316,7 @@ function buildRoundedFilterComplex(
     borderRadius: number;
     padding: number;
   },
+  tempAssPath: string,
 ): string {
   console.log(
     `🎨 Building rounded filter complex for ${replacements.length} replacement(s)`,
@@ -308,6 +324,21 @@ function buildRoundedFilterComplex(
 
   const { padding } = style;
   const parts: string[] = [];
+  
+  // Create ASS File for the texts
+  const assStyles = `[Script Info]
+ScriptType: v4.00+
+PlayResX: 1280
+PlayResY: 720
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,${style.fontFamily},${style.fontSize},&H00${(style.fontColor || '#000000').replace('#', '').match(/.{2}/g)?.reverse().join('') || '000000'}&,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+`;
+  let assEvents = '';
 
   // Step 1: Scale the video to even dimensions
   parts.push("[0:v]scale=trunc(iw/2)*2:trunc(ih/2)*2[base]");
@@ -336,11 +367,7 @@ function buildRoundedFilterComplex(
     prevLabel = outLabel;
   }
 
-  // Step 3: Add drawtext filters on top of the composited overlays
-  // We chain drawtexts as a single filter segment starting from the last overlay label
-  let textChain = `[${prevLabel}]`;
-  let addedText = false;
-
+  // Step 3: Write ASS events for the text replacements
   for (let i = 0; i < replacements.length; i++) {
     const replacement = replacements[i];
     const { boundingBox, newText, startTime, endTime } = replacement;
@@ -353,9 +380,9 @@ function buildRoundedFilterComplex(
     const width = boundingBox.width + padding * 2;
     const height = boundingBox.height + padding * 2;
 
-    // Clean text for FFmpeg
+    // Clean text for FFmpeg (allow emojis to pass through natively for ASS)
     const safeText = newText
-      .replace(/[^a-zA-Z0-9\s]/g, " ")
+      .replace(/[^\p{L}\p{N}\p{Emoji}\p{Emoji_Component}\p{Emoji_Modifier}\p{Emoji_Modifier_Base}\p{Emoji_Presentation}\s]/gu, " ")
       .replace(/\s+/g, " ")
       .trim();
 
@@ -364,35 +391,35 @@ function buildRoundedFilterComplex(
       continue;
     }
 
-    // Time-based enable for drawtext
-    let enableExpression = "";
-    if (startTime !== undefined && endTime !== undefined) {
-      enableExpression = `:enable='between(t,${startTime.toFixed(3)},${endTime.toFixed(3)})'`;
+    // Ass formatting
+    const startStr = formatAssTime(startTime, "0:00:00.00");
+    const endStr = formatAssTime(endTime, "99:00:00.00");
+    
+    // Position vertically and horizontally using POS
+    const centerX = x + width / 2;
+    const centerY = y + height / 2;
+    let styleOverride = "";
+    
+    if (currentFontColorHex !== style.fontColor || currentFontSize !== style.fontSize) {
+      const hex = currentFontColorHex.replace('#', '')
+      const assColor = `&H00${hex.match(/.{2}/g)?.reverse().join('') || '000000'}&`
+      styleOverride = `{\\fs${currentFontSize}\\1c${assColor}}`;
     }
 
-    // Centered text position
-    const textX = `(${x}+${width}/2-tw/2)`;
-    const textY = `(${y}+${height}/2-th/2)`;
-    const fontColorFFmpeg = currentFontColorHex.startsWith("#")
-      ? currentFontColorHex.substring(1)
-      : currentFontColorHex;
-
-    if (addedText) textChain += ",";
-    textChain += `drawtext=text='${safeText}':font=${style.fontFamily}:fontsize=${currentFontSize}:fontcolor=0x${fontColorFFmpeg}:x=${textX}:y=${textY}${enableExpression}`;
-    addedText = true;
+    const safeAssLines = safeText.replace(/\\/g, '\\\\')
+    assEvents += `Dialogue: 0,${startStr},${endStr},Default,,0,0,0,,{\\pos(${centerX},${centerY})}${styleOverride}${safeAssLines}\n`;
 
     console.log(
-      `   ✍️  Rounded overlay ${i}: text "${safeText}" at (${x},${y}) ${width}x${height}`,
+      `   ✍️  Rounded ASS overlay ${i}: text "${safeText}" at (${x},${y}) ${width}x${height}`,
     );
   }
 
-  // If no text was added, just pass through
-  if (!addedText) {
-    textChain += "null";
-  }
+  // Write the ASS file
+  const fs = require('fs');
+  fs.writeFileSync(tempAssPath, assStyles + assEvents);
 
-  textChain += "[out]";
-  parts.push(textChain);
+  // Apply ASS filter
+  parts.push(`[${prevLabel}]ass='${tempAssPath.replace(/\\/g, '/').replace(/:/g, '\\\\:')}'[out]`);
 
   const filterComplex = parts.join(";");
   console.log(`🎬 Built rounded filter complex: ${filterComplex}`);
@@ -414,6 +441,7 @@ function buildTextReplacementFilterComplex(
     backgroundOpacity: number;
     borderRadius?: number;
   },
+  tempAssPath: string,
   videoWidth?: number, // Add video width parameter for centering
 ): string {
   console.log(
@@ -421,6 +449,21 @@ function buildTextReplacementFilterComplex(
   );
 
   const padding = 10;
+
+  // Create ASS File for the texts
+  const assStyles = `[Script Info]
+ScriptType: v4.00+
+PlayResX: 1280
+PlayResY: 720
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,${style.fontFamily},${style.fontSize},&H00${(style.fontColor || '#000000').replace('#', '').match(/.{2}/g)?.reverse().join('') || '000000'}&,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+`;
+  let assEvents = '';
 
   // Start with scale filter
   let filterChain = "[0:v]scale=trunc(iw/2)*2:trunc(ih/2)*2";
@@ -467,12 +510,11 @@ function buildTextReplacementFilterComplex(
     // Draw white rectangle overlay with time-based enable (filled)
     filterChain += `,drawbox=x=${x}:y=${y}:w=${width}:h=${height}:color=${currentBgColor}@${currentOpacity}:t=fill${enableExpression}`;
 
-    // Clean text: Remove special characters, keep letters, numbers, spaces
-    // Note: Apostrophes cause FFmpeg escaping issues, so we remove them
+    // Clean text: Allow emojis 
     const safeText = newText
-      .replace(/[^a-zA-Z0-9\s]/g, " ") // Keep only alphanumeric and spaces
-      .replace(/\s+/g, " ") // Normalize multiple spaces to single space
-      .trim(); // Remove leading/trailing spaces
+      .replace(/[^\p{L}\p{N}\p{Emoji}\p{Emoji_Component}\p{Emoji_Modifier}\p{Emoji_Modifier_Base}\p{Emoji_Presentation}\s]/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim();
 
     // Skip if text is empty after cleaning
     if (!safeText || safeText.length === 0) {
@@ -480,27 +522,36 @@ function buildTextReplacementFilterComplex(
       continue;
     }
 
-    // Calculate text position (centered horizontally in overlay)
-    // For vertical centering, we use (y + h/2 - th/2) which in FFmpeg is: y + (h-text_h)/2
-    const textX = `(${x}+${width}/2-tw/2)`; // Center horizontally: x + (width - text_width) / 2
-    const textY = `(${y}+${height}/2-th/2)`; // Center vertically: y + (height - text_height) / 2
+    // Ass formatting
+    const startStr = formatAssTime(startTime, "0:00:00.00");
+    const endStr = formatAssTime(endTime, "99:00:00.00");
+    
+    // Position vertically and horizontally using POS
+    const centerX = x + width / 2;
+    const centerY = y + height / 2;
+    let styleOverride = "";
+    
+    if (currentFontColorHex !== style.fontColor || currentFontSize !== style.fontSize) {
+      const hex = currentFontColorHex.replace('#', '')
+      const assColor = `&H00${hex.match(/.{2}/g)?.reverse().join('') || '000000'}&`
+      styleOverride = `{\\fs${currentFontSize}\\1c${assColor}}`;
+    }
 
-    // Convert font color from hex to FFmpeg format (remove # prefix)
-    const fontColorFFmpeg = currentFontColorHex.startsWith("#")
-      ? currentFontColorHex.substring(1)
-      : currentFontColorHex;
-
-    // Draw text using system font name with same time-based enable (avoid Windows path issues)
-    filterChain += `,drawtext=text='${safeText}':font=${style.fontFamily}:fontsize=${currentFontSize}:fontcolor=0x${fontColorFFmpeg}:x=${textX}:y=${textY}${enableExpression}`;
+    const safeAssLines = safeText.replace(/\\/g, '\\\\')
+    assEvents += `Dialogue: 0,${startStr},${endStr},Default,,0,0,0,,{\\pos(${centerX},${centerY})}${styleOverride}${safeAssLines}\n`;
 
     console.log(
       `   📦 Overlay at (${x},${y}) size ${width}x${height} - HORIZONTALLY CENTERED`,
     );
-    console.log(`   ✍️  Text "${safeText}" centered in overlay`);
+    console.log(`   ✍️  Text "${safeText}" centered in overlay using ASS`);
   }
 
-  // Close the filter chain
-  filterChain += "[out]";
+  // Write the ASS file
+  const fs = require('fs');
+  fs.writeFileSync(tempAssPath, assStyles + assEvents);
+
+  // Close the filter chain appending ass
+  filterChain += `[base];[base]ass='${tempAssPath.replace(/\\/g, '/').replace(/:/g, '\\\\:')}'[out]`;
 
   console.log(
     `🎬 Built filter complex with ${replacements.length} time-based horizontally aligned overlays + text`,
