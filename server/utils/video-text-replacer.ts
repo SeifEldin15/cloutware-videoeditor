@@ -59,6 +59,16 @@ export async function replaceTextInVideo(
     `🎨 Replacing ${textReplacements.length} text region(s) in video (borderRadius=${borderRadius})`,
   );
 
+  // Pad all bounding boxes by 10% BEFORE any processing to ensure consistency
+  for (const rep of textReplacements) {
+    const pX = Math.round(rep.boundingBox.width * 0.1);
+    const pY = Math.round(rep.boundingBox.height * 0.1);
+    rep.boundingBox.x -= pX;
+    rep.boundingBox.y -= pY;
+    rep.boundingBox.width += 2 * pX;
+    rep.boundingBox.height += 2 * pY;
+  }
+
   return new Promise<PassThrough>(async (resolve, reject) => {
     try {
       const outputStream = new PassThrough({ highWaterMark: 8 * 1024 * 1024 });
@@ -95,27 +105,22 @@ export async function replaceTextInVideo(
 
       if (borderRadius > 0) {
         // ── Rounded corners path: generate PNG overlays with Sharp ──
-        const effectiveRadius = borderRadius * 2;
+        const effectiveRadius = borderRadius;
         console.log(
-          `🔵 Using rounded rectangle overlays (input radius=${borderRadius}px, effective=${effectiveRadius}px)`,
+          `🔵 Using rounded rectangle overlays (effective radius=${effectiveRadius}px)`,
         );
         const sharpModule = (await import("sharp")).default;
         // Add each rounded rect PNG as an additional FFmpeg input
         for (let i = 0; i < textReplacements.length; i++) {
           const replacement = textReplacements[i];
           const { boundingBox } = replacement;
-
-          // Padding is 10% of width/height
-          const paddingX = Math.round(boundingBox.width * 0.1);
-          const paddingY = Math.round(boundingBox.height * 0.1);
-
           const currentBgColorHex =
             replacement.style?.backgroundColor || backgroundColor;
           const currentOpacity =
             replacement.style?.backgroundOpacity ?? backgroundOpacity;
 
-          const width = boundingBox.width + paddingX * 2;
-          const height = boundingBox.height + paddingY * 2;
+          const width = boundingBox.width;
+          const height = boundingBox.height;
 
           // Generate rounded rectangle SVG → PNG
           const opacity255 = Math.round(currentOpacity * 255);
@@ -318,10 +323,8 @@ function buildRoundedFilterComplex(
     const replacement = replacements[i];
     const { boundingBox, startTime, endTime } = replacement;
 
-    const paddingX = Math.round(boundingBox.width * 0.1);
-    const paddingY = Math.round(boundingBox.height * 0.1);
-    const x = Math.max(0, boundingBox.x - paddingX);
-    const y = Math.max(0, boundingBox.y - paddingY);
+    const x = boundingBox.x;
+    const y = boundingBox.y;
 
     // Build time-based enable expression for overlay
     let enableExpr = "";
@@ -348,13 +351,10 @@ function buildRoundedFilterComplex(
 
     const currentFontColorHex = replacement.style?.fontColor || style.fontColor;
     const currentFontSize = replacement.style?.fontSize || style.fontSize;
-
-    const paddingX = Math.round(boundingBox.width * 0.1);
-    const paddingY = Math.round(boundingBox.height * 0.1);
-    const x = Math.max(0, boundingBox.x - paddingX);
-    const y = Math.max(0, boundingBox.y - paddingY);
-    const width = boundingBox.width + paddingX * 2;
-    const height = boundingBox.height + paddingY * 2;
+    const x = boundingBox.x;
+    const y = boundingBox.y;
+    const width = boundingBox.width;
+    const height = boundingBox.height;
 
     // Clean text for FFmpeg
     const safeText = newText
@@ -444,14 +444,10 @@ function buildTextReplacementFilterComplex(
       `📝 Processing replacement ${i + 1}: "${replacement.originalText}" -> "${newText}"`,
     );
 
-    const paddingX = Math.round(boundingBox.width * 0.1);
-    const paddingY = Math.round(boundingBox.height * 0.1);
-
-    // Use exact X and Y position to cover the original detected text accurately
-    const x = Math.max(0, boundingBox.x - paddingX);
-    const y = Math.max(0, boundingBox.y - paddingY);
-    const width = boundingBox.width + paddingX * 2;
-    const height = boundingBox.height + paddingY * 2;
+    const x = Math.max(0, boundingBox.x);
+    const y = Math.max(0, boundingBox.y);
+    const width = boundingBox.width;
+    const height = boundingBox.height;
 
     // Build time-based enable expression
     // Format: enable='between(t,START,END)'
