@@ -407,6 +407,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     }
 
     const safeAssLines = safeText.replace(/\\/g, '\\\\')
+      .replace(/([\p{Emoji_Presentation}\p{Emoji}\uFE0F]+)/gu, `{\\fnSegoe UI Emoji}$1{\\fn${style.fontFamily}}`)
     assEvents += `Dialogue: 0,${startStr},${endStr},Default,,0,0,0,,{\\pos(${centerX},${centerY})}${styleOverride}${safeAssLines}\n`;
 
     console.log(
@@ -538,6 +539,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     }
 
     const safeAssLines = safeText.replace(/\\/g, '\\\\')
+      .replace(/([\p{Emoji_Presentation}\p{Emoji}\uFE0F]+)/gu, `{\\fnSegoe UI Emoji}$1{\\fn${style.fontFamily}}`)
     assEvents += `Dialogue: 0,${startStr},${endStr},Default,,0,0,0,,{\\pos(${centerX},${centerY})}${styleOverride}${safeAssLines}\n`;
 
     console.log(
