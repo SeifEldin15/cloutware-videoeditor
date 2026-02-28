@@ -306,6 +306,11 @@ function buildRoundedFilterComplex(
     `🎨 Building rounded filter complex for ${replacements.length} replacement(s)`,
   );
 
+  const parts: string[] = [];
+
+  // Step 1: Scale the video to even dimensions
+  parts.push("[0:v]scale=trunc(iw/2)*2:trunc(ih/2)*2[base]");
+
   // Step 2: Chain overlay filters — each rounded rect PNG overlaid onto the video
   let prevLabel = "base";
 
