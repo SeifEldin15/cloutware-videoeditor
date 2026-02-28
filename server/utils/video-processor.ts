@@ -304,7 +304,9 @@ export class VideoProcessor {
     // Rotation
     if (options?.rotation && options.rotation !== 0) {
       const radians = options.rotation * Math.PI / 180
-      videoFilters.push(`rotate=${radians}:fillcolor=black:bilinear=1`)
+      // @ts-ignore
+      const bg = options?.backgroundColor ? options.backgroundColor.replace('#', '0x') : '0x000000'
+      videoFilters.push(`rotate=${radians}:fillcolor=${bg}:bilinear=1`)
     }
     
     // Saturation using hue filter

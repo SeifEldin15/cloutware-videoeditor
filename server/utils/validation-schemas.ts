@@ -14,6 +14,7 @@ export const ValidationSchemas = {
       zoomFactor: z.number().min(0.1).max(2).optional(),
       cropHorizontal: z.number().min(0).max(50).optional(),
       cropVertical: z.number().min(0).max(50).optional(),
+      backgroundColor: z.string().optional(),
       saturationFactor: z.number().min(0.5).max(2).optional(),
       framerate: z.number().optional(),
       lightness: z.number().min(-0.5).max(0.5).optional(),

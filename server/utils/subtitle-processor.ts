@@ -799,8 +799,10 @@ export class SubtitleProcessor {
     if (options?.rotation && options.rotation !== 0) {
       // Convert degrees to radians: radians = degrees * PI / 180
       const radians = options.rotation * Math.PI / 180
-      // Rotate with black fill (standard approach)
-      videoFilters.push(`rotate=${radians}:c=black`)
+      // @ts-ignore
+      const bg = options?.backgroundColor ? options.backgroundColor.replace('#', '0x') : '0x000000'
+      // Rotate with background fill
+      videoFilters.push(`rotate=${radians}:fillcolor=${bg}:bilinear=1`)
       // Crop to remove black edges - crop proportional to rotation
       const cropPercent = Math.min(Math.abs(options.rotation) * 1.5, 12) // Max 12% crop per side
       const keepPercent = (100 - cropPercent * 2) / 100
