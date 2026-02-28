@@ -269,25 +269,31 @@ export class VideoProcessor {
     // @ts-ignore
     const cV = (options?.cropVertical || 0) / 100
     
-    // Combined scale factor (how much of the original screen the content fills)
-    const scaleW = (1 - 2 * cH) * Z
-    const scaleH = (1 - 2 * cV) * Z
+    const cropW = (1 - 2 * cH)
+    const cropH = (1 - 2 * cV)
 
-    // Apply scaling to original
-    if (scaleW !== 1 || scaleH !== 1) {
-      // 1. Scale to the relative size the content should occupy
-      videoFilters.push(`scale=trunc((iw*${scaleW})/2)*2:trunc((ih*${scaleH})/2)*2`)
-      
-      // 2. Either crop or pad to return to original resolution
-      if (scaleW > 1 || scaleH > 1) {
-        // Content too large -> crop down to original
-        videoFilters.push(`crop=trunc((iw/max(1,${scaleW}))/2)*2:trunc((ih/max(1,${scaleH}))/2)*2`)
+    // 1. Initial Source Crop
+    if (cropW < 1 || cropH < 1) {
+      videoFilters.push(`crop=trunc((iw*${cropW})/2)*2:trunc((ih*${cropH})/2)*2`)
+    }
+
+    // 2. Relative Scaling (Zoom)
+    if (Z !== 1) {
+      videoFilters.push(`scale=trunc((iw*${Z})/2)*2:trunc((ih*${Z})/2)*2`)
+    }
+
+    // 3. Final Fit to match original resolution
+    const netW = cropW * Z
+    const netH = cropH * Z
+
+    if (Math.abs(netW - 1) > 0.001 || Math.abs(netH - 1) > 0.001) {
+      if (netW > 1 || netH > 1) {
+        videoFilters.push(`crop=trunc((iw/max(1,${netW}))/2)*2:trunc((ih/max(1,${netH}))/2)*2`)
       }
-      if (scaleW < 1 || scaleH < 1) {
-        // Content too small -> pad up to original
+      if (netW < 1 || netH < 1) {
         // @ts-ignore
         const bg = options?.backgroundColor ? options.backgroundColor.replace('#', '0x') : '0x000000'
-        videoFilters.push(`pad=trunc((iw/min(1,${scaleW}))/2)*2:trunc((ih/min(1,${scaleH}))/2)*2:(ow-iw)/2:(oh-ih)/2:${bg}`)
+        videoFilters.push(`pad=trunc((iw/min(1,${netW}))/2)*2:trunc((ih/min(1,${netH}))/2)*2:(ow-iw)/2:(oh-ih)/2:${bg}`)
       }
     }
     
