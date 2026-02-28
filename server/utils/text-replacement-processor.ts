@@ -120,14 +120,25 @@ export class TextReplacementProcessor {
         filters.push(`setpts=${ptsValue}*PTS`)
       }
       
-      if (options.zoomFactor && options.zoomFactor !== 1) {
-        if (options.zoomFactor < 1) {
-          const currentBgColor = (options as any).backgroundColor ? (options as any).backgroundColor.replace('#', '0x') : 'black'
-          filters.push(`scale=iw*${options.zoomFactor}:ih*${options.zoomFactor}`)
-          filters.push(`pad=iw/${options.zoomFactor}:ih/${options.zoomFactor}:(ow-iw)/2:(oh-ih)/2:${currentBgColor}`)
-        } else {
-          filters.push(`scale=iw*${options.zoomFactor}:ih*${options.zoomFactor}`)
-          filters.push(`crop=iw/${options.zoomFactor}:ih/${options.zoomFactor}`)
+      // Zoom/Scale/Crop Logic
+      const Z = options.zoomFactor ?? 1
+      const cH = ((options as any).cropHorizontal || 0) / 100
+      const cV = ((options as any).cropVertical || 0) / 100
+      
+      const scaleW = (1 - 2 * cH) * Z
+      const scaleH = (1 - 2 * cV) * Z
+
+      if (scaleW !== 1 || scaleH !== 1) {
+        // 1. Scale to target content size
+        filters.push(`scale=trunc((iw*${scaleW})/2)*2:trunc((ih*${scaleH})/2)*2`)
+        
+        // 2. Adjust to original resolution
+        if (scaleW > 1 || scaleH > 1) {
+          filters.push(`crop=trunc((iw/max(1,${scaleW}))/2)*2:trunc((ih/max(1,${scaleH}))/2)*2`)
+        }
+        if (scaleW < 1 || scaleH < 1) {
+          const bg = (options as any).backgroundColor ? (options as any).backgroundColor.replace('#', '0x') : '0x000000'
+          filters.push(`pad=trunc((iw/min(1,${scaleW}))/2)*2:trunc((ih/min(1,${scaleH}))/2)*2:(ow-iw)/2:(oh-ih)/2:${bg}`)
         }
       }
       

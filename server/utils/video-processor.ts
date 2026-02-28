@@ -262,56 +262,33 @@ export class VideoProcessor {
       videoFilters.push('hflip')
     }
     
-    // Source Cropping
-    if ((options?.cropVertical || 0) > 0 || (options?.cropHorizontal || 0) > 0) {
-      const cropH = options?.cropHorizontal || 0
-      const cropV = options?.cropVertical || 0
-      console.log(`🎬 Applying source crop (video-processor): H=${cropH}%, V=${cropV}%`)
-      
-      const cropWFract = 1 - (cropH / 100) * 2
-      const cropHFract = 1 - (cropV / 100) * 2
-      const cropXFract = cropH / 100
-      const cropYFract = cropV / 100
-
-      const w = `trunc((iw*${cropWFract})/2)*2`
-      const h = `trunc((ih*${cropHFract})/2)*2`
-      const x = `trunc((iw*${cropXFract})/2)*2`
-      const y = `trunc((ih*${cropYFract})/2)*2`
-      videoFilters.push(`crop=w=${w}:h=${h}:x=${x}:y=${y}`)
-    }
-    
-    // Zoom/Scale Logic
+    // Zoom/Scale/Crop Logic
     const Z = options?.zoomFactor ?? 1
     // @ts-ignore
     const cH = (options?.cropHorizontal || 0) / 100
     // @ts-ignore
     const cV = (options?.cropVertical || 0) / 100
     
-    // Scale widths
+    // Combined scale factor (how much of the original screen the content fills)
     const scaleW = (1 - 2 * cH) * Z
     const scaleH = (1 - 2 * cV) * Z
 
-    // 1. Scale layer
-    if (Z !== 1) {
-      videoFilters.push(`scale=trunc((iw*${Z})/2)*2:trunc((ih*${Z})/2)*2`)
-    }
-
-    // 2. Crop bounds if larger than original size
-    if (scaleW > 1 || scaleH > 1) {
-      const mathS1 = Math.max(1, scaleW)
-      const mathS2 = Math.max(1, scaleH)
-      videoFilters.push(`crop=trunc((iw/${mathS1})/2)*2:trunc((ih/${mathS2})/2)*2`)
-    }
-
-    // 3. Pad bounds if smaller than original size
-    if (scaleW < 1 || scaleH < 1) {
-      const mathP1 = Math.min(1, scaleW)
-      const mathP2 = Math.min(1, scaleH)
-      // @ts-ignore
-      const bg = options?.backgroundColor ? options.backgroundColor.replace('#', '0x') : '0x000000'
-      const padW = mathP1 < 1 ? `trunc((iw/${mathP1})/2)*2` : 'iw'
-      const padH = mathP2 < 1 ? `trunc((ih/${mathP2})/2)*2` : 'ih'
-      videoFilters.push(`pad=${padW}:${padH}:(ow-iw)/2:(oh-ih)/2:${bg}`)
+    // Apply scaling to original
+    if (scaleW !== 1 || scaleH !== 1) {
+      // 1. Scale to the relative size the content should occupy
+      videoFilters.push(`scale=trunc((iw*${scaleW})/2)*2:trunc((ih*${scaleH})/2)*2`)
+      
+      // 2. Either crop or pad to return to original resolution
+      if (scaleW > 1 || scaleH > 1) {
+        // Content too large -> crop down to original
+        videoFilters.push(`crop=trunc((iw/max(1,${scaleW}))/2)*2:trunc((ih/max(1,${scaleH}))/2)*2`)
+      }
+      if (scaleW < 1 || scaleH < 1) {
+        // Content too small -> pad up to original
+        // @ts-ignore
+        const bg = options?.backgroundColor ? options.backgroundColor.replace('#', '0x') : '0x000000'
+        videoFilters.push(`pad=trunc((iw/min(1,${scaleW}))/2)*2:trunc((ih/min(1,${scaleH}))/2)*2:(ow-iw)/2:(oh-ih)/2:${bg}`)
+      }
     }
     
     // Rotation
