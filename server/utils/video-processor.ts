@@ -262,9 +262,37 @@ export class VideoProcessor {
       videoFilters.push('hflip')
     }
     
+    // Source Cropping
+    // @ts-ignore
+    if ((options?.cropTop || 0) > 0 || (options?.cropBottom || 0) > 0 || (options?.cropLeft || 0) > 0 || (options?.cropRight || 0) > 0) {
+      // @ts-ignore
+      const cropL = options.cropLeft || 0
+      // @ts-ignore
+      const cropR = options.cropRight || 0
+      // @ts-ignore
+      const cropT = options.cropTop || 0
+      // @ts-ignore
+      const cropB = options.cropBottom || 0
+      const w = `iw*(1-(${cropL}/100)-(${cropR}/100))`
+      const h = `ih*(1-(${cropT}/100)-(${cropB}/100))`
+      const x = `iw*(${cropL}/100)`
+      const y = `ih*(${cropT}/100)`
+      videoFilters.push(`crop=w=${w}:h=${h}:x=${x}:y=${y}`)
+    }
+    
     // Zoom/Scale
     if (options?.zoomFactor && options.zoomFactor !== 1) {
-      videoFilters.push(`scale=iw*${options.zoomFactor}:ih*${options.zoomFactor}`)
+      if (options.zoomFactor < 1) {
+        // Zoom out: scale down and pad with background color to retain original size
+        // @ts-ignore
+        const currentBgColor = options.backgroundColor ? options.backgroundColor.replace('#', '0x') : 'black'
+        videoFilters.push(`scale=iw*${options.zoomFactor}:ih*${options.zoomFactor}`)
+        videoFilters.push(`pad=iw/${options.zoomFactor}:ih/${options.zoomFactor}:(ow-iw)/2:(oh-ih)/2:${currentBgColor}`)
+      } else {
+        // Zoom in: scale up and crop to retain original size
+        videoFilters.push(`scale=iw*${options.zoomFactor}:ih*${options.zoomFactor}`)
+        videoFilters.push(`crop=iw/${options.zoomFactor}:ih/${options.zoomFactor}`)
+      }
     }
     
     // Rotation

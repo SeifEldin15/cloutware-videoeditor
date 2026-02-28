@@ -121,7 +121,14 @@ export class TextReplacementProcessor {
       }
       
       if (options.zoomFactor && options.zoomFactor !== 1) {
-        filters.push(`scale=iw*${options.zoomFactor}:ih*${options.zoomFactor}`)
+        if (options.zoomFactor < 1) {
+          const currentBgColor = (options as any).backgroundColor ? (options as any).backgroundColor.replace('#', '0x') : 'black'
+          filters.push(`scale=iw*${options.zoomFactor}:ih*${options.zoomFactor}`)
+          filters.push(`pad=iw/${options.zoomFactor}:ih/${options.zoomFactor}:(ow-iw)/2:(oh-ih)/2:${currentBgColor}`)
+        } else {
+          filters.push(`scale=iw*${options.zoomFactor}:ih*${options.zoomFactor}`)
+          filters.push(`crop=iw/${options.zoomFactor}:ih/${options.zoomFactor}`)
+        }
       }
       
       if (options.saturationFactor && options.saturationFactor !== 1) {

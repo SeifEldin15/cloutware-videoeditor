@@ -756,9 +756,37 @@ export class SubtitleProcessor {
       videoFilters.push('hflip')
     }
     
+    // Source Cropping
+    // @ts-ignore
+    if ((options?.cropTop || 0) > 0 || (options?.cropBottom || 0) > 0 || (options?.cropLeft || 0) > 0 || (options?.cropRight || 0) > 0) {
+      // @ts-ignore
+      const cropL = options.cropLeft || 0
+      // @ts-ignore
+      const cropR = options.cropRight || 0
+      // @ts-ignore
+      const cropT = options.cropTop || 0
+      // @ts-ignore
+      const cropB = options.cropBottom || 0
+      const w = `iw*(1-(${cropL}/100)-(${cropR}/100))`
+      const h = `ih*(1-(${cropT}/100)-(${cropB}/100))`
+      const x = `iw*(${cropL}/100)`
+      const y = `ih*(${cropT}/100)`
+      videoFilters.push(`crop=w=${w}:h=${h}:x=${x}:y=${y}`)
+    }
+    
     // Zoom/Scale
     if (options?.zoomFactor && options.zoomFactor !== 1) {
-      videoFilters.push(`scale=iw*${options.zoomFactor}:ih*${options.zoomFactor}`)
+      if (options.zoomFactor < 1) {
+        // Zoom out: scale down and pad with background color to retain original size
+        // @ts-ignore
+        const currentBgColor = options.backgroundColor ? options.backgroundColor.replace('#', '0x') : 'black'
+        videoFilters.push(`scale=iw*${options.zoomFactor}:ih*${options.zoomFactor}`)
+        videoFilters.push(`pad=iw/${options.zoomFactor}:ih/${options.zoomFactor}:(ow-iw)/2:(oh-ih)/2:${currentBgColor}`)
+      } else {
+        // Zoom in: scale up and crop to retain original size
+        videoFilters.push(`scale=iw*${options.zoomFactor}:ih*${options.zoomFactor}`)
+        videoFilters.push(`crop=iw/${options.zoomFactor}:ih/${options.zoomFactor}`)
+      }
     }
     
     // Rotation
@@ -856,23 +884,7 @@ export class SubtitleProcessor {
       videoFilters.push(`drawtext=${fontParam}text='${handleText}':fontcolor=white:fontsize=(h/25):x=(w-tw)*${hx}/100:y=(h-th)*${hy}/100:shadowcolor=black@0.8:shadowx=2:shadowy=2:box=1:boxcolor=black@0.4:boxborderw=5`)
     }
 
-    // White border - MUST BE LAST (applied after all transformations and anti-detection)
-    // This ensures the border remains clean and unaffected by blur, rotation, noise, etc.
-    // Note: This will be applied to the video BEFORE subtitles are overlaid
-    // @ts-ignore - whiteBorder options may not be in type yet
-    if (options?.enableWhiteBorder) {
-      // @ts-ignore
-      const leftRightPercent = options.whiteBorderLeftRight || 10
-      // @ts-ignore
-      const topBottomPercent = options.whiteBorderTopBottom || 20
-      const visibleWidthPercent = 100 - leftRightPercent
-      const visibleHeightPercent = 100 - topBottomPercent
-      
-      // Scale down the video and pad with white
-      videoFilters.push(`scale=iw*${visibleWidthPercent / 100}:ih*${visibleHeightPercent / 100}`)
-      videoFilters.push(`pad=iw/${visibleWidthPercent / 100}:ih/${visibleHeightPercent / 100}:(ow-iw)/2:(oh-ih)/2:white`)
-      console.log(`🎨 White border (applied last): ${leftRightPercent}% L/R, ${topBottomPercent}% T/B`)
-    }
+
 
     // Apply video filters if any exist
     if (videoFilters.length > 0) {
