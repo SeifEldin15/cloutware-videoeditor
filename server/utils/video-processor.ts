@@ -263,17 +263,20 @@ export class VideoProcessor {
     }
     
     // Source Cropping
-    // @ts-ignore
     if ((options?.cropVertical || 0) > 0 || (options?.cropHorizontal || 0) > 0) {
-      // @ts-ignore
-      const cropH = options.cropHorizontal || 0
-      // @ts-ignore
-      const cropV = options.cropVertical || 0
+      const cropH = options?.cropHorizontal || 0
+      const cropV = options?.cropVertical || 0
+      console.log(`🎬 Applying source crop (video-processor): H=${cropH}%, V=${cropV}%`)
       
-      const w = `trunc((iw*(1-(${cropH}/100)*2))/2)*2`
-      const h = `trunc((ih*(1-(${cropV}/100)*2))/2)*2`
-      const x = `trunc((iw*(${cropH}/100))/2)*2`
-      const y = `trunc((ih*(${cropV}/100))/2)*2`
+      const cropWFract = 1 - (cropH / 100) * 2
+      const cropHFract = 1 - (cropV / 100) * 2
+      const cropXFract = cropH / 100
+      const cropYFract = cropV / 100
+
+      const w = `trunc((iw*${cropWFract})/2)*2`
+      const h = `trunc((ih*${cropHFract})/2)*2`
+      const x = `trunc((iw*${cropXFract})/2)*2`
+      const y = `trunc((ih*${cropYFract})/2)*2`
       videoFilters.push(`crop=w=${w}:h=${h}:x=${x}:y=${y}`)
     }
     
