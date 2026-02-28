@@ -264,19 +264,16 @@ export class VideoProcessor {
     
     // Source Cropping
     // @ts-ignore
-    if ((options?.cropTop || 0) > 0 || (options?.cropBottom || 0) > 0 || (options?.cropLeft || 0) > 0 || (options?.cropRight || 0) > 0) {
+    if ((options?.cropVertical || 0) > 0 || (options?.cropHorizontal || 0) > 0) {
       // @ts-ignore
-      const cropL = options.cropLeft || 0
+      const cropH = options.cropHorizontal || 0
       // @ts-ignore
-      const cropR = options.cropRight || 0
-      // @ts-ignore
-      const cropT = options.cropTop || 0
-      // @ts-ignore
-      const cropB = options.cropBottom || 0
-      const w = `iw*(1-(${cropL}/100)-(${cropR}/100))`
-      const h = `ih*(1-(${cropT}/100)-(${cropB}/100))`
-      const x = `iw*(${cropL}/100)`
-      const y = `ih*(${cropT}/100)`
+      const cropV = options.cropVertical || 0
+      
+      const w = `iw*(1-(${cropH}/100)*2)`
+      const h = `ih*(1-(${cropV}/100)*2)`
+      const x = `iw*(${cropH}/100)`
+      const y = `ih*(${cropV}/100)`
       videoFilters.push(`crop=w=${w}:h=${h}:x=${x}:y=${y}`)
     }
     
