@@ -144,11 +144,15 @@ export class TextReplacementProcessor {
 
       if (Math.abs(netW - 1) > 0.001 || Math.abs(netH - 1) > 0.001) {
         if (netW > 1 || netH > 1) {
-          filters.push(`crop=trunc((iw/max(1,${netW}))/2)*2:trunc((ih/max(1,${netH}))/2)*2`)
+          const sW = Math.max(1, netW)
+          const sH = Math.max(1, netH)
+          filters.push(`crop=trunc((iw/${sW})/2)*2:trunc((ih/${sH})/2)*2`)
         }
         if (netW < 1 || netH < 1) {
+          const pW = Math.min(1, netW)
+          const pH = Math.min(1, netH)
           const bg = (options as any).backgroundColor ? (options as any).backgroundColor.replace('#', '0x') : '0x000000'
-          filters.push(`pad=trunc((iw/min(1,${netW}))/2)*2:trunc((ih/min(1,${netH}))/2)*2:(ow-iw)/2:(oh-ih)/2:${bg}`)
+          filters.push(`pad=trunc((iw/${pW})/2)*2:trunc((ih/${pH})/2)*2:(ow-iw)/2:(oh-ih)/2:${bg}`)
         }
       }
       
