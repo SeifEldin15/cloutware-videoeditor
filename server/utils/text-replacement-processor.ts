@@ -286,7 +286,7 @@ export class TextReplacementProcessor {
       const opacity = replacement.background?.opacity || 1
       drawTextFilter += `:box=1:boxcolor=${bgColor}@${opacity}`
       
-      const padding = 10
+      const padding = Math.round((style.fontSize || 24) * 0.1)
       drawTextFilter += `:boxborderw=${padding}`
     }
 

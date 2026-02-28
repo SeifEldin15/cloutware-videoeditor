@@ -100,20 +100,22 @@ export async function replaceTextInVideo(
           `🔵 Using rounded rectangle overlays (input radius=${borderRadius}px, effective=${effectiveRadius}px)`,
         );
         const sharpModule = (await import("sharp")).default;
-        const padding = 10;
-
         // Add each rounded rect PNG as an additional FFmpeg input
         for (let i = 0; i < textReplacements.length; i++) {
           const replacement = textReplacements[i];
           const { boundingBox } = replacement;
+
+          // Padding is 10% of width/height
+          const paddingX = Math.round(boundingBox.width * 0.1);
+          const paddingY = Math.round(boundingBox.height * 0.1);
 
           const currentBgColorHex =
             replacement.style?.backgroundColor || backgroundColor;
           const currentOpacity =
             replacement.style?.backgroundOpacity ?? backgroundOpacity;
 
-          const width = boundingBox.width + padding * 2;
-          const height = boundingBox.height + padding * 2;
+          const width = boundingBox.width + paddingX * 2;
+          const height = boundingBox.height + paddingY * 2;
 
           // Generate rounded rectangle SVG → PNG
           const opacity255 = Math.round(currentOpacity * 255);
@@ -147,7 +149,6 @@ export async function replaceTextInVideo(
           backgroundColor,
           backgroundOpacity,
           borderRadius,
-          padding,
         });
       } else {
         // ── Standard rectangular path (drawbox) ──
@@ -299,18 +300,11 @@ function buildRoundedFilterComplex(
     backgroundColor: string;
     backgroundOpacity: number;
     borderRadius: number;
-    padding: number;
   },
 ): string {
   console.log(
     `🎨 Building rounded filter complex for ${replacements.length} replacement(s)`,
   );
-
-  const { padding } = style;
-  const parts: string[] = [];
-
-  // Step 1: Scale the video to even dimensions
-  parts.push("[0:v]scale=trunc(iw/2)*2:trunc(ih/2)*2[base]");
 
   // Step 2: Chain overlay filters — each rounded rect PNG overlaid onto the video
   let prevLabel = "base";
@@ -319,8 +313,10 @@ function buildRoundedFilterComplex(
     const replacement = replacements[i];
     const { boundingBox, startTime, endTime } = replacement;
 
-    const x = Math.max(0, boundingBox.x - padding);
-    const y = Math.max(0, boundingBox.y - padding);
+    const paddingX = Math.round(boundingBox.width * 0.1);
+    const paddingY = Math.round(boundingBox.height * 0.1);
+    const x = Math.max(0, boundingBox.x - paddingX);
+    const y = Math.max(0, boundingBox.y - paddingY);
 
     // Build time-based enable expression for overlay
     let enableExpr = "";
@@ -348,10 +344,12 @@ function buildRoundedFilterComplex(
     const currentFontColorHex = replacement.style?.fontColor || style.fontColor;
     const currentFontSize = replacement.style?.fontSize || style.fontSize;
 
-    const x = Math.max(0, boundingBox.x - padding);
-    const y = Math.max(0, boundingBox.y - padding);
-    const width = boundingBox.width + padding * 2;
-    const height = boundingBox.height + padding * 2;
+    const paddingX = Math.round(boundingBox.width * 0.1);
+    const paddingY = Math.round(boundingBox.height * 0.1);
+    const x = Math.max(0, boundingBox.x - paddingX);
+    const y = Math.max(0, boundingBox.y - paddingY);
+    const width = boundingBox.width + paddingX * 2;
+    const height = boundingBox.height + paddingY * 2;
 
     // Clean text for FFmpeg
     const safeText = newText
@@ -420,8 +418,6 @@ function buildTextReplacementFilterComplex(
     `🎨 Building filter complex for ${replacements.length} replacement(s)`,
   );
 
-  const padding = 10;
-
   // Start with scale filter
   let filterChain = "[0:v]scale=trunc(iw/2)*2:trunc(ih/2)*2";
 
@@ -443,11 +439,14 @@ function buildTextReplacementFilterComplex(
       `📝 Processing replacement ${i + 1}: "${replacement.originalText}" -> "${newText}"`,
     );
 
+    const paddingX = Math.round(boundingBox.width * 0.1);
+    const paddingY = Math.round(boundingBox.height * 0.1);
+
     // Use exact X and Y position to cover the original detected text accurately
-    const x = Math.max(0, boundingBox.x - padding);
-    const y = Math.max(0, boundingBox.y - padding);
-    const width = boundingBox.width + padding * 2;
-    const height = boundingBox.height + padding * 2;
+    const x = Math.max(0, boundingBox.x - paddingX);
+    const y = Math.max(0, boundingBox.y - paddingY);
+    const width = boundingBox.width + paddingX * 2;
+    const height = boundingBox.height + paddingY * 2;
 
     // Build time-based enable expression
     // Format: enable='between(t,START,END)'
@@ -545,11 +544,12 @@ function buildTextReplacementFiltersSimple(
     );
 
     // Add padding to bounding box
-    const padding = 10;
-    const x = Math.max(0, boundingBox.x - padding);
-    const y = Math.max(0, boundingBox.y - padding);
-    const width = boundingBox.width + padding * 2;
-    const height = boundingBox.height + padding * 2;
+    const paddingX = Math.round(boundingBox.width * 0.1);
+    const paddingY = Math.round(boundingBox.height * 0.1);
+    const x = Math.max(0, boundingBox.x - paddingX);
+    const y = Math.max(0, boundingBox.y - paddingY);
+    const width = boundingBox.width + paddingX * 2;
+    const height = boundingBox.height + paddingY * 2;
 
     // Draw white rectangle
     const bgColor = hexToRgb(style.backgroundColor);
@@ -563,11 +563,11 @@ function buildTextReplacementFiltersSimple(
     if (cleanFontPath) {
       // Quote the fontfile path to protect the escaped colon
       filters.push(
-        `drawtext=text='${escapedText}':fontfile='${cleanFontPath}':fontsize=${style.fontSize}:fontcolor=${style.fontColor}:x=${x + padding}:y=${y + height / 2}`,
+        `drawtext=text='${escapedText}':fontfile='${cleanFontPath}':fontsize=${style.fontSize}:fontcolor=${style.fontColor}:x=${x + paddingX}:y=${y + height / 2}`,
       );
     } else {
       filters.push(
-        `drawtext=text='${escapedText}':font=${style.fontFamily}:fontsize=${style.fontSize}:fontcolor=${style.fontColor}:x=${x + padding}:y=${y + height / 2}`,
+        `drawtext=text='${escapedText}':font=${style.fontFamily}:fontsize=${style.fontSize}:fontcolor=${style.fontColor}:x=${x + paddingX}:y=${y + height / 2}`,
       );
     }
   }
@@ -611,11 +611,12 @@ function buildTextReplacementFilters(
     console.log(`📐 Bounding box:`, boundingBox);
 
     // Add padding to bounding box
-    const padding = 10;
-    const x = Math.max(0, boundingBox.x - padding);
-    const y = Math.max(0, boundingBox.y - padding);
-    const width = boundingBox.width + padding * 2;
-    const height = boundingBox.height + padding * 2;
+    const paddingX = Math.round(boundingBox.width * 0.1);
+    const paddingY = Math.round(boundingBox.height * 0.1);
+    const x = Math.max(0, boundingBox.x - paddingX);
+    const y = Math.max(0, boundingBox.y - paddingY);
+    const width = boundingBox.width + paddingX * 2;
+    const height = boundingBox.height + paddingY * 2;
 
     console.log(`📏 After padding: x=${x}, y=${y}, w=${width}, h=${height}`);
 
@@ -646,7 +647,7 @@ function buildTextReplacementFilters(
       text: newText,
       fontsize: style.fontSize,
       fontcolor: style.fontColor,
-      x: x + padding,
+      x: x + paddingX,
       y: y + height / 2,
     };
 

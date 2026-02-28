@@ -102,8 +102,9 @@ export async function processVideoWithTimedSubtitles(inputUrl: string, transcrip
         
         const enableExpr = `between(t,${startTime},${endTime})`;
         
+        const padding = Math.round((options.fontSize || 40) * 0.1);
         const boxSettings = options.showBackground 
-          ? ':box=1:boxcolor=' + options.backgroundColor + ':boxborderw=5' 
+          ? ':box=1:boxcolor=' + options.backgroundColor + `:boxborderw=${padding}` 
           : '';
         
         // Create CONSISTENT outline using shadow layers instead of borderw
@@ -232,8 +233,9 @@ export async function processVideoWithSubtitlesFile(inputUrl: string, srtContent
         
         const enableExpr = `between(t,${startTime},${endTime})`;
         
+        const padding = Math.round((options.fontSize || 40) * 0.1);
         const boxSettings = options.showBackground 
-          ? ':box=1:boxcolor=' + options.backgroundColor + ':boxborderw=5' 
+          ? ':box=1:boxcolor=' + options.backgroundColor + `:boxborderw=${padding}` 
           : '';
         
         // Create CONSISTENT outline using shadow layers instead of borderw
