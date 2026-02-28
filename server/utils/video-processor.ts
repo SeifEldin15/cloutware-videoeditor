@@ -290,14 +290,14 @@ export class VideoProcessor {
 
     // 1. Scale layer
     if (Z !== 1) {
-      videoFilters.push(`scale=iw*${Z}:ih*${Z}`)
+      videoFilters.push(`scale=trunc((iw*${Z})/2)*2:trunc((ih*${Z})/2)*2`)
     }
 
     // 2. Crop bounds if larger than original size
     if (scaleW > 1 || scaleH > 1) {
       const mathS1 = Math.max(1, scaleW)
       const mathS2 = Math.max(1, scaleH)
-      videoFilters.push(`crop=iw/${mathS1}:ih/${mathS2}`)
+      videoFilters.push(`crop=trunc((iw/${mathS1})/2)*2:trunc((ih/${mathS2})/2)*2`)
     }
 
     // 3. Pad bounds if smaller than original size
@@ -306,7 +306,9 @@ export class VideoProcessor {
       const mathP2 = Math.min(1, scaleH)
       // @ts-ignore
       const bg = options?.backgroundColor ? options.backgroundColor.replace('#', '0x') : '0x000000'
-      videoFilters.push(`pad=${mathP1 < 1 ? `iw/${mathP1}` : 'iw'}:${mathP2 < 1 ? `ih/${mathP2}` : 'ih'}:(ow-iw)/2:(oh-ih)/2:${bg}`)
+      const padW = mathP1 < 1 ? `trunc((iw/${mathP1})/2)*2` : 'iw'
+      const padH = mathP2 < 1 ? `trunc((ih/${mathP2})/2)*2` : 'ih'
+      videoFilters.push(`pad=${padW}:${padH}:(ow-iw)/2:(oh-ih)/2:${bg}`)
     }
     
     // Rotation
