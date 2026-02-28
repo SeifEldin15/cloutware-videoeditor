@@ -771,19 +771,36 @@ export class SubtitleProcessor {
       videoFilters.push(`crop=w=${w}:h=${h}:x=${x}:y=${y}`)
     }
     
-    // Zoom/Scale
-    if (options?.zoomFactor && options.zoomFactor !== 1) {
-      if (options.zoomFactor < 1) {
-        // Zoom out: scale down and pad with background color to retain original size
-        // @ts-ignore
-        const currentBgColor = options.backgroundColor ? options.backgroundColor.replace('#', '0x') : 'black'
-        videoFilters.push(`scale=iw*${options.zoomFactor}:ih*${options.zoomFactor}`)
-        videoFilters.push(`pad=iw/${options.zoomFactor}:ih/${options.zoomFactor}:(ow-iw)/2:(oh-ih)/2:${currentBgColor}`)
-      } else {
-        // Zoom in: scale up and crop to retain original size
-        videoFilters.push(`scale=iw*${options.zoomFactor}:ih*${options.zoomFactor}`)
-        videoFilters.push(`crop=iw/${options.zoomFactor}:ih/${options.zoomFactor}`)
-      }
+    // Zoom/Scale Logic
+    const Z = options?.zoomFactor ?? 1
+    // @ts-ignore
+    const cH = (options?.cropHorizontal || 0) / 100
+    // @ts-ignore
+    const cV = (options?.cropVertical || 0) / 100
+    
+    // Scale widths
+    const scaleW = (1 - 2 * cH) * Z
+    const scaleH = (1 - 2 * cV) * Z
+
+    // 1. Scale layer
+    if (Z !== 1) {
+      videoFilters.push(`scale=iw*${Z}:ih*${Z}`)
+    }
+
+    // 2. Crop bounds if larger than original size
+    if (scaleW > 1 || scaleH > 1) {
+      const mathS1 = Math.max(1, scaleW)
+      const mathS2 = Math.max(1, scaleH)
+      videoFilters.push(`crop=iw/${mathS1}:ih/${mathS2}`)
+    }
+
+    // 3. Pad bounds if smaller than original size
+    if (scaleW < 1 || scaleH < 1) {
+      const mathP1 = Math.min(1, scaleW)
+      const mathP2 = Math.min(1, scaleH)
+      // @ts-ignore
+      const bg = options?.backgroundColor ? options.backgroundColor.replace('#', '0x') : '0x000000'
+      videoFilters.push(`pad=${mathP1 < 1 ? `iw/${mathP1}` : 'iw'}:${mathP2 < 1 ? `ih/${mathP2}` : 'ih'}:(ow-iw)/2:(oh-ih)/2:${bg}`)
     }
     
     // Rotation
