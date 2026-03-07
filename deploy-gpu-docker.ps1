@@ -91,7 +91,7 @@ pkill -f 'tsx server.ts' 2>/dev/null || true
 sleep 2
 
 echo "Starting GPU Video Processing Service..."
-export PORT=3000
+export PORT=8080
 export USE_GPU=true
 nohup tsx server.ts > /var/log/gpu-service.log 2>&1 &
 
