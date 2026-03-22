@@ -1,4 +1,4 @@
-import { detectTextGoogle } from './google-vision'
+import { detectTextTesseract as detectText } from './text-detection'
 import { getInitializedFfmpeg } from './ffmpeg'
 import fs from 'fs/promises'
 import path from 'path'
@@ -35,7 +35,7 @@ export async function extractTextFromVideo(
     confidenceThreshold = 30
   } = options
 
-  console.log(`🔍 Starting OCR on video (Google Vision): ${videoUrl}`)
+  console.log(`🔍 Starting OCR on video (Tesseract Open Source): ${videoUrl}`)
   console.log(`📊 Settings: ${numberOfFrames} frames, ${language} language, ${confidenceThreshold}% confidence threshold`)
 
   // Create temporary directory for frames
@@ -63,7 +63,7 @@ export async function extractTextFromVideo(
     const frames = await extractFrames(videoPath, numberOfFrames, tempDir)
     console.log(`✅ Extracted ${frames.length} frames`)
 
-    console.log('🤖 Google Vision API ready')
+    console.log('🤖 Tesseract OCR (Open Source) ready')
 
     // Process each frame
     const frameResults: OCRResult['frameResults'] = []
@@ -79,8 +79,8 @@ export async function extractTextFromVideo(
       const promises = batch.map(async (frame, index) => {
         const frameIndex = i + index
         try {
-          // Call Google Vision API
-          const { words, fullText } = await detectTextGoogle(frame.path, language)
+          // Call Tesseract OCR
+          const { words, fullText } = await detectText(frame.path, language === 'eng' ? 'eng' : language)
           
           // Calculate average confidence for the frame
           const confidence = words.length > 0
