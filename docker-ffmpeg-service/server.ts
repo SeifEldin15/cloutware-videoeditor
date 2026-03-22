@@ -71,7 +71,7 @@ function getTemplateCaptionDefaults(template: string, primaryColor: string, seco
       fontFamily: 'TikTok Sans Bold',
       fontSize: 32,
       tiktokstyleColor: primaryColor !== '#3b82f6' ? primaryColor : '#FFFF00',
-      shadowStrength: 1.0,
+      shadowStrength: 0,
       animation: 'shake',
       verticalPosition: 20,
       outlineWidth: 4,
