@@ -154,7 +154,17 @@ export const getStyleFont = (styleType: string, defaultFont?: string): string =>
     'basic': 'Arial'
   };
 
-  return defaultFont || fontMappings[styleType] || 'Arial';
+  // The schema assigns 'Sans' as a generic default for fontFamily.
+  // Style-specific mappings should win unless the user explicitly chose a real custom font.
+  const GENERIC_DEFAULTS = ['Sans', 'Arial', 'sans-serif', ''];
+  const styleFont = fontMappings[styleType];
+  const isGenericDefault = !defaultFont || GENERIC_DEFAULTS.includes(defaultFont);
+
+  if (styleFont && isGenericDefault) {
+    // Use style-specific mapping when user hasn't picked a real font
+    return styleFont;
+  }
+  return defaultFont || styleFont || 'Arial';
 };
 
 export const getFontFilePath = (fontFamily: string): string => {
