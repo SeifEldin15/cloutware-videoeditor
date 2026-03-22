@@ -40,7 +40,11 @@ const fontFileMap: Record<string, string> = {
   'Gotham Ultra': 'Gotham Ultra.ttf',
   'Bodoni Moda': 'Bodoni Moda.ttf',
   'Montserrat ExtraBold': 'Montserrat ExtraBold.ttf',
-  'Montserrat Black': 'Montserrat Black.ttf'
+  'Montserrat Black': 'Montserrat Black.ttf',
+  'TikTok Sans': 'TikTok Sans.ttf',
+  'TikTok Sans Bold': 'TikTok Sans Bold.ttf',
+  'TikTok Sans Black': 'TikTok Sans Black.ttf',
+  'TikTok Sans Medium': 'TikTok Sans Medium.ttf'
 };
 
 

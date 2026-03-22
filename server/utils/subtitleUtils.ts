@@ -138,7 +138,7 @@ export const getStyleFont = (styleType: string, defaultFont?: string): string =>
     'GreenToRedPair': 'Luckiest Guy',
     'hormoziViral': 'Luckiest Guy',
     'hormozi': 'Luckiest Guy',
-    'tiktokstyle': 'Luckiest Guy',
+    'tiktokstyle': 'TikTok Sans Bold',
     'quickfox5': 'Luckiest Guy',
     'RevealEnlarge': 'Luckiest Guy',
     'TrendingAli': 'Luckiest Guy',
@@ -183,7 +183,11 @@ export const getFontFilePath = (fontFamily: string): string => {
     'Gotham Ultra': 'Gotham Ultra.ttf',
     'Bodoni Moda': 'Bodoni Moda.ttf',
     'Montserrat ExtraBold': 'Montserrat ExtraBold.ttf',
-    'Montserrat Black': 'Montserrat Black.ttf'
+    'Montserrat Black': 'Montserrat Black.ttf',
+    'TikTok Sans': 'TikTok Sans.ttf',
+    'TikTok Sans Bold': 'TikTok Sans Bold.ttf',
+    'TikTok Sans Black': 'TikTok Sans Black.ttf',
+    'TikTok Sans Medium': 'TikTok Sans Medium.ttf'
   };
   
   const fontFile = fontFileMap[fontFamily];
