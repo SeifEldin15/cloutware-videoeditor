@@ -63,34 +63,126 @@ const templateMapping: Record<string, string> = {
   'impactfull': 'impactfull'
 };
 
-function getWordModeForTemplate(template: string): 'normal' | 'single' | 'multiple' {
-  const wordModeSettings: Record<string, 'normal' | 'single' | 'multiple'> = {
-    'girlboss': 'multiple',
-    'hormozi': 'single',
-    'tiktokstyle': 'single',
-    'whiteimpact': 'single',
-    'impactfull': 'single',
-    'thinToBold': 'single',
-    'wavyColors': 'single',
-    'revealEnlarge': 'multiple',
-    'shrinkingPairs': 'multiple'
+// Full per-template defaults — these are the canonical values for each style.
+// `primaryColor` from the request can override the highlight color if explicitly provided.
+function getTemplateCaptionDefaults(template: string, primaryColor: string, secondaryColor: string): Record<string, any> {
+  const defaults: Record<string, Record<string, any>> = {
+    girlboss: {
+      fontFamily: 'Luckiest Guy',
+      fontSize: 32,
+      girlbossColor: primaryColor !== '#3b82f6' ? primaryColor : '#FF1493',
+      shadowStrength: 2.0,
+      animation: 'shake',
+      verticalPosition: 18,
+      outlineWidth: 3,
+      outlineColor: '#000000',
+      outlineBlur: 1,
+      wordMode: 'multiple',
+      wordsPerGroup: 2,
+    },
+    hormozi: {
+      fontFamily: 'Luckiest Guy',
+      fontSize: 50,
+      hormoziColors: ['#00FF00', '#FF0000', '#0080FF', '#FFFF00'],
+      shadowStrength: 3.5,
+      animation: 'shake',
+      verticalPosition: 15,
+      outlineWidth: 2,
+      outlineColor: '#000000',
+      outlineBlur: 0,
+      wordMode: 'multiple',
+      wordsPerGroup: 4,
+    },
+    tiktokstyle: {
+      fontFamily: 'TikTok Sans Bold',
+      fontSize: 32,
+      tiktokstyleColor: primaryColor !== '#3b82f6' ? primaryColor : '#FFFF00',
+      shadowStrength: 1.0,
+      animation: 'shake',
+      verticalPosition: 20,
+      outlineWidth: 4,
+      outlineColor: '#000000',
+      outlineBlur: 0,
+      wordMode: 'multiple',
+      wordsPerGroup: 2,
+    },
+    thintobold: {
+      fontFamily: 'Montserrat Thin',
+      fontSize: 50,
+      thinToBoldColor: primaryColor !== '#3b82f6' ? primaryColor : '#FFFFFF',
+      shadowStrength: 1.8,
+      animation: 'none',
+      verticalPosition: 22,
+      outlineWidth: 1,
+      outlineColor: '#000000',
+      outlineBlur: 0,
+      wordMode: 'multiple',
+      wordsPerGroup: 2,
+    },
+    wavycolors: {
+      fontFamily: 'Luckiest Guy',
+      fontSize: 50,
+      shadowStrength: 1.5,
+      animation: 'none',
+      verticalPosition: 12,
+      outlineWidth: 3,
+      outlineColor: '#000000',
+      outlineBlur: 0,
+      wordMode: 'multiple',
+      wordsPerGroup: 1,
+    },
+    shrinkingpairs: {
+      fontFamily: 'Luckiest Guy',
+      fontSize: 36,
+      shrinkingPairsColor: primaryColor !== '#3b82f6' ? primaryColor : '#FFFFFF',
+      shadowStrength: 1.2,
+      animation: 'shake',
+      verticalPosition: 20,
+      outlineWidth: 4,
+      outlineColor: '#000000',
+      outlineBlur: 0,
+      wordMode: 'multiple',
+      wordsPerGroup: 4,
+    },
+    revealenlarge: {
+      fontFamily: 'Luckiest Guy',
+      fontSize: 50,
+      revealEnlargeColors: ['#FF0000', '#00FF00', '#0080FF', '#FFFF00', '#FF1493'],
+      shadowStrength: 1.5,
+      animation: 'shake',
+      verticalPosition: 16,
+      outlineWidth: 3,
+      outlineColor: '#000000',
+      outlineBlur: 0,
+      wordMode: 'multiple',
+      wordsPerGroup: 4,
+    },
+    whiteimpact: {
+      fontFamily: 'Impact',
+      fontSize: 48,
+      shadowStrength: 1.0,
+      animation: 'none',
+      verticalPosition: 20,
+      outlineWidth: 1,
+      outlineColor: '#000000',
+      outlineBlur: 0,
+      wordMode: 'single',
+      wordsPerGroup: 1,
+    },
+    impactfull: {
+      fontFamily: 'Impact',
+      fontSize: 42,
+      shadowStrength: 1.0,
+      animation: 'none',
+      verticalPosition: 25,
+      outlineWidth: 1,
+      outlineColor: '#000000',
+      outlineBlur: 0,
+      wordMode: 'normal',
+      wordsPerGroup: 1,
+    },
   };
-  return wordModeSettings[template] || 'normal';
-}
-
-function getWordsPerGroupForTemplate(template: string): number {
-  const wordsPerGroupSettings: Record<string, number> = {
-    'girlboss': 2,
-    'hormozi': 1,
-    'tiktokstyle': 1,
-    'whiteimpact': 1,
-    'impactfull': 1,
-    'thinToBold': 1,
-    'wavyColors': 1,
-    'revealEnlarge': 3,
-    'shrinkingPairs': 2
-  };
-  return wordsPerGroupSettings[template] || 1;
+  return defaults[template] || defaults.girlboss;
 }
 
 const app = createApp()
@@ -172,35 +264,27 @@ app.use('/process', eventHandler(async (event) => {
     job.progress = 5
     job.stage = 'Preparing subtitles...'
 
+    const resolvedTemplate = templateMapping[validatedData.template] as string;
+    const templateDefaults = getTemplateCaptionDefaults(resolvedTemplate, validatedData.primaryColor, validatedData.secondaryColor);
+
     const captionOptions = {
+      // Base fields required by all styles
       srtContent: validatedData.transcription,
-      fontSize: validatedData.fontSize,
       fontColor: validatedData.primaryColor,
-      fontFamily: validatedData.fontFamily,
       fontStyle: 'bold' as const,
       subtitlePosition: validatedData.verticalPosition === 'center' ? 'middle' : validatedData.verticalPosition as 'top' | 'bottom' | 'middle',
       horizontalAlignment: 'center' as const,
       verticalMargin: 30,
       showBackground: true,
       backgroundColor: 'black@0.7',
-      outlineWidth: 2,
-      outlineColor: '#000000',
-      outlineBlur: 0,
-      verticalPosition: getVerticalPositionValue(validatedData.verticalPosition),
-      shadowStrength: 1.5,
-      animation: 'none' as const,
-      subtitleStyle: templateMapping[validatedData.template] as any,
-      girlbossColor: validatedData.primaryColor,
-      hormoziColors: [validatedData.primaryColor, validatedData.secondaryColor, '#1DE0FE', '#FFFF00'],
-      tiktokstyleColor: validatedData.primaryColor,
-      thinToBoldColor: validatedData.primaryColor,
-      wavyColorsOutlineWidth: 2,
-      shrinkingPairsColor: validatedData.primaryColor,
-      revealEnlargeColors: [validatedData.primaryColor, validatedData.secondaryColor, '#1DE0FE', '#FFFF00'],
-      whiteimpactColor: validatedData.primaryColor,
-      impactfullColor: validatedData.primaryColor,
-      wordMode: validatedData.wordMode || getWordModeForTemplate(validatedData.template),
-      wordsPerGroup: validatedData.wordsPerGroup || getWordsPerGroupForTemplate(validatedData.template),
+      subtitleStyle: resolvedTemplate as any,
+      // Spread all template-specific defaults (font, color, wordMode, etc.)
+      ...templateDefaults,
+      // Allow request-level overrides for font/size/position if explicitly provided
+      ...(validatedData.fontSize !== 48 ? { fontSize: validatedData.fontSize } : {}),
+      ...(validatedData.fontFamily !== 'Inter-Bold.ttf' ? { fontFamily: validatedData.fontFamily } : {}),
+      ...(validatedData.wordMode ? { wordMode: validatedData.wordMode } : {}),
+      ...(validatedData.wordsPerGroup ? { wordsPerGroup: validatedData.wordsPerGroup } : {}),
       _jobId: trackingId // Pass jobId to processor for progress updates
     };
 
