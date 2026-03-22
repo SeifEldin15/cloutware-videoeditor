@@ -296,7 +296,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         result = alternatingColorsAnimation(sub, sub.start, sub.end, style, lastPosition);
         break;
       case 'tiktokstyle':
-        result = Girlboss(sub, sub.start, sub.end, style, lastPosition);
+        result = tiktokStyleAnimation(sub, sub.start, sub.end, style, lastPosition);
         break;
       case 'thintobold':
         result = ThinToBold(sub, sub.start, sub.end, style, lastPosition);
