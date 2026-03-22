@@ -50,16 +50,16 @@ export const styleTemplates: Record<string, StyleTemplate> = {
   
   tiktokstyle: {
     name: 'TikTok Style',
-    description: 'Bold, energetic style with shake animation and yellow colors (single word emphasis)',
-    fontFamily: 'Luckiest Guy',
+    description: 'Energetic progressive highlight style with TikTok Sans font and yellow colors',
+    fontFamily: 'TikTok Sans Bold',
     configuration: {
       subtitleStyle: 'tiktokstyle',
-      fontFamily: 'Luckiest Guy',
+      fontFamily: 'TikTok Sans Bold',
       fontSize: 32,
       tiktokstyleColor: '#FFFF00',
       shadowStrength: 1.0,
       animation: 'shake',
-      verticalPosition: 18,
+      verticalPosition: 20,
       outlineWidth: 4,
       outlineColor: '#000000',
       outlineBlur: 0,
