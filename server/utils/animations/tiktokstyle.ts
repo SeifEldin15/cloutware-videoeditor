@@ -103,26 +103,20 @@ export const tiktokStyleAnimation = (
         const borderWidth = Math.max(0.1, 0.1 * effectiveShadowStrength);
         const blurAmount  = Math.max(1,   3   * effectiveShadowStrength);
         if (i <= index) {
-          return `{${moveTag}\\c${lightGlowColorASS}\\bord${borderWidth}\\blur${blurAmount}\\3c${lightGlowColorASS}\\4c${lightGlowColorASS}\\4a&H${blurAlpha.toString(16)}&\\3a&H${shadowAlpha.toString(16)}&}${w}`;
+          return `{\\c${lightGlowColorASS}\\bord${borderWidth}\\blur${blurAmount}\\3c${lightGlowColorASS}\\4c${lightGlowColorASS}\\4a&H${blurAlpha.toString(16)}&\\3a&H${shadowAlpha.toString(16)}&}${w}`;
         } else {
           const whiteASS = convertColorToASS('#FFFFFF');
-          return `{${moveTag}\\c${whiteASS}\\bord${borderWidth}\\blur${blurAmount}\\3c${whiteASS}\\4c${whiteASS}\\4a&H${blurAlpha.toString(16)}&\\3a&H${shadowAlpha.toString(16)}&}${w}`;
+          return `{\\c${whiteASS}\\bord${borderWidth}\\blur${blurAmount}\\3c${whiteASS}\\4c${whiteASS}\\4a&H${blurAlpha.toString(16)}&\\3a&H${shadowAlpha.toString(16)}&}${w}`;
         }
       }).join(' ') : '';
+      
+      const finalGlowWords = moveTag && glowWords ? `{${moveTag}}${glowWords}` : glowWords;
 
-      // Apply move tag to text layer for the active word
-      const finalColoredWords = moveTag
-        ? words.map((w, i) => {
-            if (i <= index) {
-              return `{${moveTag}\\c${textColor}\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
-            } else {
-              return `{\\c&HFFFFFF&\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
-            }
-          }).join(' ')
-        : coloredWords;
+      // Apply move tag to text layer
+      const finalColoredWords = moveTag ? `{${moveTag}}${coloredWords}` : coloredWords;
 
-      if (glowEnabled && glowWords) {
-        events.push(`Dialogue: 1,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${glowWords}`);
+      if (glowEnabled && finalGlowWords) {
+        events.push(`Dialogue: 1,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${finalGlowWords}`);
       }
       events.push(`Dialogue: 2,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${finalColoredWords}`);
     });

@@ -123,30 +123,24 @@ export const Girlboss = (
         if (i === index || i < index) {
           const borderWidth = Math.max(0.1, 0.1 * effectiveShadowStrength);
           const blurAmount = Math.max(1, 3 * effectiveShadowStrength);
-          return `{${moveTag}\\c${lightGlowColorASS}\\bord${borderWidth}\\blur${blurAmount}\\3c${lightGlowColorASS}\\4c${lightGlowColorASS}\\4a&H${blurAlpha.toString(16)}&\\3a&H${shadowAlpha.toString(16)}&}${w}`;
+          return `{\\c${lightGlowColorASS}\\bord${borderWidth}\\blur${blurAmount}\\3c${lightGlowColorASS}\\4c${lightGlowColorASS}\\4a&H${blurAlpha.toString(16)}&\\3a&H${shadowAlpha.toString(16)}&}${w}`;
         } else {
           // Add white glow for inactive (white) words
           const whiteBorderWidth = Math.max(0.1, 0.1 * effectiveShadowStrength);
           const whiteBlurAmount = Math.max(1, 3 * effectiveShadowStrength);
           const whiteGlowColorASS = convertColorToASS('#FFFFFF');
-          return `{${moveTag}\\c${whiteGlowColorASS}\\bord${whiteBorderWidth}\\blur${whiteBlurAmount}\\3c${whiteGlowColorASS}\\4c${whiteGlowColorASS}\\4a&H${blurAlpha.toString(16)}&\\3a&H${shadowAlpha.toString(16)}&}${w}`;
+          return `{\\c${whiteGlowColorASS}\\bord${whiteBorderWidth}\\blur${whiteBlurAmount}\\3c${whiteGlowColorASS}\\4c${whiteGlowColorASS}\\4a&H${blurAlpha.toString(16)}&\\3a&H${shadowAlpha.toString(16)}&}${w}`;
         }
       }).join(' ') : '';
 
+      const finalGlowWords = moveTag && glowWords ? `{${moveTag}}${glowWords}` : glowWords;
+
       // Apply move tag to colored words if shake animation is enabled
-      const finalColoredWords = moveTag
-        ? words.map((w, i) => {
-            if (i === index || i < index) {
-              return `{${moveTag}\\c${textColor}\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
-            } else {
-              return `{\\c&HFFFFFF&\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
-            }
-          }).join(' ')
-        : coloredWords;
+      const finalColoredWords = moveTag ? `{${moveTag}}${coloredWords}` : coloredWords;
 
       // Add glow layer only if glow is enabled, always add text layer
-      if (glowEnabled && glowWords) {
-        events.push(`Dialogue: 1,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${glowWords}`);
+      if (glowEnabled && finalGlowWords) {
+        events.push(`Dialogue: 1,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${finalGlowWords}`);
       }
       events.push(`Dialogue: 2,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${finalColoredWords}`);
     });
