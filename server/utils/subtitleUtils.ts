@@ -184,10 +184,10 @@ export const getFontFilePath = (fontFamily: string): string => {
     'Bodoni Moda': 'Bodoni Moda.ttf',
     'Montserrat ExtraBold': 'Montserrat ExtraBold.ttf',
     'Montserrat Black': 'Montserrat Black.ttf',
-    'TikTok Sans': 'TikTok Sans.ttf',
-    'TikTok Sans Bold': 'TikTok Sans Bold.ttf',
-    'TikTok Sans Black': 'TikTok Sans Black.ttf',
-    'TikTok Sans Medium': 'TikTok Sans Medium.ttf'
+    'TikTok Sans': 'TikTokSans.ttf',
+    'TikTok Sans Bold': 'TikTokSansBold.ttf',
+    'TikTok Sans Black': 'TikTokSansBlack.ttf',
+    'TikTok Sans Medium': 'TikTokSansMedium.ttf'
   };
   
   const fontFile = fontFileMap[fontFamily];
