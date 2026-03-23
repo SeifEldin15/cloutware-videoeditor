@@ -163,6 +163,7 @@ export async function processVideoWithTimedSubtitles(inputUrl: string, transcrip
         '-level', '4.1',                                  // H.264 compatibility level
         '-c:a', 'copy',         
         '-map_metadata', '0',   
+        '-sn',
         '-movflags', 'frag_keyframe+empty_moov+faststart', 
         '-f', 'mp4'            
       ])
@@ -301,7 +302,8 @@ export async function processVideoWithSubtitlesFile(inputUrl: string, srtContent
         '-b:a', '192k',                                   // Good audio quality
         '-ac', '2',                                       // Stereo audio
         '-ar', '48000',                                   // High sample rate
-        '-map_metadata', '-1',   
+        '-map_metadata', '-1',
+        '-sn',
         '-movflags', 'frag_keyframe+empty_moov+faststart', 
         '-pix_fmt', 'yuv420p',
         '-f', 'mp4'            

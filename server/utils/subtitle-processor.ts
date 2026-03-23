@@ -660,7 +660,7 @@ export class SubtitleProcessor {
           }
         }
 
-        outputOptions.push('-threads', optimalThreads, '-pix_fmt', 'yuv420p', '-f', 'mpegts')
+        outputOptions.push('-threads', optimalThreads, '-pix_fmt', 'yuv420p', '-sn', '-f', 'mpegts')
 
         let ffmpegCompleted = false
         let streamTimeout: NodeJS.Timeout | null = null
