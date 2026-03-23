@@ -508,6 +508,17 @@ export class SubtitleProcessor {
           assContent = generateAdvancedASSFile(subtitleSegments, impactFullStyle, 'impactfull')
         }
 
+        // DEBUG: Log ASS content for diagnosis
+        const dialogueLines = assContent.split('\n').filter(l => l.startsWith('Dialogue:'))
+        console.log(`🔍 DEBUG ASS: ${dialogueLines.length} Dialogue lines for style "${styleOptions.subtitleStyle}"`)
+        console.log(`🔍 DEBUG ASS: Input segments: ${subtitleSegments.length}`)
+        dialogueLines.slice(0, 10).forEach((l, i) => console.log(`🔍 DEBUG ASS LINE ${i}: ${l.substring(0, 200)}`))
+        // Save a persistent debug copy
+        try {
+          writeFileSync('/tmp/debug_last_ass.ass', assContent)
+          console.log('🔍 DEBUG: Saved ASS to /tmp/debug_last_ass.ass')
+        } catch {}
+
         tempAssFile = join(tmpdir(), `subtitle_${Date.now()}.ass`)
         writeFileSync(tempAssFile, assContent)
 
