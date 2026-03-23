@@ -57,7 +57,7 @@ export const styleTemplates: Record<string, StyleTemplate> = {
       fontFamily: 'TikTok Sans Bold',
       fontSize: 32,
       tiktokstyleColor: '#FFFF00',
-      shadowStrength: 1.0,
+      shadowStrength: 0,
       animation: 'shake',
       verticalPosition: 20,
       outlineWidth: 4,

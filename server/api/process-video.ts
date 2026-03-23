@@ -131,7 +131,7 @@ export default defineEventHandler(async (event) => {
       outlineColor: '#000000',
       outlineBlur: 0,
       verticalPosition: getVerticalPositionValue(validatedData.verticalPosition),
-      shadowStrength: 1.5,
+      shadowStrength: templateMapping[validatedData.template] === 'tiktokstyle' ? 0 : 1.5,
       animation: 'none' as const,
       subtitleStyle: templateMapping[validatedData.template] as any,
       // Existing template options
