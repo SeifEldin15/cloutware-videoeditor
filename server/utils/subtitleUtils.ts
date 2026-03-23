@@ -334,14 +334,15 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 export const parseSRT = (srtContent: string): SubtitleSegment[] => {
   const segments: SubtitleSegment[] = [];
   const blocks = srtContent.trim().split('\n\n');
+  const seenMatches = new Set<string>();
   
   for (const block of blocks) {
     const lines = block.trim().split('\n');
     if (lines.length < 3) continue;
     
+    // Validate timestamp matching
     const timeLine = lines[1];
     const timeMatch = timeLine.match(/(\d{2}):(\d{2}):(\d{2}),(\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2}),(\d{3})/);
-    
     if (!timeMatch) continue;
     
     const start = parseInt(timeMatch[1]) * 3600 + 
@@ -355,6 +356,11 @@ export const parseSRT = (srtContent: string): SubtitleSegment[] => {
                 parseInt(timeMatch[8]) / 1000;
     
     const text = lines.slice(2).join(' ');
+    
+    // Prevent duplicate overlapping ASR generation segments
+    const dedupeKey = `${Math.round(start)}-${Math.round(end)}-${text.trim()}`;
+    if (seenMatches.has(dedupeKey)) continue;
+    seenMatches.add(dedupeKey);
     
     segments.push({ text, start, end });
   }
