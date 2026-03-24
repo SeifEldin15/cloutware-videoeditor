@@ -351,29 +351,30 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       }
       
       const layer = parts[0].trim();
-      const start = parts[1].trim(); // Format: HH:MM:SS.ms
-      const end = parts[2].trim();
-      const text = parts.slice(9).join(',').trim().replace(/\{.*?\}/g, ''); // Content only, no tags
+      const startStr = parts[1].trim(); 
+      const endStr = parts[2].trim();
+      const text = parts.slice(9).join(',').trim().replace(/\{.*?\}/g, ''); // Content only
       
-      // Fuzzy timing match: round to nearest 0.05 seconds to catch slight ASR misalignments
-      const normalizeTime = (tStr: string) => {
-        const [h, m, s] = tStr.split(':').map(parseFloat);
-        return Math.round((h * 3600 + m * 60 + s) * 20) / 20; // 0.05s increments
+      const timeToSeconds = (t: string) => {
+        const p = t.split(':').map(parseFloat);
+        let s = 0;
+        if (p.length === 3) s = p[0] * 3600 + p[1] * 60 + p[2];
+        else if (p.length === 2) s = p[0] * 60 + p[1];
+        else if (p.length === 1) s = p[0];
+        return s;
       };
       
       try {
-        const normStart = normalizeTime(start);
-        const normEnd = normalizeTime(end);
-        const hash = `${layer}|${normStart}|${normEnd}|${text}`;
+        const s = Math.round(timeToSeconds(startStr) * 20) / 20; // 0.05s precision
+        const e = Math.round(timeToSeconds(endStr) * 20) / 20;
+        const hash = `${layer}|${s}|${e}|${text}`;
         
         if (!lineHashes.has(hash)) {
           lineHashes.add(hash);
           finalLines.push(line);
-        } else {
-          console.log(`🚫 Suppressing duplicate Dialogue line found in ASS buffer: ${hash}`);
         }
-      } catch {
-        finalLines.push(line);
+      } catch (err) {
+        finalLines.push(line); // Fallback to include the line if parsing fails
       }
     });
   });
