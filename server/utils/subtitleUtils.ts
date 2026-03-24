@@ -285,7 +285,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
   let lastPosition: { x: number; y: number } | null = null;
   
-  const events = subtitles.map((sub) => {
+  const rawEvents = subtitles.map((sub) => {
     let result: GirlbossResult | string;
     
     switch (styleType) {
@@ -326,9 +326,44 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     }
     
     return result as string;
-  }).join('\n');
+  });
 
-  return header + events;
+  // Strict Dialogue Deduplication: Prevent overlapping lines with the same text/layer
+  // This helps when ASR returns overlapping segments or when animation logic generates redundant lines
+  const finalLines: string[] = [];
+  const lineHashes = new Set<string>();
+  
+  rawEvents.forEach(chunk => {
+    if (!chunk) return;
+    const lines = chunk.split('\n');
+    lines.forEach(line => {
+      if (!line.trim().startsWith('Dialogue:')) {
+        if (line.trim()) finalLines.push(line);
+        return;
+      }
+      
+      // Extract: Layer, Start, End, Text (simplified hash)
+      // Format: Dialogue: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
+      const parts = line.split(',');
+      if (parts.length < 10) {
+        finalLines.push(line);
+        return;
+      }
+      
+      const layer = parts[0];
+      const start = parts[1];
+      const end = parts[2];
+      const text = parts.slice(9).join(',');
+      
+      const hash = `${layer}|${start}|${end}|${text.trim()}`;
+      if (!lineHashes.has(hash)) {
+        lineHashes.add(hash);
+        finalLines.push(line);
+      }
+    });
+  });
+
+  return header + finalLines.join('\n');
 };
 
 export const parseSRT = (srtContent: string): SubtitleSegment[] => {
