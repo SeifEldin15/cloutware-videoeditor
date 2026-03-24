@@ -133,6 +133,7 @@ export class SubtitleProcessor {
     videoOptions?: VideoProcessingOptions,
     quality: QualityLevel = 'premium'  // Default to premium quality
   ): Promise<PassThrough> {
+    console.log('🚀 SUBTITLE PROCESSOR V2: Strict Deduplication & ASR Hallucination Protection ACTIVE')
     if (!caption?.srtContent) {
       throw new Error('SRT content is required for advanced subtitle processing')
     }

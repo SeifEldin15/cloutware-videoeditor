@@ -115,9 +115,9 @@ export const tiktokStyleAnimation = (
       // Apply move tag to text layer
       const finalColoredWords = moveTag ? `{${moveTag}}${coloredWords}` : coloredWords;
 
-      if (glowEnabled && finalGlowWords) {
-        events.push(`Dialogue: 1,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${finalGlowWords}`);
-      }
+      // if (glowEnabled && finalGlowWords) {
+      //   events.push(`Dialogue: 1,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${finalGlowWords}`);
+      // }
       events.push(`Dialogue: 2,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${finalColoredWords}`);
     });
 

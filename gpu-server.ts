@@ -193,9 +193,12 @@ app.use('/health', eventHandler(() => {
   return { 
     status: 'OK', 
     gpu: gpuEnabled,
+    version: '2.0.1-dedupe-fix',
     message: gpuEnabled ? 'GPU acceleration enabled (NVENC)' : 'CPU mode'
   }
 }))
+
+console.log('🚀 GPU Video Processing Server V2.0.1 Starting (Deduplication Fix Active)...')
 
 // Progress polling endpoint
 app.use('/progress', eventHandler((event) => {

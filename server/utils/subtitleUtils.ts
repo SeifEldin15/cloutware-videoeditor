@@ -350,14 +350,29 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         return;
       }
       
-      const layer = parts[0];
-      const start = parts[1];
-      const end = parts[2];
-      const text = parts.slice(9).join(',');
+      const layer = parts[0].trim();
+      const start = parts[1].trim(); // Format: HH:MM:SS.ms
+      const end = parts[2].trim();
+      const text = parts.slice(9).join(',').trim().replace(/\{.*?\}/g, ''); // Content only, no tags
       
-      const hash = `${layer}|${start}|${end}|${text.trim()}`;
-      if (!lineHashes.has(hash)) {
-        lineHashes.add(hash);
+      // Fuzzy timing match: round to nearest 0.05 seconds to catch slight ASR misalignments
+      const normalizeTime = (tStr: string) => {
+        const [h, m, s] = tStr.split(':').map(parseFloat);
+        return Math.round((h * 3600 + m * 60 + s) * 20) / 20; // 0.05s increments
+      };
+      
+      try {
+        const normStart = normalizeTime(start);
+        const normEnd = normalizeTime(end);
+        const hash = `${layer}|${normStart}|${normEnd}|${text}`;
+        
+        if (!lineHashes.has(hash)) {
+          lineHashes.add(hash);
+          finalLines.push(line);
+        } else {
+          console.log(`🚫 Suppressing duplicate Dialogue line found in ASS buffer: ${hash}`);
+        }
+      } catch {
         finalLines.push(line);
       }
     });
