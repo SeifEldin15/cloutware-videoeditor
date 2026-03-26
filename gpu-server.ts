@@ -103,8 +103,8 @@ function getTemplateCaptionDefaults(template: string, primaryColor: string, seco
       outlineWidth: 4,
       outlineColor: '#000000',
       outlineBlur: 0,
-      wordMode: 'multiple',
-      wordsPerGroup: 2,
+      wordMode: 'single',
+      wordsPerGroup: 1,
     },
     thintobold: {
       fontFamily: 'Montserrat Thin',
