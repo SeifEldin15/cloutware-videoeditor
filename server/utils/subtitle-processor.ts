@@ -212,6 +212,23 @@ export class SubtitleProcessor {
           throw new Error('No valid subtitle segments found in SRT content')
         }
 
+        // Sort and deduplicate overlapping SRT segments before word-mode splitting.
+        // Transcription services (e.g. AssemblyAI) can produce entries with overlapping
+        // timestamps. If not resolved here, word-mode splitting creates ASS events whose
+        // time ranges intersect, causing multiple subtitle blocks to appear simultaneously.
+        subtitleSegments = subtitleSegments.sort((a, b) => a.start - b.start);
+        const dedupedSegments: typeof subtitleSegments = [];
+        for (const seg of subtitleSegments) {
+          if (dedupedSegments.length === 0 || seg.start >= dedupedSegments[dedupedSegments.length - 1].end) {
+            dedupedSegments.push(seg);
+          } else if (seg.end > dedupedSegments[dedupedSegments.length - 1].end) {
+            // Partially overlapping — trim start to sit flush against previous end
+            dedupedSegments.push({ ...seg, start: dedupedSegments[dedupedSegments.length - 1].end });
+          }
+          // else: fully within previous segment — skip
+        }
+        subtitleSegments = dedupedSegments.filter(seg => seg.start < seg.end);
+
         // Process word mode if specified
         if (styleOptions.wordMode && styleOptions.wordMode !== 'normal') {
           console.log(`🔀 Processing subtitles in ${styleOptions.wordMode} word mode with ${styleOptions.wordsPerGroup || 1} words per group`)
