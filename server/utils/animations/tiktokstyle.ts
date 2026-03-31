@@ -1,26 +1,26 @@
 import { 
-  SubtitleSegment, 
-  GirlbossStyle, 
-  GirlbossResult, 
-  formatTime
+  SubtitleSegment,
+  GirlbossStyle,
+  GirlbossResult,
+  formatTime,
+  calculateNextPosition
 } from '../subtitleUtils';
 import { convertColorToASS } from '../colorUtils';
 
 /**
  * TikTok Style: Shows each word group fully highlighted (all yellow) for its full duration.
- * One ASS event per segment — no per-word sub-splitting, no \\move() tag.
- * Per-word sub-events would re-render the same group text N times (duplication bug).
- * \\move() causes scatter when combined with per-word inline color overrides.
+ * One ASS event per segment — no per-word sub-splitting.
+ * Shake animation uses \\move() within the single segment event to avoid duplication.
  */
 export const tiktokStyleAnimation = (
   subtitle: SubtitleSegment,
   start: number,
   end: number,
-  style: GirlbossStyle & { 
+  style: GirlbossStyle & {
     color?: string;
-    outlineWidth?: number; 
-    outlineColor?: string; 
-    outlineBlur?: number 
+    outlineWidth?: number;
+    outlineColor?: string;
+    outlineBlur?: number
   },
   lastPosition: { x: number; y: number } | null = null
 ): GirlbossResult | string => {
@@ -47,15 +47,32 @@ export const tiktokStyleAnimation = (
     const shadowAlpha = Math.max(50, Math.min(255, Math.round(133 - effectiveShadowStrength * 24)));
     const blurAlpha   = Math.max(20, Math.min(255, Math.round(96  - effectiveShadowStrength * 28)));
 
-    const outlineWidth = Math.max(0, style.outlineWidth || 2);
+    const outlineWidth = Math.max(0, style.outlineWidth || 4);
     const outlineColorASS = (() => {
       try { return convertColorToASS(style.outlineColor || '#000000'); }
       catch { return convertColorToASS('#000000'); }
     })();
     const outlineBlur = Math.max(0, style.outlineBlur || 0);
 
+    // Build shake \\move() tag if animation === 'shake'
+    let moveTag = '';
+    let endPosition = lastPosition || { x: 640, y: 0 };
+
+    if (style?.animation === 'shake') {
+      try {
+        const startPos = lastPosition || { x: 640, y: 0 };
+        endPosition = calculateNextPosition(startPos.x, startPos.y, end - start);
+        const marginV = style?.verticalPosition
+          ? Math.max(0, Math.min(720, Math.round((720 * (100 - style.verticalPosition)) / 100)))
+          : 0;
+        moveTag = `\\move(${Math.round(startPos.x)},${Math.round(startPos.y + marginV)},${Math.round(endPosition.x)},${Math.round(endPosition.y + marginV)})`;
+      } catch {
+        moveTag = '';
+      }
+    }
+
     const textLine = words
-      .map(w => `{\\c${textColor}\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`)
+      .map(w => `{${moveTag}\\c${textColor}\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`)
       .join(' ');
 
     const events: string[] = [];
@@ -64,13 +81,15 @@ export const tiktokStyleAnimation = (
       const borderWidth = Math.max(0.1, 0.1 * effectiveShadowStrength);
       const blurAmount  = Math.max(1,   3   * effectiveShadowStrength);
       const glowLine = words
-        .map(w => `{\\c${lightGlowColorASS}\\bord${borderWidth}\\blur${blurAmount}\\3c${lightGlowColorASS}\\4c${lightGlowColorASS}\\4a&H${blurAlpha.toString(16)}&\\3a&H${shadowAlpha.toString(16)}&}${w}`)
+        .map(w => `{${moveTag}\\c${lightGlowColorASS}\\bord${borderWidth}\\blur${blurAmount}\\3c${lightGlowColorASS}\\4c${lightGlowColorASS}\\4a&H${blurAlpha.toString(16)}&\\3a&H${shadowAlpha.toString(16)}&}${w}`)
         .join(' ');
       events.push(`Dialogue: 1,${formatTime(start)},${formatTime(end)},Default,,0,0,0,,${glowLine}`);
     }
     events.push(`Dialogue: 2,${formatTime(start)},${formatTime(end)},Default,,0,0,0,,${textLine}`);
 
-    return events.join('\n');
+    return style?.animation === 'shake'
+      ? { events: events.join('\n'), lastPosition: endPosition }
+      : events.join('\n');
 
   } catch (error) {
     console.error('TikTok style animation: Unexpected error:', error);
