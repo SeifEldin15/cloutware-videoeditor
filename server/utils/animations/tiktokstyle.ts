@@ -47,7 +47,7 @@ export const tiktokStyleAnimation = (
     const shadowAlpha = Math.max(50, Math.min(255, Math.round(133 - effectiveShadowStrength * 24)));
     const blurAlpha   = Math.max(20, Math.min(255, Math.round(96  - effectiveShadowStrength * 28)));
 
-    const outlineWidth = Math.max(0, style.outlineWidth || 4);
+    const outlineWidth = Math.max(0, style.outlineWidth || 6);
     const outlineColorASS = (() => {
       try { return convertColorToASS(style.outlineColor || '#000000'); }
       catch { return convertColorToASS('#000000'); }

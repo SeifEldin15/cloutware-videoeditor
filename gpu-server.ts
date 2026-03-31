@@ -47,6 +47,7 @@ const requestSchema = z.object({
   quality: z.enum(['fast', 'standard', 'high', 'premium']).default('premium'),
   wordMode: z.enum(['normal', 'single', 'multiple']).optional(),
   wordsPerGroup: z.number().min(1).max(10).optional(),
+  outlineWidth: z.number().min(0).max(20).optional(),
   videoOptions: z.any().optional(),
   jobId: z.string().optional() // Client can provide jobId for progress tracking
 });
@@ -100,7 +101,7 @@ function getTemplateCaptionDefaults(template: string, primaryColor: string, seco
       shadowStrength: 0,
       animation: 'shake',
       verticalPosition: 20,
-      outlineWidth: 4,
+      outlineWidth: 6,
       outlineColor: '#000000',
       outlineBlur: 0,
       wordMode: 'multiple',
@@ -288,6 +289,7 @@ app.use('/process', eventHandler(async (event) => {
       ...(validatedData.fontFamily !== 'Inter-Bold.ttf' ? { fontFamily: validatedData.fontFamily } : {}),
       ...(validatedData.wordMode ? { wordMode: validatedData.wordMode } : {}),
       ...(validatedData.wordsPerGroup ? { wordsPerGroup: validatedData.wordsPerGroup } : {}),
+      ...(validatedData.outlineWidth !== undefined ? { outlineWidth: validatedData.outlineWidth } : {}),
       _jobId: trackingId // Pass jobId to processor for progress updates
     };
 
