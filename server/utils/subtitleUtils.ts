@@ -236,6 +236,9 @@ export const generateAdvancedASSFile = (
     outlineColor?: string;
     outlineBlur?: number;
     wordsPerGroup?: number;
+    // Box background options
+    borderStyle?: number;
+    backColor?: string;
   },
   styleType: string
 ): string => {
@@ -262,12 +265,15 @@ export const generateAdvancedASSFile = (
   const fontColorASS = convertColorToASS(style.color || '#FFFFFF');
   const boldValue = (fontFamily.includes('Arial Black') || fontFamily.includes('Luckiest Guy') || fontFamily.toLowerCase().includes('black')) ? 1 : 0;
   
-  // Handle outline settings
-  const outlineWidth = style.outlineWidth || 2;
-  const outlineColorASS = convertColorToASS(style.outlineColor || '#000000');
+  // Handle outline / box settings
+  // borderStyle 1 = outline+shadow (default), borderStyle 3 = opaque box background
+  const borderStyleValue = style.borderStyle ?? 1;
+  const outlineWidth = style.outlineWidth ?? (borderStyleValue === 3 ? 8 : 2);
+  const outlineColorASS = convertColorToASS(style.outlineColor || (borderStyleValue === 3 ? '#FFFFFF' : '#000000'));
+  const backColorASS = style.backColor ? convertColorToASS(style.backColor) : '&H00000000&';
   const shadowValue = style.outlineBlur || 0;
   
-  console.log(`🎨 ASS File using font: "${fontFamily}" (Bold: ${boldValue}, Outline: ${outlineWidth}, Shadow: ${shadowValue})`);
+  console.log(`🎨 ASS File using font: "${fontFamily}" (Bold: ${boldValue}, BorderStyle: ${borderStyleValue}, Outline: ${outlineWidth}, Shadow: ${shadowValue})`);
   
   const header = `[Script Info]
 ScriptType: v4.00+
@@ -277,7 +283,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,${fontFamily},${fontSize},${fontColorASS},&H000000FF&,${outlineColorASS},&H00000000&,${boldValue},0,0,0,100,100,0,0,1,${outlineWidth},${shadowValue},${alignment},10,10,${marginV},1
+Style: Default,${fontFamily},${fontSize},${fontColorASS},&H000000FF&,${outlineColorASS},${backColorASS},${boldValue},0,0,0,100,100,0,0,${borderStyleValue},${outlineWidth},${shadowValue},${alignment},10,10,${marginV},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

@@ -80,6 +80,9 @@ interface StyleOptions {
   // Word processing mode options
   wordMode?: 'normal' | 'single' | 'multiple'
   wordsPerGroup?: number
+  // Box background options (BorderStyle 3)
+  borderStyle?: number
+  backColor?: string
 }
 
 export class SubtitleProcessor {
@@ -189,6 +192,13 @@ export class SubtitleProcessor {
     // Add _jobId for progress tracking (if present)
     if ((caption as any)?._jobId) {
       (baseOptions as any)._jobId = (caption as any)._jobId
+    }
+    // Pass through box-background options
+    if ((caption as any)?.borderStyle !== undefined) {
+      (baseOptions as any).borderStyle = (caption as any).borderStyle
+    }
+    if ((caption as any)?.backColor !== undefined) {
+      (baseOptions as any).backColor = (caption as any).backColor
     }
     return baseOptions
   }
@@ -341,7 +351,7 @@ export class SubtitleProcessor {
           assContent = generateAdvancedASSFile(subtitleSegments, hormoziStyle, 'hormozi')
 
         } else if (styleOptions.subtitleStyle === 'tiktokstyle') {
-          console.log(`🎵 Setting up TikTokStyle with font: ${styleOptions.fontFamily || 'TikTok Sans Bold'} -> ${styleOptions.fontFamily || 'TikTok Sans Bold'}`)
+          console.log(`🎵 Setting up TikTokStyle (box) with font: ${styleOptions.fontFamily || 'TikTok Sans Black'}`)
           const tiktokStyleStyle: GirlbossStyle & {
             fontSize?: number
             fontFamily?: string
@@ -350,18 +360,22 @@ export class SubtitleProcessor {
             outlineWidth?: number
             outlineColor?: string
             outlineBlur?: number
+            borderStyle?: number
+            backColor?: string
           } = {
-            color: styleOptions.tiktokstyleColor || '#FFFF00',
-            shadowStrength: styleOptions.shadowStrength ?? 0,
+            color: '#000000',          // Black text on white box
+            shadowStrength: 0,         // No glow needed with box background
             animation: styleOptions.animation === 'shake' ? 'shake' : 'none',
             verticalPosition: styleOptions.verticalPosition || 15,
-            fontSize: styleOptions.fontSize || 50,
-            fontFamily: styleOptions.fontFamily || 'TikTok Sans Bold',
-            fontFilePath: fontFile || styleOptions.fontFamily || 'TikTok Sans Bold',
+            fontSize: styleOptions.fontSize || 56,
+            fontFamily: styleOptions.fontFamily || 'TikTok Sans Black',
+            fontFilePath: fontFile || styleOptions.fontFamily || 'TikTok Sans Black',
             textAlign: styleOptions.textAlign || 'center',
-            outlineWidth: styleOptions.outlineWidth || 2,
-            outlineColor: styleOptions.outlineColor || '#000000',
-            outlineBlur: styleOptions.outlineBlur || 0
+            outlineWidth: 8,           // Box border/padding
+            outlineColor: '#FFFFFF',   // White border = invisible on white box
+            outlineBlur: 0,
+            borderStyle: 3,            // Opaque box background
+            backColor: '#FFFFFF'       // White box fill
           }
           assContent = generateAdvancedASSFile(subtitleSegments, tiktokStyleStyle, 'tiktokstyle')
 
