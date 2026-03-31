@@ -368,8 +368,8 @@ export class SubtitleProcessor {
             animation: styleOptions.animation === 'shake' ? 'shake' : 'none',
             verticalPosition: styleOptions.verticalPosition || 15,
             fontSize: styleOptions.fontSize || 56,
-            fontFamily: styleOptions.fontFamily || 'TikTok Sans Black',
-            fontFilePath: fontFile || styleOptions.fontFamily || 'TikTok Sans Black',
+            fontFamily: styleOptions.fontFamily || 'TikTok Sans Bold',
+            fontFilePath: fontFile || styleOptions.fontFamily || 'TikTok Sans Bold',
             textAlign: styleOptions.textAlign || 'center',
             outlineWidth: 8,           // Box border/padding
             outlineColor: '#FFFFFF',   // White border = invisible on white box
