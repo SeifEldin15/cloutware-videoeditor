@@ -94,7 +94,7 @@ function getTemplateCaptionDefaults(template: string, primaryColor: string, seco
       wordsPerGroup: 4,
     },
     tiktokstyle: {
-      fontFamily: 'TikTok Sans Bold',
+      fontFamily: 'TikTok Sans Black',
       fontSize: 32,
       tiktokstyleColor: primaryColor !== '#3b82f6' ? primaryColor : '#FFFF00',
       shadowStrength: 0,

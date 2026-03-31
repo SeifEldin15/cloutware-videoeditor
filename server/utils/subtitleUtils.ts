@@ -138,7 +138,7 @@ export const getStyleFont = (styleType: string, defaultFont?: string): string =>
     'GreenToRedPair': 'Luckiest Guy',
     'hormoziViral': 'Luckiest Guy',
     'hormozi': 'Luckiest Guy',
-    'tiktokstyle': 'TikTok Sans Bold',
+    'tiktokstyle': 'TikTok Sans Black',
     'quickfox5': 'Luckiest Guy',
     'RevealEnlarge': 'Luckiest Guy',
     'TrendingAli': 'Luckiest Guy',
