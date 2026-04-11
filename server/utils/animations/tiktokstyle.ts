@@ -8,9 +8,8 @@ import {
 import { convertColorToASS } from '../colorUtils';
 
 /**
- * TikTok Style: Shows each word group fully highlighted (all yellow) for its full duration.
- * One ASS event per segment — no per-word sub-splitting.
- * Shake animation uses \\move() within the single segment event to avoid duplication.
+ * TikTok Style Animation: Identical to Girlboss progressive word reveal,
+ * but with yellow highlight (#FFFF00) and TikTok Sans Bold font.
  */
 export const tiktokStyleAnimation = (
   subtitle: SubtitleSegment,
@@ -31,6 +30,9 @@ export const tiktokStyleAnimation = (
     const words = subtitle.text.split(' ').filter(w => w.trim() !== '');
     if (words.length === 0) return '';
 
+    const totalDuration = end - start;
+    const timePerWord = totalDuration / words.length;
+
     let textColor: string;
     let lightGlowColorASS: string;
     try {
@@ -47,48 +49,75 @@ export const tiktokStyleAnimation = (
     const shadowAlpha = Math.max(50, Math.min(255, Math.round(133 - effectiveShadowStrength * 24)));
     const blurAlpha   = Math.max(20, Math.min(255, Math.round(96  - effectiveShadowStrength * 28)));
 
-    const outlineWidth = Math.max(0, style.outlineWidth || 6);
+    const outlineWidth = Math.max(0, style.outlineWidth || 2);
     const outlineColorASS = (() => {
       try { return convertColorToASS(style.outlineColor || '#000000'); }
       catch { return convertColorToASS('#000000'); }
     })();
     const outlineBlur = Math.max(0, style.outlineBlur || 0);
 
-    // Build shake \\move() tag if animation === 'shake'
-    let moveTag = '';
-    let endPosition = lastPosition || { x: 640, y: 0 };
-
-    if (style?.animation === 'shake') {
-      try {
-        const startPos = lastPosition || { x: 640, y: 0 };
-        endPosition = calculateNextPosition(startPos.x, startPos.y, end - start);
-        const marginV = style?.verticalPosition
-          ? Math.max(0, Math.min(720, Math.round((720 * (100 - style.verticalPosition)) / 100)))
-          : 0;
-        moveTag = `\\move(${Math.round(startPos.x)},${Math.round(startPos.y + marginV)},${Math.round(endPosition.x)},${Math.round(endPosition.y + marginV)})`;
-      } catch {
-        moveTag = '';
-      }
-    }
-
-    const textLine = words
-      .map(w => `{${moveTag}\\c${textColor}\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`)
-      .join(' ');
-
     const events: string[] = [];
+    let currentPosition = lastPosition || { x: 670, y: 0 };
 
-    if (glowEnabled) {
-      const borderWidth = Math.max(0.1, 0.1 * effectiveShadowStrength);
-      const blurAmount  = Math.max(1,   3   * effectiveShadowStrength);
-      const glowLine = words
-        .map(w => `{${moveTag}\\c${lightGlowColorASS}\\bord${borderWidth}\\blur${blurAmount}\\3c${lightGlowColorASS}\\4c${lightGlowColorASS}\\4a&H${blurAlpha.toString(16)}&\\3a&H${shadowAlpha.toString(16)}&}${w}`)
-        .join(' ');
-      events.push(`Dialogue: 1,${formatTime(start)},${formatTime(end)},Default,,0,0,0,,${glowLine}`);
-    }
-    events.push(`Dialogue: 2,${formatTime(start)},${formatTime(end)},Default,,0,0,0,,${textLine}`);
+    words.forEach((word, index) => {
+      const wordStart = start + index * timePerWord;
+      const wordEnd = start + (index + 1) * timePerWord;
+
+      // Progressive reveal: current + past words colored, future words white
+      const coloredWords = words.map((w, i) => {
+        if (i <= index) {
+          return `{\\c${textColor}\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
+        } else {
+          return `{\\c&HFFFFFF&\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
+        }
+      }).join(' ');
+
+      let moveTag = '';
+      if (style?.animation === 'shake') {
+        try {
+          const duration = wordEnd - wordStart;
+          const endPosition = calculateNextPosition(currentPosition.x, currentPosition.y, duration);
+          const marginV = style?.verticalPosition
+            ? Math.max(0, Math.min(720, Math.round((720 * (100 - style.verticalPosition)) / 100)))
+            : 0;
+          moveTag = `\\move(${Math.round(currentPosition.x)},${Math.round(currentPosition.y + marginV)},${Math.round(endPosition.x)},${Math.round(endPosition.y + marginV)})`;
+          currentPosition = endPosition;
+        } catch {
+          moveTag = '';
+        }
+      }
+
+      const glowWords = glowEnabled ? words.map((w, i) => {
+        if (i <= index) {
+          const borderWidth = Math.max(0.1, 0.1 * effectiveShadowStrength);
+          const blurAmount  = Math.max(1,   3   * effectiveShadowStrength);
+          return `{${moveTag}\\c${lightGlowColorASS}\\bord${borderWidth}\\blur${blurAmount}\\3c${lightGlowColorASS}\\4c${lightGlowColorASS}\\4a&H${blurAlpha.toString(16)}&\\3a&H${shadowAlpha.toString(16)}&}${w}`;
+        } else {
+          const whiteBorderWidth = Math.max(0.1, 0.1 * effectiveShadowStrength);
+          const whiteBlurAmount  = Math.max(1,   3   * effectiveShadowStrength);
+          const whiteGlowColorASS = convertColorToASS('#FFFFFF');
+          return `{${moveTag}\\c${whiteGlowColorASS}\\bord${whiteBorderWidth}\\blur${whiteBlurAmount}\\3c${whiteGlowColorASS}\\4c${whiteGlowColorASS}\\4a&H${blurAlpha.toString(16)}&\\3a&H${shadowAlpha.toString(16)}&}${w}`;
+        }
+      }).join(' ') : '';
+
+      const finalColoredWords = moveTag
+        ? words.map((w, i) => {
+            if (i <= index) {
+              return `{${moveTag}\\c${textColor}\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
+            } else {
+              return `{\\c&HFFFFFF&\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
+            }
+          }).join(' ')
+        : coloredWords;
+
+      if (glowEnabled && glowWords) {
+        events.push(`Dialogue: 1,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${glowWords}`);
+      }
+      events.push(`Dialogue: 2,${formatTime(wordStart)},${formatTime(wordEnd)},Default,,0,0,0,,${finalColoredWords}`);
+    });
 
     return style?.animation === 'shake'
-      ? { events: events.join('\n'), lastPosition: endPosition }
+      ? { events: events.join('\n'), lastPosition: currentPosition }
       : events.join('\n');
 
   } catch (error) {
