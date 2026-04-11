@@ -360,22 +360,18 @@ export class SubtitleProcessor {
             outlineWidth?: number
             outlineColor?: string
             outlineBlur?: number
-            borderStyle?: number
-            backColor?: string
           } = {
-            color: '#000000',          // Black text on white box
-            shadowStrength: 0,         // No glow needed with box background
+            color: styleOptions.tiktokstyleColor || '#FFFF00',
+            shadowStrength: styleOptions.shadowStrength ?? 1.5,
             animation: styleOptions.animation === 'shake' ? 'shake' : 'none',
             verticalPosition: styleOptions.verticalPosition || 15,
             fontSize: styleOptions.fontSize || 56,
             fontFamily: styleOptions.fontFamily || 'TikTok Sans Bold',
             fontFilePath: fontFile || styleOptions.fontFamily || 'TikTok Sans Bold',
             textAlign: styleOptions.textAlign || 'center',
-            outlineWidth: 8,           // Box border/padding
-            outlineColor: '#FFFFFF',   // White border = invisible on white box
-            outlineBlur: 0,
-            borderStyle: 3,            // Opaque box background
-            backColor: '#FFFFFF'       // White box fill
+            outlineWidth: styleOptions.outlineWidth ?? 2,
+            outlineColor: styleOptions.outlineColor || '#000000',
+            outlineBlur: styleOptions.outlineBlur || 0
           }
           assContent = generateAdvancedASSFile(subtitleSegments, tiktokStyleStyle, 'tiktokstyle')
 
