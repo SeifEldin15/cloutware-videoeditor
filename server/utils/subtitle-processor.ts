@@ -937,7 +937,7 @@ export class SubtitleProcessor {
       
       // Use standard drawtext (white text, subtle shadow, semi-transparent background box)
       const padding = Math.round((1080 / 25) * 0.1)
-      videoFilters.push(`drawtext=${fontParam}text='${handleText}':fontcolor=white:borderw=1:bordercolor=white:fontsize=h/25:x=(w-tw)*${hx}/100:y=(h-th)*${hy}/100:shadowcolor=black@0.8:shadowx=2:shadowy=2:box=1:boxcolor=black@0.4:boxborderw=${padding}`)
+      videoFilters.push(`drawtext=${fontParam}text='${handleText}':fontcolor=white:fontsize=h/25:x=(w-tw)*${hx}/100:y=(h-th)*${hy}/100:shadowcolor=black@0.8:shadowx=2:shadowy=2:box=1:boxcolor=black@0.4:boxborderw=${padding}`)
     }
 
 

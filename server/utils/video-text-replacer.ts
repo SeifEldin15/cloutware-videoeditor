@@ -381,7 +381,7 @@ function buildRoundedFilterComplex(
       : currentFontColorHex;
 
     if (addedText) textChain += ",";
-    textChain += `drawtext=text='${safeText}':font=${style.fontFamily}:fontsize=${currentFontSize}:fontcolor=0x${fontColorFFmpeg}:borderw=1:bordercolor=0x${fontColorFFmpeg}:x=${textX}:y=${textY}${enableExpression}`;
+    textChain += `drawtext=text='${safeText}':font=${style.fontFamily}:fontsize=${currentFontSize}:fontcolor=0x${fontColorFFmpeg}:x=${textX}:y=${textY}${enableExpression}`;
     addedText = true;
 
     console.log(
@@ -706,7 +706,6 @@ function buildTextOverlay(
 
   filter += `:fontsize=${options.fontSize}`;
   filter += `:fontcolor=${options.fontColor}`;
-  filter += `:borderw=1:bordercolor=${options.fontColor}`;
   filter += `:x=${options.x}`;
   filter += `:y=${options.y}`;
 

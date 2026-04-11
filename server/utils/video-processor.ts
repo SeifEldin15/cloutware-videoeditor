@@ -370,7 +370,7 @@ export class VideoProcessor {
       const hy = options.handleY !== undefined ? options.handleY : 25
       // Standard 10% padding of font height
       const padding = Math.round((1080 / 25) * 0.1)
-      videoFilters.push(`drawtext=text='${handleText}':fontcolor=white:borderw=1:bordercolor=white:fontsize=h/25:x=(w-tw)*${hx}/100:y=(h-th)*${hy}/100:shadowcolor=black@0.8:shadowx=2:shadowy=2:box=1:boxcolor=black@0.4:boxborderw=${padding}`)
+      videoFilters.push(`drawtext=text='${handleText}':fontcolor=white:fontsize=h/25:x=(w-tw)*${hx}/100:y=(h-th)*${hy}/100:shadowcolor=black@0.8:shadowx=2:shadowy=2:box=1:boxcolor=black@0.4:boxborderw=${padding}`)
     }
 
     // Scale to even dimensions for codec compatibility
