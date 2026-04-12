@@ -362,7 +362,7 @@ export class SubtitleProcessor {
             outlineBlur?: number
           } = {
             color: styleOptions.tiktokstyleColor || '#FFFF00',
-            shadowStrength: styleOptions.shadowStrength ?? 1.5,
+            shadowStrength: styleOptions.shadowStrength ?? 0,
             animation: styleOptions.animation === 'shake' ? 'shake' : 'none',
             verticalPosition: styleOptions.verticalPosition || 15,
             fontSize: styleOptions.fontSize || 50,
