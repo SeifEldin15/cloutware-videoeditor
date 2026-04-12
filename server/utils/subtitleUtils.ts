@@ -138,7 +138,7 @@ export const getStyleFont = (styleType: string, defaultFont?: string): string =>
     'GreenToRedPair': 'Luckiest Guy',
     'hormoziViral': 'Luckiest Guy',
     'hormozi': 'Luckiest Guy',
-    'tiktokstyle': 'TikTok Sans Black',
+    'tiktokstyle': 'TikTok Sans Bold',
     'quickfox5': 'Luckiest Guy',
     'RevealEnlarge': 'Luckiest Guy',
     'TrendingAli': 'Luckiest Guy',
@@ -263,7 +263,7 @@ export const generateAdvancedASSFile = (
   }
 
   const fontColorASS = convertColorToASS(style.color || '#FFFFFF');
-  const boldValue = (fontFamily.includes('Arial Black') || fontFamily.includes('Luckiest Guy') || fontFamily.toLowerCase().includes('black')) ? 1 : 0;
+  const boldValue = (fontFamily.includes('Arial Black') || fontFamily.includes('Luckiest Guy') || fontFamily.toLowerCase().includes('black') || fontFamily.toLowerCase().includes('bold')) ? 1 : 0;
   
   // Handle outline / box settings
   // borderStyle 1 = outline+shadow (default), borderStyle 3 = opaque box background

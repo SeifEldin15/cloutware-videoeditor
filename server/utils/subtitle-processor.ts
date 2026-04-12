@@ -351,7 +351,7 @@ export class SubtitleProcessor {
           assContent = generateAdvancedASSFile(subtitleSegments, hormoziStyle, 'hormozi')
 
         } else if (styleOptions.subtitleStyle === 'tiktokstyle') {
-          console.log(`🎵 Setting up TikTokStyle with font: TikTok Sans Bold`)
+          console.log(`🎵 Setting up TikTokStyle with font: ${styleOptions.fontFamily}`)
           const tiktokStyleStyle: GirlbossStyle & {
             fontSize?: number
             fontFamily?: string
@@ -366,8 +366,8 @@ export class SubtitleProcessor {
             animation: styleOptions.animation === 'shake' ? 'shake' : 'none',
             verticalPosition: styleOptions.verticalPosition || 15,
             fontSize: styleOptions.fontSize || 50,
-            fontFamily: 'TikTok Sans Bold',
-            fontFilePath: getFontFilePath('TikTok Sans Bold') || 'TikTok Sans Bold',
+            fontFamily: styleOptions.fontFamily || 'TikTok Sans Bold',
+            fontFilePath: fontFile || styleOptions.fontFamily || 'TikTok Sans Bold',
             textAlign: styleOptions.textAlign || 'center',
             outlineWidth: styleOptions.outlineWidth || 2,
             outlineColor: styleOptions.outlineColor || '#000000',
