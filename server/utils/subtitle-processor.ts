@@ -365,11 +365,11 @@ export class SubtitleProcessor {
             shadowStrength: styleOptions.shadowStrength ?? 0,
             animation: styleOptions.animation === 'shake' ? 'shake' : 'none',
             verticalPosition: styleOptions.verticalPosition || 15,
-            fontSize: styleOptions.fontSize || 50,
+            fontSize: styleOptions.fontSize || 26,
             fontFamily: styleOptions.fontFamily || 'TikTok Sans Bold',
             fontFilePath: fontFile || styleOptions.fontFamily || 'TikTok Sans Bold',
             textAlign: styleOptions.textAlign || 'center',
-            outlineWidth: styleOptions.outlineWidth || 2,
+            outlineWidth: styleOptions.outlineWidth || 5,
             outlineColor: styleOptions.outlineColor || '#000000',
             outlineBlur: styleOptions.outlineBlur || 0
           }
