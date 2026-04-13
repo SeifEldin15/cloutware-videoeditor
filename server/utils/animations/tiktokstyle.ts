@@ -53,8 +53,8 @@ export const tiktokStyleAnimation = (
     // Use asymmetric outline: slightly wider horizontally, shorter vertically
     // so the border wraps consistently around the letterforms instead of
     // appearing as tall rounded rectangles.
-    const xbord = outlineWidth + 1;
-    const ybord = Math.max(1, outlineWidth - 1);
+    const xbord = outlineWidth + 2;
+    const ybord = outlineWidth;
     const outlineColorASS = (() => {
       try { return convertColorToASS(style.outlineColor || '#000000'); }
       catch { return convertColorToASS('#000000'); }
