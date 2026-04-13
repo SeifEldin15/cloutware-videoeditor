@@ -54,7 +54,7 @@ export const tiktokStyleAnimation = (
     // so the border wraps consistently around the letterforms instead of
     // appearing as tall rounded rectangles.
     const xbord = outlineWidth + 2;
-    const ybord = outlineWidth;
+    const ybord = Math.max(1, outlineWidth - 2);
     const outlineColorASS = (() => {
       try { return convertColorToASS(style.outlineColor || '#000000'); }
       catch { return convertColorToASS('#000000'); }
