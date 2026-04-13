@@ -50,6 +50,11 @@ export const tiktokStyleAnimation = (
     const blurAlpha   = Math.max(20, Math.min(255, Math.round(96  - effectiveShadowStrength * 28)));
 
     const outlineWidth = Math.max(0, style.outlineWidth || 2);
+    // Use asymmetric outline: slightly wider horizontally, shorter vertically
+    // so the border wraps consistently around the letterforms instead of
+    // appearing as tall rounded rectangles.
+    const xbord = outlineWidth + 1;
+    const ybord = Math.max(1, outlineWidth - 1);
     const outlineColorASS = (() => {
       try { return convertColorToASS(style.outlineColor || '#000000'); }
       catch { return convertColorToASS('#000000'); }
@@ -66,9 +71,9 @@ export const tiktokStyleAnimation = (
       // Progressive reveal: current + past words colored, future words white
       const coloredWords = words.map((w, i) => {
         if (i <= index) {
-          return `{\\c${textColor}\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
+          return `{\\c${textColor}\\xbord${xbord}\\ybord${ybord}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
         } else {
-          return `{\\c&HFFFFFF&\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
+          return `{\\c&HFFFFFF&\\xbord${xbord}\\ybord${ybord}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
         }
       }).join(' ');
 
@@ -103,9 +108,9 @@ export const tiktokStyleAnimation = (
       const finalColoredWords = moveTag
         ? words.map((w, i) => {
             if (i <= index) {
-              return `{${moveTag}\\c${textColor}\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
+              return `{${moveTag}\\c${textColor}\\xbord${xbord}\\ybord${ybord}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
             } else {
-              return `{\\c&HFFFFFF&\\bord${outlineWidth}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
+              return `{\\c&HFFFFFF&\\xbord${xbord}\\ybord${ybord}\\3c${outlineColorASS}\\blur${outlineBlur}\\shad0}${w}`;
             }
           }).join(' ')
         : coloredWords;
