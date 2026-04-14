@@ -83,7 +83,7 @@ function getTemplateCaptionDefaults(template: string, primaryColor: string, seco
     },
     hormozi: {
       fontFamily: 'Luckiest Guy',
-      fontSize: 50,
+      fontSize: 32,
       hormoziColors: ['#00FF00', '#FF0000', '#0080FF', '#FFFF00'],
       shadowStrength: 3.5,
       animation: 'shake',
@@ -147,7 +147,7 @@ function getTemplateCaptionDefaults(template: string, primaryColor: string, seco
     },
     revealenlarge: {
       fontFamily: 'Luckiest Guy',
-      fontSize: 50,
+      fontSize: 32,
       revealEnlargeColors: ['#FF0000', '#00FF00', '#0080FF', '#FFFF00', '#FF1493'],
       shadowStrength: 1.5,
       animation: 'shake',
