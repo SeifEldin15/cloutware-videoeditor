@@ -14,6 +14,8 @@ interface OcrNarrationOptions {
   timedNarration?: boolean
   backgroundMusicUrl?: string
   backgroundMusicVolume?: number
+  /** Pass pre-detected OCR results to skip the detection API call entirely. */
+  preDetectedTexts?: any[]
 }
 
 /**
@@ -30,19 +32,26 @@ export async function generateOcrNarration(
     voice = '21m00Tcm4TlvDq8ikWAM',
     timedNarration = true,
     backgroundMusicUrl,
-    backgroundMusicVolume = 0.2
+    backgroundMusicVolume = 0.2,
+    preDetectedTexts,
   } = options
 
-  console.log(`[OCR-Narration] Starting text detection with ${numberOfFrames} frames at ${confidenceThreshold}% confidence`)
-  
-  const ocrResults = await detectTextWithCoordinates(videoUrl, {
-    numberOfFrames,
-    confidenceThreshold,
-    language: 'eng'
-  })
+  let rawDetectedTexts: any[]
+  if (preDetectedTexts && preDetectedTexts.length > 0) {
+    console.log(`[OCR-Narration] Using ${preDetectedTexts.length} pre-detected texts — skipping detection API call`)
+    rawDetectedTexts = preDetectedTexts
+  } else {
+    console.log(`[OCR-Narration] Starting text detection with ${numberOfFrames} frames at ${confidenceThreshold}% confidence`)
+    const ocrResults = await detectTextWithCoordinates(videoUrl, {
+      numberOfFrames,
+      confidenceThreshold,
+      language: 'eng'
+    })
+    rawDetectedTexts = ocrResults.detectedTexts
+  }
 
   // Sort detected texts by vertical position (top to bottom) within same time blocks
-  const sortedTexts = ocrResults.detectedTexts.sort((a, b) => {
+  const sortedTexts = rawDetectedTexts.sort((a: any, b: any) => {
     const timeA = a.startTime ?? a.timestamp
     const timeB = b.startTime ?? b.timestamp
     if (Math.abs(timeA - timeB) > 0.5) return timeA - timeB
