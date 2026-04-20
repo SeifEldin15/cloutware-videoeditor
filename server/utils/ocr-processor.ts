@@ -1,4 +1,4 @@
-import { detectTextTesseract as detectText } from './text-detection'
+import { detectTextGemini as detectText } from './text-detection-gemini'
 import { getInitializedFfmpeg } from './ffmpeg'
 import fs from 'fs/promises'
 import path from 'path'
