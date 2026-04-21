@@ -606,6 +606,13 @@ export class SubtitleProcessor {
         // Build video filter chain: transformations FIRST, then subtitles LAST
         // This ensures subtitles are not affected by video transformations (blur, rotation, etc.)
         const vf: string[] = []
+
+        // When using -hwaccel_output_format cuda, decoded frames are in GPU memory.
+        // CPU-based filters (crop, noise, rotate, ass) cannot process CUDA frames,
+        // so we must download to CPU first, then re-upload for NVENC encoding.
+        if (useGpu) {
+          vf.push('hwdownload', 'format=yuv420p')
+        }
         
         // 1. Add video transformation filters FIRST (before subtitles)
         if (baseVideoFilter) {
