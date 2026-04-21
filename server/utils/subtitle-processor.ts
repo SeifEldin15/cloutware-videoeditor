@@ -568,11 +568,10 @@ export class SubtitleProcessor {
         ]
         
         if (useGpu) {
-          // NVIDIA CUDA hardware acceleration
-          inputOpts.push(
-            '-hwaccel', 'cuda',
-            '-hwaccel_output_format', 'cuda'  // Keep frames on GPU
-          )
+          // NVIDIA CUDA hardware acceleration for decoding
+          // Without hwaccel_output_format=cuda, frames auto-download to CPU
+          // so CPU filters (crop, ass, etc.) work, while h264_nvenc still encodes on GPU
+          inputOpts.push('-hwaccel', 'cuda')
           console.log('🚀 Using NVIDIA CUDA hardware acceleration')
         } else {
           inputOpts.push('-hwaccel', 'auto')
@@ -606,13 +605,6 @@ export class SubtitleProcessor {
         // Build video filter chain: transformations FIRST, then subtitles LAST
         // This ensures subtitles are not affected by video transformations (blur, rotation, etc.)
         const vf: string[] = []
-
-        // When using -hwaccel_output_format cuda, decoded frames are in GPU memory.
-        // CPU-based filters (crop, noise, rotate, ass) cannot process CUDA frames,
-        // so we must download to CPU first, then re-upload for NVENC encoding.
-        if (useGpu) {
-          vf.push('hwdownload', 'format=yuv420p')
-        }
         
         // 1. Add video transformation filters FIRST (before subtitles)
         if (baseVideoFilter) {
