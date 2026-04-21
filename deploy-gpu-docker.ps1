@@ -1,8 +1,8 @@
 $ErrorActionPreference = "Stop"
 
 # Configuration - UPDATE THESE FOR YOUR VAST.AI INSTANCE
-$VastHost = "70.69.192.6"
-$VastPort = "28966"
+$VastHost = "142.127.68.223"
+$VastPort = "17426"
 $VastUser = "root"
 $SshKey = "$env:USERPROFILE\.ssh\id_ed25519"
 $ImageName = "gpu-video-processor"
