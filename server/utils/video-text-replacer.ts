@@ -311,6 +311,12 @@ function buildRoundedFilterComplex(
     `🎨 Building rounded filter complex for ${replacements.length} replacement(s)`,
   );
 
+  // Resolve font file path — mirrors caption watermark approach
+  const path = require('path') as typeof import('path')
+  const fontFile = path.join(process.cwd(), 'public', 'fonts', 'TikTokSansMedium.ttf')
+    .replace(/\\/g, '/')
+    .replace(/:/g, '\\:')
+
   const parts: string[] = [];
 
   // Step 1: Scale the video to even dimensions
@@ -356,10 +362,12 @@ function buildRoundedFilterComplex(
     const width = boundingBox.width;
     const height = boundingBox.height;
 
-    // Clean text for FFmpeg
+    // Escape text for FFmpeg drawtext — same method as caption watermark
     const safeText = newText
-      .replace(/[^a-zA-Z0-9\s]/g, " ")
-      .replace(/\s+/g, " ")
+      .replace(/\\/g, '\\\\')
+      .replace(/:/g, '\\:')
+      .replace(/'/g, "\\'")
+      .replace(/\n/g, ' ')
       .trim();
 
     if (!safeText || safeText.length === 0) {
@@ -373,7 +381,7 @@ function buildRoundedFilterComplex(
       enableExpression = `:enable='between(t,${startTime.toFixed(3)},${endTime.toFixed(3)})'`;
     }
 
-    // Centered text position
+    // Centered text position within the bounding box
     const textX = `(${x}+${width}/2-tw/2)`;
     const textY = `(${y}+${height}/2-th/2)`;
     const fontColorFFmpeg = currentFontColorHex.startsWith("#")
@@ -381,7 +389,7 @@ function buildRoundedFilterComplex(
       : currentFontColorHex;
 
     if (addedText) textChain += ",";
-    textChain += `drawtext=text='${safeText}':font=${style.fontFamily}:fontsize=${currentFontSize}:fontcolor=0x${fontColorFFmpeg}:x=${textX}:y=${textY}${enableExpression}`;
+    textChain += `drawtext=text='${safeText}':fontfile='${fontFile}':fontsize=${currentFontSize}:fontcolor=0x${fontColorFFmpeg}:x=${textX}:y=${textY}${enableExpression}`;
     addedText = true;
 
     console.log(

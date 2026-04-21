@@ -35,7 +35,7 @@ export async function extractTextFromVideo(
     confidenceThreshold = 30
   } = options
 
-  console.log(`🔍 Starting OCR on video (Tesseract Open Source): ${videoUrl}`)
+  console.log(`🔍 Starting OCR on video (Gemini Vision): ${videoUrl}`)
   console.log(`📊 Settings: ${numberOfFrames} frames, ${language} language, ${confidenceThreshold}% confidence threshold`)
 
   // Create temporary directory for frames
@@ -63,7 +63,7 @@ export async function extractTextFromVideo(
     const frames = await extractFrames(videoPath, numberOfFrames, tempDir)
     console.log(`✅ Extracted ${frames.length} frames`)
 
-    console.log('🤖 Tesseract OCR (Open Source) ready')
+    console.log('🤖 Gemini Vision API ready')
 
     // Process each frame
     const frameResults: OCRResult['frameResults'] = []

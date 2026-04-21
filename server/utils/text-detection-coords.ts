@@ -235,7 +235,7 @@ export async function detectTextWithCoordinates(
     minTextLength = 2  // Minimum 2 characters
   } = options
 
-  console.log(`🔍 Detecting text (Tesseract Open Source) in video: ${videoUrl}`)
+  console.log(`🔍 Detecting text (Gemini Vision) in video: ${videoUrl}`)
   console.log(`📊 Settings: ${numberOfFrames} frames, ${language} language, ${confidenceThreshold}% confidence`)
 
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'text-detect-'))
@@ -281,7 +281,7 @@ export async function detectTextWithCoordinates(
     console.log(`📏 Scale factors: X=${scaleFactorX.toFixed(3)}, Y=${scaleFactorY.toFixed(3)} (frame:${FRAME_SCALE_WIDTH}px -> video:${width}px)`)
 
     // Google Vision API requires no initialization here
-    console.log('🤖 Tesseract OCR (Open Source) ready')
+    console.log('🤖 Gemini Vision API ready')
 
 
     const detectedTexts: DetectedText[] = []
@@ -302,7 +302,7 @@ export async function detectTextWithCoordinates(
           const { words: tesseractWords, fullText } = await detectText(frame.path, language === 'eng' ? 'eng' : language)
           
           if (!tesseractWords.length) {
-             console.log(`   Frame ${frameIndex + 1}: No text detected by Tesseract (raw)`)
+             console.log(`   Frame ${frameIndex + 1}: No text detected by Gemini (raw)`)
              if (fullText) console.log(`   (Full text was: "${fullText.substring(0, 50)}...")`)
           }
 

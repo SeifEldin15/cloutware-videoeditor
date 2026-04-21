@@ -2,9 +2,6 @@ import fs from 'fs/promises'
 import path from 'path'
 import sharp from 'sharp'
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`
-
 export interface GeminiWord {
   text: string
   confidence: number
@@ -27,9 +24,12 @@ export async function detectTextGemini(
   imagePath: string,
   _language: string = 'eng'
 ): Promise<{ words: GeminiWord[]; fullText: string }> {
+  const GEMINI_API_KEY = process.env.GEMINI_API_KEY
   if (!GEMINI_API_KEY) {
     throw new Error('GEMINI_API_KEY env var is not set')
   }
+
+  const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`
 
   const imageBuffer = await fs.readFile(imagePath)
   const base64Image = imageBuffer.toString('base64')
