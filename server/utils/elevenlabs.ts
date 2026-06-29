@@ -70,8 +70,11 @@ export async function generateSpeech(
         stability,
         similarityBoost,
         style,
-        useSpeakerBoost: true
-      }
+        useSpeakerBoost: true,
+        // `speed` is supported by the runtime API (0.5 - 2.0). Cast to avoid
+        // friction with older SDK type definitions.
+        speed,
+      } as any,
     })
 
     // Convert the ReadableStream to a Node.js stream
@@ -134,3 +137,151 @@ export const POPULAR_VOICES = {
   ADAM: 'pNInz6obpgDQGcFmaJgB',  // American Male
   SAM: 'yoZ06aMxZJJ28mfd3POQ'    // American Male
 } as const
+
+/**
+ * Supported source audio formats for voice cloning (Req 2.2).
+ */
+export const SUPPORTED_SAMPLE_FORMATS = ['mp3', 'wav', 'm4a', 'ogg', 'flac', 'webm'] as const
+
+/**
+ * Maximum allowed voice sample size in bytes (25 MB, Req 2.3).
+ */
+export const MAX_SAMPLE_BYTES = 25 * 1024 * 1024
+
+/**
+ * Emotion presets map a friendly emotion name to ElevenLabs voice settings
+ * (Req 4.3). `stability` controls consistency vs. expressiveness and `style`
+ * controls exaggeration.
+ */
+export const EMOTION_PRESETS = {
+  neutral: { stability: 0.5, style: 0.0 },
+  calm: { stability: 0.85, style: 0.1 },
+  happy: { stability: 0.35, style: 0.55 },
+  excited: { stability: 0.3, style: 0.7 },
+  sad: { stability: 0.75, style: 0.2 },
+  serious: { stability: 0.7, style: 0.15 },
+  angry: { stability: 0.35, style: 0.7 },
+} as const
+
+export type Emotion = keyof typeof EMOTION_PRESETS
+
+/** List of selectable emotions, for UI population. */
+export const EMOTION_OPTIONS = Object.keys(EMOTION_PRESETS) as Emotion[]
+
+/**
+ * Resolve voice settings from a friendly emotion name, falling back to neutral.
+ */
+export function emotionToVoiceSettings(emotion?: string): { stability: number, style: number } {
+  if (emotion && emotion in EMOTION_PRESETS) {
+    return EMOTION_PRESETS[emotion as Emotion]
+  }
+  return EMOTION_PRESETS.neutral
+}
+
+/**
+ * Validate an ElevenLabs API key by performing a lightweight authenticated
+ * request (Req 1.1). Resolves `true` when the key is accepted, `false` when it
+ * is rejected. Network/timeout failures are surfaced as a thrown error so the
+ * caller can distinguish "invalid key" from "could not reach ElevenLabs".
+ *
+ * Note: the rest of this module reads `ELEVENLABS_API_KEY` from the
+ * environment. This helper validates an *arbitrary* key (e.g. one a user just
+ * submitted) without mutating the singleton client.
+ */
+export async function validateApiKey(apiKey: string, timeoutMs = 10_000): Promise<boolean> {
+  const trimmed = (apiKey ?? '').trim()
+  if (!trimmed) return false
+
+  const probe = new ElevenLabsClient({ apiKey: trimmed })
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    await probe.voices.getAll({ abortSignal: controller.signal } as any)
+    return true
+  }
+  catch (error: any) {
+    // A 401/403 means the key reached ElevenLabs and was rejected.
+    const status = error?.statusCode ?? error?.status
+    if (status === 401 || status === 403) return false
+    // Anything else (network error, abort/timeout) is not an auth verdict.
+    throw new Error(`Could not reach ElevenLabs to validate the API key: ${error?.message || 'Unknown error'}`)
+  }
+  finally {
+    clearTimeout(timer)
+  }
+}
+
+/** A single uploaded voice sample to clone from. */
+export interface CloneSampleInput {
+  /** Raw audio bytes. */
+  data: Buffer
+  /** Original file name (used for the multipart upload). */
+  filename: string
+  /** MIME type, e.g. `audio/mpeg`. */
+  contentType: string
+}
+
+export interface CloneVoiceResult {
+  voiceId: string
+  requiresVerification: boolean
+}
+
+/**
+ * Create a cloned voice in ElevenLabs from one or more uploaded samples
+ * (Req 2.1). Uses Instant Voice Cloning (IVC).
+ *
+ * @throws when ElevenLabs rejects the request or cloning fails (Req 2.6).
+ */
+export async function cloneVoiceFromSamples(
+  name: string,
+  samples: CloneSampleInput[],
+  options: { description?: string, removeBackgroundNoise?: boolean } = {}
+): Promise<CloneVoiceResult> {
+  if (!name?.trim()) throw new Error('A voice name is required to clone a voice.')
+  if (!samples.length) throw new Error('At least one voice sample is required to clone a voice.')
+
+  const elevenLabsClient = getClient()
+
+  // The SDK accepts web `File`/`Blob` instances (available globally on Node 18+)
+  // for multipart uploads.
+  const files = samples.map(s => new File([s.data], s.filename, { type: s.contentType }))
+
+  console.log(`[ElevenLabs] Cloning voice "${name}" from ${files.length} sample(s)...`)
+
+  try {
+    const result = await elevenLabsClient.voices.ivc.create({
+      name: name.trim(),
+      files,
+      description: options.description,
+      removeBackgroundNoise: options.removeBackgroundNoise,
+    })
+
+    console.log(`[ElevenLabs] ✅ Voice cloned: ${result.voiceId}`)
+    return {
+      voiceId: result.voiceId,
+      requiresVerification: result.requiresVerification ?? false,
+    }
+  }
+  catch (error: any) {
+    console.error('[ElevenLabs] ❌ Voice cloning failed:', error?.message || error)
+    throw new Error(`ElevenLabs voice cloning failed: ${error?.message || 'Unknown error'}`)
+  }
+}
+
+/**
+ * Delete a cloned voice from ElevenLabs. Best-effort: a failure here should not
+ * block removing the local library entry, so the caller decides how to handle
+ * a thrown error.
+ */
+export async function deleteVoice(voiceId: string): Promise<void> {
+  const elevenLabsClient = getClient()
+  try {
+    await elevenLabsClient.voices.delete(voiceId)
+    console.log(`[ElevenLabs] 🗑️ Deleted voice: ${voiceId}`)
+  }
+  catch (error: any) {
+    console.error('[ElevenLabs] Failed to delete voice:', error?.message || error)
+    throw new Error(`Failed to delete voice from ElevenLabs: ${error?.message || 'Unknown error'}`)
+  }
+}
