@@ -15,3 +15,4 @@ README-DOCKER.md
 AWS_BATCH_GUIDE.md
 
 *.env
+.env.ebuntu
