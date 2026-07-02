@@ -180,60 +180,33 @@ export async function generateSrtNarration(
           .run()
       })
     } else {
-      // Multiple clips: use concat approach with silence gaps
-      const concatFilePath = path.join(tempDir, 'concat.txt')
-      let concatContent = ''
-      let currentTime = 0
+      // Multiple clips: position each at its start time with adelay, then mix
+      // them onto a single track. This avoids the `lavfi` input device
+      // (previously used via `anullsrc` to synthesize silence gaps), which is
+      // not compiled into every ffmpeg build — the source of the
+      // "Input format lavfi is not available" failure.
+      console.log('[SRT-Narration] Positioning audio clips with adelay + amix...')
+      const ffmpegMix = await getInitializedFfmpeg()
+      await new Promise<void>((resolve, reject) => {
+        const cmd = ffmpegMix()
 
-      for (let i = 0; i < audioFiles.length; i++) {
-        const audio = audioFiles[i]
-
-        // Add silence gap to reach the start time of this segment
-        if (audio.startTime > currentTime) {
-          const gapDuration = audio.startTime - currentTime
-          const gapPath = path.join(tempDir, `gap_${i}.mp3`)
-
-          const ffmpegGap = await getInitializedFfmpeg()
-          await new Promise<void>((resolve, reject) => {
-            ffmpegGap()
-              .input('anullsrc=r=44100:cl=stereo')
-              .inputFormat('lavfi')
-              .duration(gapDuration)
-              .audioCodec('libmp3lame')
-              .audioBitrate('192k')
-              .output(gapPath)
-              .on('end', () => resolve())
-              .on('error', (err: any) => reject(err))
-              .run()
-          })
-
-          concatContent += `file '${gapPath.replace(/\\/g, '/')}'\n`
+        for (const audio of audioFiles) {
+          cmd.input(audio.path)
         }
 
-        // Add the audio clip
-        concatContent += `file '${audio.path.replace(/\\/g, '/')}'\n`
-
-        // Get duration of this audio clip to track position
-        const ffmpegProbe = await getInitializedFfmpeg()
-        const duration = await new Promise<number>((resolve, reject) => {
-          ffmpegProbe.ffprobe(audio.path, (err: any, metadata: any) => {
-            if (err) reject(err)
-            else resolve(metadata.format.duration || 0)
-          })
+        const filters: string[] = []
+        const labels: string[] = []
+        audioFiles.forEach((audio, i) => {
+          const delayMs = Math.max(0, Math.round(audio.startTime * 1000))
+          // adelay pads the start with silence so the clip lands at its timestamp.
+          filters.push(`[${i}:a]adelay=${delayMs}|${delayMs}[a${i}]`)
+          labels.push(`[a${i}]`)
         })
+        // Mix all delayed clips into one track. normalize=0 keeps each clip at
+        // full volume (narration segments generally do not overlap).
+        filters.push(`${labels.join('')}amix=inputs=${audioFiles.length}:dropout_transition=0:normalize=0[aout]`)
 
-        currentTime = audio.startTime + duration
-      }
-
-      await fs.writeFile(concatFilePath, concatContent)
-
-      // Concatenate all audio files
-      console.log('[SRT-Narration] Concatenating audio clips with timing...')
-      const ffmpegConcat = await getInitializedFfmpeg()
-      await new Promise<void>((resolve, reject) => {
-        ffmpegConcat()
-          .input(concatFilePath)
-          .inputOptions(['-f', 'concat', '-safe', '0'])
+        cmd.complexFilter(filters, 'aout')
           .audioCodec('libmp3lame')
           .audioBitrate('192k')
           .output(mergedAudioPath)
