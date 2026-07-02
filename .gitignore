@@ -13,3 +13,5 @@ Dockerfile
 docker-compose.yml
 README-DOCKER.md
 AWS_BATCH_GUIDE.md
+
+*.env
