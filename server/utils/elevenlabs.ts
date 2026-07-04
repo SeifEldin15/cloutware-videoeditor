@@ -55,10 +55,18 @@ export async function generateSpeech(
     style = 0.0
   } = settings
 
+  // ElevenLabs only accepts speed in [0.7, 1.2]. Clamp here so any caller
+  // (SRT narration, cloned-voice controls, OCR narration) can pass a wider
+  // range without triggering a 400 invalid_voice_settings error.
+  const speedClamped = Math.min(1.2, Math.max(0.7, speed))
+
   console.log('[ElevenLabs] Generating speech...')
   console.log(`[ElevenLabs] Voice ID: ${voiceId}`)
   console.log(`[ElevenLabs] Text length: ${text.length} characters`)
-  console.log(`[ElevenLabs] Settings: speed=${speed}, stability=${stability}, similarity=${similarityBoost}, style=${style}`)
+  if (speedClamped !== speed) {
+    console.log(`[ElevenLabs] ⚠️ Requested speed ${speed} is outside the supported range; clamped to ${speedClamped}`)
+  }
+  console.log(`[ElevenLabs] Settings: speed=${speedClamped}, stability=${stability}, similarity=${similarityBoost}, style=${style}`)
 
   try {
     // Create audio stream from ElevenLabs
@@ -71,9 +79,9 @@ export async function generateSpeech(
         similarityBoost,
         style,
         useSpeakerBoost: true,
-        // `speed` is supported by the runtime API (0.5 - 2.0). Cast to avoid
-        // friction with older SDK type definitions.
-        speed,
+        // `speed` must be within [0.7, 1.2] per the ElevenLabs API. Cast to
+        // avoid friction with older SDK type definitions.
+        speed: speedClamped,
       } as any,
     })
 
