@@ -75,6 +75,50 @@ export function parseSrt(srtContent: string): SrtSegment[] {
   return segments.sort((a, b) => a.startTime - b.startTime)
 }
 
+/** Probe an audio file's duration (seconds) via ffprobe. */
+async function probeAudioDuration(filePath: string): Promise<number> {
+  const ffmpegProbe = await getInitializedFfmpeg()
+  return new Promise<number>((resolve, reject) => {
+    ffmpegProbe.ffprobe(filePath, (err: any, data: any) => {
+      if (err) return reject(err)
+      const duration = Number(data?.format?.duration)
+      if (!isFinite(duration) || duration <= 0) return reject(new Error('Could not determine audio duration'))
+      resolve(duration)
+    })
+  })
+}
+
+/**
+ * Time-compress an audio file in place (via ffmpeg's `atempo`) so it fits
+ * within `targetDuration` seconds. `atempo` only accepts factors in [0.5, 2.0]
+ * per instance, so factors above 2.0 are split across chained instances.
+ */
+async function compressAudioToDuration(filePath: string, currentDuration: number, targetDuration: number): Promise<void> {
+  const factor = currentDuration / targetDuration
+  const atempoFilters: string[] = []
+  let remaining = factor
+  while (remaining > 2.0) {
+    atempoFilters.push('atempo=2.0')
+    remaining /= 2.0
+  }
+  atempoFilters.push(`atempo=${remaining.toFixed(4)}`)
+
+  const tempOut = `${filePath}.compressed.mp3`
+  const ffmpegCompress = await getInitializedFfmpeg()
+  await new Promise<void>((resolve, reject) => {
+    ffmpegCompress()
+      .input(filePath)
+      .audioFilters(atempoFilters)
+      .audioCodec('libmp3lame')
+      .audioBitrate('192k')
+      .output(tempOut)
+      .on('end', () => resolve())
+      .on('error', (err: any) => reject(err))
+      .run()
+  })
+  await fs.rename(tempOut, filePath)
+}
+
 /**
  * Generate narrated video from SRT content and video URL.
  * 
@@ -149,6 +193,37 @@ export async function generateSrtNarration(
 
       const audioPath = path.join(tempDir, `segment_${i}.mp3`)
       await fs.writeFile(audioPath, Buffer.concat(chunks))
+
+      // Prevent overlapping narration: a translation can run noticeably longer
+      // than the original line (e.g. French is typically ~15-20% longer than
+      // English for the same meaning), but each clip is placed at its SRT
+      // segment's fixed startTime. If a clip is left at full length it can run
+      // past the NEXT segment's start time, and since clips are mixed together
+      // (not gated), the overrun plays simultaneously with the next line —
+      // audible as two voices talking at once. Available window = time until
+      // the next segment starts (or "no limit" for the last segment).
+      const nextSegment = segments[i + 1]
+      const availableWindow = nextSegment ? Math.max(0.1, nextSegment.startTime - segment.startTime) : Infinity
+      if (isFinite(availableWindow)) {
+        try {
+          const clipDuration = await probeAudioDuration(audioPath)
+          // Small tolerance (0.05s) to avoid compressing for negligible overruns.
+          if (clipDuration > availableWindow + 0.05) {
+            const compressionFactor = clipDuration / availableWindow
+            // atempo beyond ~2.5x starts sounding unnaturally fast/garbled — past
+            // that point the line genuinely doesn't fit its slot, so we leave it
+            // at 2.5x rather than mangle the speech further. This is a rare edge
+            // case (a very long translated line in a very tight subtitle gap).
+            const cappedFactor = Math.min(compressionFactor, 2.5)
+            const targetDuration = clipDuration / cappedFactor
+            console.log(`[SRT-Narration] Segment ${i + 1} audio (${clipDuration.toFixed(2)}s) exceeds its ${availableWindow.toFixed(2)}s window — compressing ${cappedFactor.toFixed(2)}x to avoid overlapping the next line`)
+            await compressAudioToDuration(audioPath, clipDuration, targetDuration)
+          }
+        } catch (probeError) {
+          console.warn(`[SRT-Narration] Could not probe/compress segment ${i + 1} audio, using as-is:`, probeError)
+        }
+      }
+
       audioFiles.push({ path: audioPath, startTime: segment.startTime })
     }
 
