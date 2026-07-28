@@ -224,11 +224,15 @@ export class TextReplacementProcessor {
         break
     }
 
+    // A literal single quote inside an ffmpeg single-quoted filter value
+    // (text='...') can never be escaped with a backslash — "\'" doesn't escape
+    // the quote, it just ends the quoted string early and corrupts the rest of
+    // the filter string. Use close/escape/reopen instead: ' -> '\''.
     const escapedText = text
-      .replace(/'/g, "\\'")
       .replace(/"/g, '\\"')
       .replace(/:/g, '\\:')
       .replace(/\n/g, ' ')
+      .replace(/'/g, "'\\''")
 
     // Prefer a concrete font file when available (Linux-safe).
     // Falls back to font family if no TTF path is known.

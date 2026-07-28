@@ -912,7 +912,10 @@ export class SubtitleProcessor {
     // @ts-ignore
     if (options?.addHandle) {
       // @ts-ignore
-      const handleText = options.addHandle.replace(/:/g, '\\:').replace(/'/g, "\\'")
+      // A literal single quote inside an ffmpeg single-quoted filter value
+      // (text='...') can never be escaped with a backslash — use
+      // close/escape/reopen instead: ' -> '\''.
+      const handleText = options.addHandle.replace(/:/g, '\\:').replace(/'/g, "'\\''")
       // @ts-ignore
       const hx = options.handleX !== undefined ? options.handleX : 50
       // @ts-ignore

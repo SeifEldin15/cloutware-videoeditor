@@ -362,13 +362,15 @@ function buildRoundedFilterComplex(
     const width = boundingBox.width;
     const height = boundingBox.height;
 
-    // Escape text for FFmpeg drawtext — same method as caption watermark
+    // Escape text for FFmpeg drawtext. A literal single quote inside an
+    // ffmpeg single-quoted filter value (text='...') can never be escaped
+    // with a backslash — use close/escape/reopen instead: ' -> '\''.
     const safeText = newText
       .replace(/\\/g, '\\\\')
       .replace(/:/g, '\\:')
-      .replace(/'/g, "\\'")
       .replace(/\n/g, ' ')
-      .trim();
+      .trim()
+      .replace(/'/g, "'\\''");
 
     if (!safeText || safeText.length === 0) {
       console.log(`   ⚠️ Skipping empty text after cleaning: "${newText}"`);
@@ -690,12 +692,14 @@ function buildTextOverlay(
     fontColor: string;
   },
 ): string {
-  // Escape text properly for FFmpeg drawtext filter
+  // Escape text properly for FFmpeg drawtext filter. A literal single quote
+  // inside an ffmpeg single-quoted filter value can never be escaped with a
+  // backslash — use close/escape/reopen instead: ' -> '\''.
   const escapedText = text
     .replace(/\\/g, "\\\\") // Escape backslashes first
-    .replace(/'/g, "'\\\\\\''") // Escape single quotes for shell
     .replace(/:/g, "\\:") // Escape colons
-    .replace(/\n/g, " "); // Replace newlines with spaces
+    .replace(/\n/g, " ") // Replace newlines with spaces
+    .replace(/'/g, "'\\''"); // Escape single quotes last
 
   const fontFilePath = getFontFilePath(options.fontFamily);
 
