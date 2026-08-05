@@ -293,3 +293,67 @@ export async function deleteVoice(voiceId: string): Promise<void> {
     throw new Error(`Failed to delete voice from ElevenLabs: ${error?.message || 'Unknown error'}`)
   }
 }
+
+/**
+ * Isolate speech from an audio track, stripping background music and noise
+ * while keeping the voice — ElevenLabs' Audio Isolation ("voice isolator")
+ * endpoint.
+ *
+ * This is what backs the "remove original background music" option in the
+ * schedule's Global Audio settings: the original speech is preserved so it can
+ * be kept (and volume-adjusted) while a new music bed is laid underneath.
+ *
+ * Note this is genuine source separation, not an EQ/centre-channel trick, so
+ * it costs API credits and takes time proportional to the clip length.
+ *
+ * @param audio - The source audio bytes (mp3/wav/m4a…).
+ * @returns Isolated speech audio bytes.
+ */
+export async function isolateVoice(audio: Buffer): Promise<Buffer> {
+  const elevenLabsClient = getClient()
+
+  console.log(`[ElevenLabs] Isolating speech from ${(audio.length / 1024 / 1024).toFixed(1)} MB of audio...`)
+
+  try {
+    // The SDK accepts a Blob/File-like for the `audio` field.
+    const blob = new Blob([new Uint8Array(audio)], { type: 'audio/mpeg' })
+    const result = await (elevenLabsClient as any).audioIsolation.convert({ audio: blob })
+
+    // Depending on SDK version this is a ReadableStream or an async iterable of
+    // chunks; handle both rather than assuming one shape.
+    const chunks: Buffer[] = []
+
+    if (result && typeof result.getReader === 'function') {
+      const reader = result.getReader()
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        if (value) chunks.push(Buffer.from(value))
+      }
+    }
+    else if (result && typeof result[Symbol.asyncIterator] === 'function') {
+      for await (const chunk of result as AsyncIterable<Uint8Array>) {
+        chunks.push(Buffer.from(chunk))
+      }
+    }
+    else if (result instanceof Uint8Array) {
+      chunks.push(Buffer.from(result))
+    }
+    else if (result && typeof result.arrayBuffer === 'function') {
+      chunks.push(Buffer.from(await result.arrayBuffer()))
+    }
+    else {
+      throw new Error('Unrecognised audio-isolation response shape')
+    }
+
+    const out = Buffer.concat(chunks)
+    if (!out.length) throw new Error('Audio isolation returned no data')
+
+    console.log(`[ElevenLabs] ✅ Speech isolated (${(out.length / 1024 / 1024).toFixed(1)} MB)`)
+    return out
+  }
+  catch (error: any) {
+    console.error('[ElevenLabs] ❌ Audio isolation failed:', error?.message || error)
+    throw new Error(`Audio isolation failed: ${error?.message || 'Unknown error'}`)
+  }
+}
